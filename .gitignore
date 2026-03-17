@@ -1,0 +1,33 @@
+# macOS
+.DS_Store
+
+# Node
+node_modules/
+.pnpm-store/
+.turbo/
+
+# Env files
+.env
+.env.*
+!.env.example
+
+# Build outputs
+dist/
+build/
+.next/
+coverage/
+
+# Logs
+*.log
+
+# Xcode / iOS
+DerivedData/
+*.xcuserstate
+*.xcworkspace/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+
+# Swift Package Manager
+.build/
+
+# Backup nested repos
+**/.git_backup

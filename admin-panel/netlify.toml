@@ -1,0 +1,12 @@
+# Netlify config for the WEB site (Next.js app + API).
+# When deploying the Admin site, override Build command and Publish directory in the Netlify UI (see DEPLOYMENT.md).
+
+[build]
+  command = "pnpm install && pnpm run build --filter=web"
+  publish = "apps/web/.next"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"

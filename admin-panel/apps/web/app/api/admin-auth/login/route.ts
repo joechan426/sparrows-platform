@@ -1,0 +1,52 @@
+import { NextResponse, type NextRequest } from "next/server";
+import { prisma } from "../../../../lib/prisma";
+import bcrypt from "bcryptjs";
+import { signToken } from "../../../../lib/admin-auth";
+
+const SHORT_EXPIRY = "7d";
+const LONG_EXPIRY = "30d";
+
+// POST /api/admin-auth/login — userName + password, optional rememberMe; returns token and admin profile
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json().catch(() => ({}));
+    const userName = typeof body.userName === "string" ? body.userName.trim() : "";
+    const password = typeof body.password === "string" ? body.password : "";
+    const rememberMe = body.rememberMe === true;
+
+    if (!userName || !password) {
+      return NextResponse.json({ message: "User name and password are required" }, { status: 400 });
+    }
+
+    const admin = await prisma.adminUser.findUnique({
+      where: { userName },
+      include: { permissions: { select: { module: true } } },
+    });
+
+    if (!admin || !admin.isActive) {
+      return NextResponse.json({ message: "Invalid user name or password" }, { status: 401 });
+    }
+
+    const ok = await bcrypt.compare(password, admin.passwordHash);
+    if (!ok) {
+      return NextResponse.json({ message: "Invalid user name or password" }, { status: 401 });
+    }
+
+    const permissions =
+      admin.role === "ADMIN"
+        ? (["TOURNAMENTS", "TEAMS", "CALENDAR_EVENTS", "MEMBERS"] as const)
+        : admin.permissions.map((p) => p.module);
+    const payload = { id: admin.id, userName: admin.userName, role: admin.role, permissions };
+    const token = signToken(payload, rememberMe ? LONG_EXPIRY : SHORT_EXPIRY);
+
+    return NextResponse.json({
+      token,
+      admin: { id: admin.id, userName: admin.userName, role: admin.role, permissions },
+    });
+  } catch (e: unknown) {
+    return NextResponse.json(
+      { message: "Login failed", error: e instanceof Error ? e.message : String(e) },
+      { status: 500 }
+    );
+  }
+}

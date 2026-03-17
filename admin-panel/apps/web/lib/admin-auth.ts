@@ -1,0 +1,90 @@
+/**
+ * Admin panel authentication and authorization.
+ * Use requireAdminAuth() in API routes to protect them.
+ */
+
+import { type NextRequest, NextResponse } from "next/server";
+import jwt from "jsonwebtoken";
+import { prisma } from "./prisma";
+import type { AdminModule, AdminRole } from "@prisma/client";
+
+const JWT_SECRET = process.env.ADMIN_JWT_SECRET ?? process.env.JWT_SECRET ?? "change-me-in-production";
+const JWT_EXPIRY = "7d";
+
+export type AdminPayload = {
+  id: string;
+  userName: string;
+  role: AdminRole;
+  permissions: AdminModule[];
+};
+
+export type AuthResult = { ok: true; admin: AdminPayload } | { ok: false; response: NextResponse };
+
+function getBearerToken(req: NextRequest): string | null {
+  const auth = req.headers.get("authorization");
+  if (!auth?.startsWith("Bearer ")) return null;
+  return auth.slice(7).trim() || null;
+}
+
+export function verifyToken(token: string): AdminPayload | null {
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as { id: string; userName: string; role: AdminRole; permissions?: AdminModule[] };
+    if (!decoded?.id || !decoded?.userName || !decoded?.role) return null;
+    const permissions = Array.isArray(decoded.permissions) ? decoded.permissions : [];
+    return { id: decoded.id, userName: decoded.userName, role: decoded.role, permissions };
+  } catch {
+    return null;
+  }
+}
+
+export function signToken(payload: AdminPayload, expiresIn: string = JWT_EXPIRY): string {
+  return jwt.sign(
+    { id: payload.id, userName: payload.userName, role: payload.role, permissions: payload.permissions },
+    JWT_SECRET,
+    { expiresIn }
+  );
+}
+
+/** Returns 401 JSON response for unauthorized */
+function unauthorized(message = "Unauthorized") {
+  return NextResponse.json({ message }, { status: 401 });
+}
+
+/** Returns 403 JSON response for forbidden (no permission) */
+function forbidden(message = "Forbidden") {
+  return NextResponse.json({ message }, { status: 403 });
+}
+
+/**
+ * Require admin authentication. Optionally require a specific module permission.
+ * - If module is "any": any authenticated admin (used for /me).
+ * - If module is null (e.g. for admin-users): only ADMIN is allowed.
+ * - If module is a module name: ADMIN has access; MANAGER needs that module in permissions.
+ */
+export async function requireAdminAuth(
+  req: NextRequest,
+  module: AdminModule | null | "any"
+): Promise<AuthResult> {
+  const token = getBearerToken(req);
+  if (!token) return { ok: false, response: unauthorized("Missing or invalid authorization") };
+
+  const payload = verifyToken(token);
+  if (!payload) return { ok: false, response: unauthorized("Invalid or expired token") };
+
+  const admin = await prisma.adminUser.findUnique({
+    where: { id: payload.id },
+    include: { permissions: { select: { module: true } } },
+  });
+  if (!admin || !admin.isActive) return { ok: false, response: unauthorized("Account inactive or not found") };
+
+  const permissions: AdminModule[] = admin.role === "ADMIN" ? ["TOURNAMENTS", "TEAMS", "CALENDAR_EVENTS", "MEMBERS"] : admin.permissions.map((p) => p.module);
+  const adminPayload: AdminPayload = { id: admin.id, userName: admin.userName, role: admin.role, permissions };
+
+  if (module === "any") return { ok: true, admin: adminPayload };
+  if (module === null) {
+    if (admin.role !== "ADMIN") return { ok: false, response: forbidden("Admin only") };
+    return { ok: true, admin: adminPayload };
+  }
+  if (!permissions.includes(module)) return { ok: false, response: forbidden("No access to this section") };
+  return { ok: true, admin: adminPayload };
+}
