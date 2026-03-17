@@ -31,3 +31,9 @@ DerivedData/
 
 # Backup nested repos
 **/.git_backup
+
+# Backup nested git folders
+**/.git_backup
+**/.git_backup/
+**/.git_backuop
+**/.git_backuop/
