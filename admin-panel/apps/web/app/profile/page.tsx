@@ -4,8 +4,9 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
-import { apiChangePassword, apiMemberRegistrations } from "@/lib/api";
+import { apiChangePassword } from "@/lib/api";
 import type { MemberRegistration } from "@/lib/api";
+import { useNavRefresh } from "@/lib/nav-refresh-context";
 
 function formatDate(d: string): string {
   return new Date(d).toLocaleDateString(undefined, { dateStyle: "medium" });
@@ -28,6 +29,7 @@ function statusText(s: string): string {
 export default function ProfilePage() {
   const router = useRouter();
   const { member, loading: authLoading, setMember } = useAuth();
+  const { registrations, ensureRegistrationsLoaded } = useNavRefresh();
   const [showPassword, setShowPassword] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -35,7 +37,6 @@ export default function ProfilePage() {
   const [passwordError, setPasswordError] = useState("");
   const [passwordSuccess, setPasswordSuccess] = useState(false);
   const [passwordSaving, setPasswordSaving] = useState(false);
-  const [registrations, setRegistrations] = useState<MemberRegistration[]>([]);
   const [regLoaded, setRegLoaded] = useState(false);
   const [openAccount, setOpenAccount] = useState(true);
   const [openScheduled, setOpenScheduled] = useState(true);
@@ -43,11 +44,11 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (!member?.id) return;
-    apiMemberRegistrations(member.id).then(setRegistrations).finally(() => setRegLoaded(true));
+    ensureRegistrationsLoaded(member.id).finally(() => setRegLoaded(true));
   }, [member?.id]);
 
   const now = new Date();
-  const upcoming = registrations
+  const upcoming = (registrations ?? [])
     .filter((r) => r.event && new Date(r.event.endAt) >= now)
     .sort((a, b) => (a.event?.startAt ? new Date(a.event.startAt).getTime() : 0) - (b.event?.startAt ? new Date(b.event.startAt).getTime() : 0));
 

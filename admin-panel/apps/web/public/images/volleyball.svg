@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="76" height="76" viewBox="0 0 76 76" role="img" aria-label="Volleyball contact">
+  <circle cx="38" cy="38" r="34" fill="#064e3b"/>
+  <circle cx="38" cy="38" r="22" fill="none" stroke="#fff" stroke-width="4" opacity="0.9"/>
+  <path d="M14 36c12-10 36-10 48 0" fill="none" stroke="#fff" stroke-width="4" opacity="0.9"/>
+  <path d="M18 52c14-8 26-8 40 0" fill="none" stroke="#fff" stroke-width="4" opacity="0.9"/>
+</svg>

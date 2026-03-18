@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96" role="img" aria-label="Tennis outline">
+  <circle cx="48" cy="48" r="34" fill="none" stroke="#0ea5e9" stroke-width="6"/>
+  <path d="M28 34c10 2 16 10 16 18s-6 16-16 18" fill="none" stroke="#0ea5e9" stroke-width="6" stroke-linecap="round"/>
+  <path d="M68 34c-10 2-16 10-16 18s6 16 16 18" fill="none" stroke="#0ea5e9" stroke-width="6" stroke-linecap="round"/>
+</svg>

@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
-import { apiCalendarEvents, apiMemberRegistrations } from "@/lib/api";
 import type { CalendarEvent, MemberRegistration } from "@/lib/api";
 import { EventDetail } from "@/components/event-detail";
+import { useNavRefresh } from "@/lib/nav-refresh-context";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 type SportFilter = "volleyball" | "pickleball" | "tennis";
@@ -108,9 +108,13 @@ function daysInMonthGrid(month: Date): DayCell[] {
 
 export default function CalendarPage() {
   const { member } = useAuth();
-  const [events, setEvents] = useState<CalendarEvent[]>([]);
-  const [registrations, setRegistrations] = useState<MemberRegistration[]>([]);
-  const [loading, setLoading] = useState(true);
+  const {
+    calendarEvents,
+    ensureCalendarLoaded,
+    registrations,
+    ensureRegistrationsLoaded,
+  } = useNavRefresh();
+  const [loading, setLoading] = useState(() => !calendarEvents);
   const [error, setError] = useState("");
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const [sportFilter, setSportFilter] = useState<SportFilter>("volleyball");
@@ -118,61 +122,38 @@ export default function CalendarPage() {
   const [selectedDate, setSelectedDate] = useState(() => startOfDay(new Date()));
 
   useEffect(() => {
-    Promise.all([
-      apiCalendarEvents(),
-      fetch("/api/google-calendar-ics").then((r) => r.json()).catch(() => []),
-    ])
-      .then(([apiList, icsList]: [CalendarEvent[], CalendarEvent[]]) => {
-        const apiByKey = new Map<string, CalendarEvent>();
-        for (const e of apiList) {
-          const start = startOfDay(new Date(e.startAt));
-          apiByKey.set(eventKey(e.title, start), e);
-        }
-        const merged: CalendarEvent[] = [];
-        const matchedKeys = new Set<string>();
-        for (const ics of icsList) {
-          const start = startOfDay(new Date(ics.startAt));
-          const key = eventKey(ics.title, start);
-          const api = apiByKey.get(key);
-          if (api) {
-            matchedKeys.add(key);
-            merged.push(api);
-          } else {
-            merged.push(ics);
-          }
-        }
-        for (const api of apiList) {
-          const start = startOfDay(new Date(api.startAt));
-          const key = eventKey(api.title, start);
-          if (!matchedKeys.has(key)) merged.push(api);
-        }
-        merged.sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime());
-        setEvents(merged);
-      })
+    if (calendarEvents) {
+      setLoading(false);
+      return;
+    }
+    ensureCalendarLoaded()
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load events"))
       .finally(() => setLoading(false));
   }, []);
 
   useEffect(() => {
     if (!member?.id) return;
-    apiMemberRegistrations(member.id).then(setRegistrations);
+    ensureRegistrationsLoaded(member.id).catch(() => {});
   }, [member?.id]);
 
+  const registrationsSafe = registrations ?? [];
+
   const eventsWithDates = useMemo(() => {
+    const events = calendarEvents ?? [];
     return events.map((e) => ({
       ...e,
       startDate: startOfDay(new Date(e.startAt)),
       endDate: new Date(e.endAt),
     }));
-  }, [events]);
+  }, [calendarEvents]);
 
   const now = useMemo(() => new Date(), []);
   const upcomingEvents = useMemo(
     () =>
-      events
+      (calendarEvents ?? [])
         .filter((e) => new Date(e.endAt) >= now)
         .sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime()),
-    [events]
+    [calendarEvents]
   );
   const upcomingCup = useMemo(() => upcomingEvents.filter((e) => isSpecial(e)), [upcomingEvents]);
 
@@ -249,7 +230,7 @@ export default function CalendarPage() {
             onClick={() => setSportFilter(f)}
           >
             <img
-              src={f === "volleyball" ? "/images/volleyball_outline.png" : f === "pickleball" ? "/images/pickleball_outline.png" : "/images/tennis_outline.png"}
+              src={f === "volleyball" ? "/images/volleyball_outline.svg" : f === "pickleball" ? "/images/pickleball_outline.svg" : "/images/tennis_outline.svg"}
               alt=""
               className="sport-filter-icon"
             />
@@ -325,7 +306,7 @@ export default function CalendarPage() {
             <p className="calendar-empty">No matching events on {selectedDateTitle}.</p>
           ) : (
             filteredEventsForSelectedDate.map((event) => {
-              const myReg = registrations.find((r) => r.event?.id === event.id);
+              const myReg = registrationsSafe.find((r) => r.event?.id === event.id);
               return (
                 <div key={event.id} className="card-event calendar-event-row">
                   <div className="calendar-event-info">
@@ -366,7 +347,7 @@ export default function CalendarPage() {
         ) : (
           <ul className="what-next-list">
             {upcomingCup.map((event) => {
-              const myReg = registrations.find((r) => r.event?.id === event.id);
+              const myReg = registrationsSafe.find((r) => r.event?.id === event.id);
               return (
                 <li key={event.id} className="what-next-item">
                   <div className="what-next-item-info">
