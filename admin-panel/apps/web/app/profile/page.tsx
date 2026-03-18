@@ -29,7 +29,7 @@ function statusText(s: string): string {
 export default function ProfilePage() {
   const router = useRouter();
   const { member, loading: authLoading, setMember } = useAuth();
-  const { registrations, ensureRegistrationsLoaded } = useNavRefresh();
+  const { registrations, registrationsUpdatedAt, ensureRegistrationsLoaded } = useNavRefresh();
   const [showPassword, setShowPassword] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -37,13 +37,15 @@ export default function ProfilePage() {
   const [passwordError, setPasswordError] = useState("");
   const [passwordSuccess, setPasswordSuccess] = useState(false);
   const [passwordSaving, setPasswordSaving] = useState(false);
-  const [regLoaded, setRegLoaded] = useState(false);
+  const [regLoaded, setRegLoaded] = useState(() => Boolean(registrationsUpdatedAt));
   const [openAccount, setOpenAccount] = useState(true);
   const [openScheduled, setOpenScheduled] = useState(true);
 
 
   useEffect(() => {
     if (!member?.id) return;
+    // If we already have cached registrations, don't show a loading state.
+    if (registrationsUpdatedAt) setRegLoaded(true);
     ensureRegistrationsLoaded(member.id).finally(() => setRegLoaded(true));
   }, [member?.id]);
 

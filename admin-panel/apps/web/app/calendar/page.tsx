@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import type { CalendarEvent, MemberRegistration } from "@/lib/api";
 import { EventDetail } from "@/components/event-detail";
@@ -107,6 +108,7 @@ function daysInMonthGrid(month: Date): DayCell[] {
 }
 
 export default function CalendarPage() {
+  const router = useRouter();
   const { member } = useAuth();
   const {
     calendarEvents,
@@ -130,6 +132,12 @@ export default function CalendarPage() {
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load events"))
       .finally(() => setLoading(false));
   }, []);
+
+  // When the user first lands on Calendar (home), prefetch the other heavy pages.
+  useEffect(() => {
+    router.prefetch("/profile");
+    router.prefetch("/ongoing");
+  }, [router]);
 
   useEffect(() => {
     if (!member?.id) return;
