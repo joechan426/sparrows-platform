@@ -8,29 +8,40 @@ const globalForPrisma = globalThis as unknown as {
   pool?: Pool;
 };
 
-const connectionString = process.env.DATABASE_URL;
+let prismaSingleton: PrismaClient | undefined;
 
-if (!connectionString) {
-  throw new Error("DATABASE_URL is not set. Please configure it in your .env file.");
+export function getPrisma(): PrismaClient {
+  if (prismaSingleton) return prismaSingleton;
+
+  const connectionString = process.env.DATABASE_URL;
+  if (!connectionString) {
+    throw new Error("DATABASE_URL is not set. Please configure it in your .env file.");
+  }
+
+  const pool =
+    globalForPrisma.pool ??
+    new Pool({
+      connectionString,
+    });
+
+  const adapter = new PrismaPg(pool);
+
+  const client =
+    globalForPrisma.prisma ??
+    new PrismaClient({
+      adapter,
+      log: ["error", "warn"],
+    });
+
+  prismaSingleton = client;
+
+  if (process.env.NODE_ENV !== "production") {
+    globalForPrisma.prisma = client;
+    globalForPrisma.pool = pool;
+  }
+
+  return client;
 }
 
-const pool =
-  globalForPrisma.pool ??
-  new Pool({
-    connectionString,
-  });
-
-const adapter = new PrismaPg(pool);
-
-export const prisma =
-  globalForPrisma.prisma ??
-  new PrismaClient({
-    adapter,
-    log: ["error", "warn"],
-  });
-
-if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.prisma = prisma;
-  globalForPrisma.pool = pool;
-}
+export const prisma = getPrisma();
 
