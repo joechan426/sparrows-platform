@@ -5,7 +5,7 @@ import type { NextRequest } from "next/server";
  * Respond to CORS preflight (OPTIONS) for /api when ADMIN_ORIGIN is set
  * so the admin panel on a different origin can call the API.
  */
-export function middleware(request: NextRequest) {
+function middleware(request: NextRequest) {
   const adminOrigin = process.env.ADMIN_ORIGIN;
   if (!adminOrigin || request.method !== "OPTIONS") {
     return NextResponse.next();
@@ -25,3 +25,7 @@ export function middleware(request: NextRequest) {
 export const config = {
   matcher: "/api/:path*",
 };
+
+// Next.js uses named export; Netlify edge bundler expects .default
+export { middleware };
+export default middleware;
