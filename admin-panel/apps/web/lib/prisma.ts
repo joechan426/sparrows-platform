@@ -43,5 +43,15 @@ export function getPrisma(): PrismaClient {
   return client;
 }
 
-export const prisma = getPrisma();
+/**
+ * Lazy proxy: getPrisma() is only called on first property access.
+ * This avoids running DB init (and DATABASE_URL check) when the module is
+ * merely loaded during Next.js build (e.g. "Collecting page data") where
+ * env may be unavailable. Fails only at request time when DB is actually used.
+ */
+export const prisma = new Proxy({} as PrismaClient, {
+  get(_target, prop: string) {
+    return (getPrisma() as unknown as Record<string, unknown>)[prop];
+  },
+});
 
