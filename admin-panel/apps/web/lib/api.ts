@@ -135,7 +135,7 @@ export async function apiRegisterForEvent(
   email: string,
   teamName?: string | null
 ): Promise<void> {
-  const body: Record<string, string> = {
+  const body: Record<string, string | undefined> = {
     preferredName: preferredName.trim(),
     email: email.trim() || undefined,
   };

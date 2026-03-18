@@ -97,7 +97,9 @@ export async function POST(
     }
 
     for (const m of matches) {
-      if (!table[m.teamARegistrationId] || !table[m.teamBRegistrationId]) continue;
+      const teamARow = table[m.teamARegistrationId];
+      const teamBRow = table[m.teamBRegistrationId];
+      if (!teamARow || !teamBRow) continue;
       let aSets = 0;
       let bSets = 0;
       let aPoints = 0;
@@ -111,26 +113,26 @@ export async function POST(
         else if (winner === "B") bSets++;
       }
 
-      table[m.teamARegistrationId].setsWon += aSets;
-      table[m.teamARegistrationId].setsLost += bSets;
-      table[m.teamARegistrationId].pointsWon += aPoints;
-      table[m.teamARegistrationId].pointsLost += bPoints;
+      teamARow.setsWon += aSets;
+      teamARow.setsLost += bSets;
+      teamARow.pointsWon += aPoints;
+      teamARow.pointsLost += bPoints;
 
-      table[m.teamBRegistrationId].setsWon += bSets;
-      table[m.teamBRegistrationId].setsLost += aSets;
-      table[m.teamBRegistrationId].pointsWon += bPoints;
-      table[m.teamBRegistrationId].pointsLost += aPoints;
+      teamBRow.setsWon += bSets;
+      teamBRow.setsLost += aSets;
+      teamBRow.pointsWon += bPoints;
+      teamBRow.pointsLost += aPoints;
 
       if (aSets === 0 && bSets === 0) continue;
       if (aSets > bSets) {
-        table[m.teamARegistrationId].wins++;
-        table[m.teamBRegistrationId].losses++;
+        teamARow.wins++;
+        teamBRow.losses++;
       } else if (bSets > aSets) {
-        table[m.teamBRegistrationId].wins++;
-        table[m.teamARegistrationId].losses++;
+        teamBRow.wins++;
+        teamARow.losses++;
       } else {
-        table[m.teamARegistrationId].draws++;
-        table[m.teamBRegistrationId].draws++;
+        teamARow.draws++;
+        teamBRow.draws++;
       }
     }
 

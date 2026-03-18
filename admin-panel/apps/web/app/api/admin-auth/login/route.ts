@@ -2,6 +2,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "../../../../lib/prisma";
 import bcrypt from "bcryptjs";
 import { signToken } from "../../../../lib/admin-auth";
+import type { AdminPayload } from "../../../../lib/admin-auth";
+import { AdminModule } from "@prisma/client/edge";
 
 const SHORT_EXPIRY = "7d";
 const LONG_EXPIRY = "30d";
@@ -34,9 +36,16 @@ export async function POST(req: NextRequest) {
 
     const permissions =
       admin.role === "ADMIN"
-        ? (["TOURNAMENTS", "TEAMS", "CALENDAR_EVENTS", "MEMBERS"] as const)
-        : admin.permissions.map((p) => p.module);
-    const payload = { id: admin.id, userName: admin.userName, role: admin.role, permissions };
+        ? (["TOURNAMENTS", "TEAMS", "CALENDAR_EVENTS", "MEMBERS"] as AdminModule[])
+        : (admin.permissions.map((p) => p.module) as AdminModule[]);
+
+    const payload: AdminPayload = {
+      id: admin.id,
+      userName: admin.userName,
+      role: admin.role,
+      permissions,
+    };
+
     const token = signToken(payload, rememberMe ? LONG_EXPIRY : SHORT_EXPIRY);
 
     return NextResponse.json({

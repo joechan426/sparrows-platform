@@ -62,8 +62,9 @@ function parseIcalToEvents(icsText: string): ParsedIcalEvent[] {
       const keyUpper = key.toUpperCase();
       const regex = new RegExp("^" + keyUpper + "(?:;[^:]*)?:(.*)$", "im");
       const lineMatch = block.match(regex);
-      if (!lineMatch) return null;
-      return lineMatch[1].replace(/\\n/g, "\n").trim() || null;
+      const value = lineMatch?.[1];
+      if (!value) return null;
+      return value.replace(/\\n/g, "\n").trim() || null;
     };
     const uid = get("UID");
     const summary = get("SUMMARY") ?? "";

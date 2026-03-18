@@ -113,7 +113,7 @@ export async function POST(req: NextRequest) {
     const created = await prisma.member.create({
       data: {
         email,
-        preferredName: preferredName.trim() || "Member",
+        preferredName: (typeof preferredName === "string" ? preferredName.trim() : "") || "Member",
         appleId,
       },
     });

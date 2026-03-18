@@ -77,8 +77,12 @@ export async function POST(req: NextRequest) {
 
     const pairs: { aId: string; bId: string }[] = [];
     for (let i = 0; i < registrations.length; i++) {
+      const regA = registrations[i];
+      if (!regA) continue;
       for (let j = i + 1; j < registrations.length; j++) {
-        pairs.push({ aId: registrations[i].id, bId: registrations[j].id });
+        const regB = registrations[j];
+        if (!regB) continue;
+        pairs.push({ aId: regA.id, bId: regB.id });
       }
     }
 

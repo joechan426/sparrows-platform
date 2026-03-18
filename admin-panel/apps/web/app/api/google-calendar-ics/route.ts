@@ -32,22 +32,34 @@ function unfoldLines(text: string): string[] {
 function parseICSDate(key: string, value: string): Date | null {
   if (key.includes("VALUE=DATE")) {
     const m = value.match(/^(\d{4})(\d{2})(\d{2})/);
-    if (m) return new Date(Date.UTC(parseInt(m[1], 10), parseInt(m[2], 10) - 1, parseInt(m[3], 10)));
+    const year = m?.[1];
+    const month = m?.[2];
+    const day = m?.[3];
+    if (year && month && day) {
+      return new Date(Date.UTC(parseInt(year, 10), parseInt(month, 10) - 1, parseInt(day, 10)));
+    }
     return null;
   }
   if (value.endsWith("Z")) {
     const m = value.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})/);
-    if (m)
+    const year = m?.[1];
+    const month = m?.[2];
+    const day = m?.[3];
+    const hour = m?.[4];
+    const minute = m?.[5];
+    const second = m?.[6];
+    if (year && month && day && hour && minute && second) {
       return new Date(
         Date.UTC(
-          parseInt(m[1], 10),
-          parseInt(m[2], 10) - 1,
-          parseInt(m[3], 10),
-          parseInt(m[4], 10),
-          parseInt(m[5], 10),
-          parseInt(m[6], 10)
+          parseInt(year, 10),
+          parseInt(month, 10) - 1,
+          parseInt(day, 10),
+          parseInt(hour, 10),
+          parseInt(minute, 10),
+          parseInt(second, 10)
         )
       );
+    }
     return null;
   }
   const date = new Date(value.replace(/(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})/, "$1-$2-$3T$4:$5:$6"));
@@ -84,9 +96,11 @@ export async function GET() {
         const summary = current["SUMMARY"];
         const startRaw = Object.keys(current).find((k) => k.startsWith("DTSTART"));
         const endRaw = Object.keys(current).find((k) => k.startsWith("DTEND"));
-        if (summary && startRaw && endRaw) {
-          const start = parseICSDate(startRaw, current[startRaw]);
-          const end = parseICSDate(endRaw, current[endRaw]);
+        const startValue = startRaw ? current[startRaw] : undefined;
+        const endValue = endRaw ? current[endRaw] : undefined;
+        if (summary && startRaw && endRaw && startValue && endValue) {
+          const start = parseICSDate(startRaw, startValue);
+          const end = parseICSDate(endRaw, endValue);
           if (start && end) {
             events.push({
               id: `ics-${summary}-${start.getTime()}`,
