@@ -938,6 +938,7 @@
 
     let currentTournament = "";
     const LAST_TOURNAMENT_SESSION_KEY = "sparrows:last-tournament";
+    const TOURNAMENT_META_CACHE_KEY = "sparrows:tournament-meta:v1";
     const tournamentMetaCache = {};
     const SCHEDULE_CACHE_TTL_MS = 30 * 1000;
     const LIVE_RESULTS_CACHE_TTL_MS = 15 * 1000;
@@ -1160,7 +1161,40 @@
       })?.[1] || null;
     }
 
+    function readTournamentMetaCache() {
+      if (typeof localStorage === "undefined") return {};
+      try {
+        const raw = localStorage.getItem(TOURNAMENT_META_CACHE_KEY);
+        if (!raw) return {};
+        const parsed = JSON.parse(raw);
+        return parsed && typeof parsed === "object" ? parsed : {};
+      } catch (err) {
+        console.warn("Failed to read tournament meta cache", err);
+        return {};
+      }
+    }
+
+    function writeTournamentMetaCache() {
+      if (typeof localStorage === "undefined") return;
+      try {
+        localStorage.setItem(TOURNAMENT_META_CACHE_KEY, JSON.stringify(tournamentMetaCache));
+      } catch (err) {
+        console.warn("Failed to write tournament meta cache", err);
+      }
+    }
+
+    function setTournamentMeta(name, meta) {
+      if (!name) return;
+      const prev = tournamentMetaCache[name] || {};
+      tournamentMetaCache[name] = {
+        subtitle: typeof meta.subtitle === "string" ? meta.subtitle : (prev.subtitle || ""),
+        drawLink: typeof meta.drawLink === "string" ? meta.drawLink : (prev.drawLink || "")
+      };
+      writeTournamentMetaCache();
+    }
+
     function getTournamentDrawLink(name) {
+      if (!name) return "";
       return tournamentMetaCache[name]?.drawLink || "";
     }
 
@@ -1199,12 +1233,12 @@
     }
 
     async function fetchTournamentMeta(name) {
-      if (tournamentMetaCache[name]) return tournamentMetaCache[name];
+      if (tournamentMetaCache[name] && tournamentMetaCache[name].drawLink) return tournamentMetaCache[name];
       const res = await fetch(`${apiUrl}?tournament=${encodeURIComponent(name)}`, { cache: "no-store" });
       const json = await res.json();
       const subtitle = (json.webSubtitleLine1 || "").trim();
       const drawLink = typeof json.drawLink === "string" ? json.drawLink.trim() : "";
-      tournamentMetaCache[name] = { subtitle, drawLink };
+      setTournamentMeta(name, { subtitle, drawLink });
       return tournamentMetaCache[name];
     }
 
@@ -1257,7 +1291,7 @@
           const subtitleEl = card.querySelector(".tournament-card-subtitle");
           if (subtitle) {
             subtitleEl.textContent = subtitle;
-            tournamentMetaCache[name] = { subtitle, drawLink };
+            setTournamentMeta(name, { subtitle, drawLink });
           } else {
             subtitleEl.textContent = " ";
             fetchTournamentMeta(name).then(meta => {
@@ -1730,6 +1764,14 @@
       if (!json || typeof json !== "object") return;
       scheduleData = {};
       teamNameMap = {};
+
+      if (currentTournament) {
+        setTournamentMeta(currentTournament, {
+          subtitle: (json.webSubtitleLine1 || "").trim(),
+          drawLink: typeof json.drawLink === "string" ? json.drawLink.trim() : ""
+        });
+        updateSpecialTournamentButtons(currentTournament);
+      }
 
       const headerEl = document.querySelector('#appPage .header-text h1');
       if (json.webHeader && headerEl) {
@@ -2868,6 +2910,7 @@
     document.getElementById("dateFilter").addEventListener("change", filterResults);
     document.getElementById("combineViewBtn").addEventListener("click", openCombineDivisionsPopup);
     window.addEventListener("DOMContentLoaded", async () => {
+      Object.assign(tournamentMetaCache, readTournamentMetaCache());
       bindBackButton();
       bindSpecialTournamentButtons();
       const urlParams = new URLSearchParams(window.location.search);
