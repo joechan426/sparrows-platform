@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { useNavRefresh } from "@/lib/nav-refresh-context";
+import { useEffect } from "react";
 
 const NAV_ITEMS: { href: string; label: string; internal?: boolean }[] = [
   { href: "https://sparrowsvolleyball.com.au/shop", label: "Shop", internal: false },
@@ -27,8 +28,16 @@ const LEFT_LOGOES = [
 
 export function Nav() {
   const pathname = usePathname();
+  const router = useRouter();
   const { member } = useAuth();
   const { refreshCalendarInBackground, refreshRegistrationsInBackground } = useNavRefresh();
+
+  useEffect(() => {
+    // Prefetch heavy client routes so switching feels instant.
+    router.prefetch("/calendar");
+    router.prefetch("/profile");
+    router.prefetch("/ongoing");
+  }, [router]);
 
   const linkClass = (path: string, internal?: boolean) => {
     if (!internal) return "nav-item";
@@ -59,6 +68,7 @@ export function Nav() {
             href={href}
             className={linkClass(href, true)}
             onClick={() => {
+              router.prefetch(href);
               // Background refresh only when user clicks nav items.
               if (href === "/calendar" || href === "/") {
                 refreshCalendarInBackground();

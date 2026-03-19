@@ -116,7 +116,6 @@ export default function CalendarPage() {
     registrations,
     ensureRegistrationsLoaded,
   } = useNavRefresh();
-  const [loading, setLoading] = useState(() => !calendarEvents);
   const [error, setError] = useState("");
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const [sportFilter, setSportFilter] = useState<SportFilter>("volleyball");
@@ -124,13 +123,8 @@ export default function CalendarPage() {
   const [selectedDate, setSelectedDate] = useState(() => startOfDay(new Date()));
 
   useEffect(() => {
-    if (calendarEvents) {
-      setLoading(false);
-      return;
-    }
-    ensureCalendarLoaded()
-      .catch((err) => setError(err instanceof Error ? err.message : "Failed to load events"))
-      .finally(() => setLoading(false));
+    if (calendarEvents) return;
+    ensureCalendarLoaded().catch((err) => setError(err instanceof Error ? err.message : "Failed to load events"));
   }, []);
 
   // When the user first lands on Calendar (home), prefetch the other heavy pages.
