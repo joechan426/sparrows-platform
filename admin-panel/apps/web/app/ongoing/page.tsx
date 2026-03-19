@@ -1,6 +1,8 @@
+import fs from "node:fs";
+import { fileURLToPath } from "node:url";
+
 export const dynamic = "force-dynamic";
-const GITHUB_ONGOING_HTML_URL =
-  "https://raw.githubusercontent.com/joechan426/sparrows-platform/main/admin-panel/apps/web/ongoing_tournament.html";
+const LOCAL_ONGOING_HTML_PATH = "../../ongoing_tournament.html";
 
 function stripLogosFromHtml(html: string): string {
   // Remove any <img ...> tags that reference "logo" in any attribute.
@@ -17,11 +19,11 @@ function extractHeadStylesAndBody(html: string): { headStyles: string; bodyHtml:
   return { headStyles: styleBlocks, bodyHtml };
 }
 
-export default async function OngoingPage() {
+export default function OngoingPage() {
   let rawHtml: string | null = null;
   try {
-    const res = await fetch(GITHUB_ONGOING_HTML_URL, { cache: "no-store" });
-    if (res.ok) rawHtml = await res.text();
+    const fileUrl = new URL(LOCAL_ONGOING_HTML_PATH, import.meta.url);
+    rawHtml = fs.readFileSync(fileURLToPath(fileUrl), "utf-8");
   } catch {
     rawHtml = null;
   }
