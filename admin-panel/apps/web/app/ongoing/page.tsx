@@ -29,6 +29,8 @@ const HARDCODED_ONGOING_HTML = `<!doctype html>
   <script>
     (async function () {
       var list = document.getElementById("list");
+      var ENDPOINT = "https://script.google.com/macros/s/AKfycbwnepQmr17n-HfyRJozYlrFiCLbytZ7iDYszrCDANdenKKRbKvKdrHUTApe1ZbO4A/exec";
+      var TOURNAMENT = "Sparrows Cup";
       function logoByTitle(title) {
         return /pickleball/i.test(title || "") ? "/images/pickleball.png" : "/images/volleyball.png";
       }
@@ -56,11 +58,35 @@ const HARDCODED_ONGOING_HTML = `<!doctype html>
       }
 
       try {
-        var res = await fetch("/api/tournaments");
+        var url = ENDPOINT + "?tournament=" + encodeURIComponent(TOURNAMENT);
+        var res = await fetch(url);
         var data = await res.json();
-        render(Array.isArray(data) ? data : []);
+        if (Array.isArray(data)) {
+          render(data);
+          return;
+        }
+        if (data && data.ok === true) {
+          if (Array.isArray(data.items)) {
+            render(data.items);
+            return;
+          }
+          if (data.tournament) {
+            render([data.tournament]);
+            return;
+          }
+        }
+        if (data && data.ok === false) {
+          list.innerHTML =
+            '<div class="empty">API error: ' +
+            String(data.error || "Invalid response") +
+            '<br/>Current tournament param: <b>' +
+            TOURNAMENT +
+            "</b></div>";
+          return;
+        }
+        render([]);
       } catch (e) {
-        list.innerHTML = '<div class="empty">Failed to load tournaments.</div>';
+        list.innerHTML = '<div class="empty">Failed to load tournaments from Google Script endpoint.</div>';
       }
     })();
   </script>
