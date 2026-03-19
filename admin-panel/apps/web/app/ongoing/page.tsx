@@ -20,10 +20,23 @@ function stripLogosFromHtml(html: string): string {
   return withoutLogoImgs;
 }
 
+function extractHeadStylesAndBody(html: string): { headStyles: string; bodyHtml: string } {
+  const cleaned = stripLogosFromHtml(html);
+  const styleBlocks = [...cleaned.matchAll(/<style[\s\S]*?<\/style>/gi)].map((m) => m[0]).join("\n");
+  const bodyMatch = cleaned.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+  const bodyHtml = bodyMatch?.[1] ?? cleaned;
+  return { headStyles: styleBlocks, bodyHtml };
+}
+
 export default function OngoingPage() {
   if (!RAW_ONGOING_HTML) {
     return <div className="page-content" style={{ padding: 24 }}>Content unavailable.</div>;
   }
-  const cleanedHtml = stripLogosFromHtml(RAW_ONGOING_HTML);
-  return <iframe title="Ongoing Tournament" className="embed-iframe" style={{ height: "100vh", width: "100%", border: "none", display: "block" }} srcDoc={cleanedHtml} />;
+  const { headStyles, bodyHtml } = extractHeadStylesAndBody(RAW_ONGOING_HTML);
+  return (
+    <div className="ongoing-html-page">
+      <style dangerouslySetInnerHTML={{ __html: headStyles }} />
+      <div dangerouslySetInnerHTML={{ __html: bodyHtml }} />
+    </div>
+  );
 }

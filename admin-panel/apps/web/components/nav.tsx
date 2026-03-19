@@ -15,6 +15,11 @@ const NAV_ITEMS: { href: string; label: string; internal?: boolean }[] = [
   { href: "/profile", label: "My Profile", internal: true },
 ];
 
+const CONTACT_LINKS = [
+  { href: "https://ig.me/m/sparrowsvolleyball", img: "/images/volleyball.svg", label: "Volleyball" },
+  { href: "https://ig.me/m/sparrowspickleball", img: "/images/pickleball.svg", label: "Pickleball" },
+];
+
 const HOME_LOGO_URL = "https://sparrowsvolleyball.com.au";
 const LEFT_LOGOES = [
   { img: "/images/volleyball_logo.svg", label: "Sparrows Volleyball" },
@@ -88,6 +93,21 @@ export function Nav() {
           </a>
         )
       )}
+      <span className="nav-contact-wrap">
+        <span className="nav-contact-label">Contact Us: </span>
+        {CONTACT_LINKS.map(({ href, img, label }) => (
+          <a
+            key={href}
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="nav-item nav-item-contact-icon"
+            aria-label={label}
+          >
+            <Image src={img} alt="" width={38} height={38} className="nav-contact-icon" />
+          </a>
+        ))}
+      </span>
     </nav>
   );
 }
