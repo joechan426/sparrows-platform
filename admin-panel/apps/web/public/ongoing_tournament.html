@@ -1473,6 +1473,7 @@
     function handleLiveTabClick() {
       const liveSectionVisible = document.getElementById("liveResultsSection").style.display === "block";
       if (liveSectionVisible && currentTournament && !liveResultsLoadingPromise) {
+        showLiveResultsLoading("Loading live results...");
         clearLiveResultsCache(currentTournament);
         liveResultsLoadingPromise = fetchResults(currentTournament, { allowCache: false, forceRefresh: true })
           .catch(err => {
@@ -2878,6 +2879,19 @@
         showLoading("Loading tournament...");
         try {
           await enterTournament(preferredTournament, { showLoader: false });
+        } catch (err) {
+          console.warn("Preferred tournament is invalid, fallback to default tournament.", err);
+          clearLastTournamentFromSession();
+          showTournamentPage();
+          const listRes = await fetch(`${apiUrl}?action=listTournaments`, { cache: "no-store" });
+          const listJson = await listRes.json();
+          const names = Array.isArray(listJson && listJson.tournaments) ? listJson.tournaments : [];
+          const fallbackTournament = (listJson && listJson.defaultTournament) || names[0] || null;
+          if (fallbackTournament) {
+            await enterTournament(fallbackTournament, { showLoader: false });
+          } else {
+            await loadTournamentList({ showLoader: false });
+          }
         } finally {
           hideLoading();
         }
