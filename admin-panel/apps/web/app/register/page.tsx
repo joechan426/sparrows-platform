@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 import { apiRegister } from "@/lib/api";
 
@@ -85,9 +84,6 @@ export default function RegisterPage() {
           </button>
         </form>
       </div>
-      <p className="auth-footer">
-        Already have an account? <Link href="/login" className="link">Log in</Link>
-      </p>
     </div>
   );
 }

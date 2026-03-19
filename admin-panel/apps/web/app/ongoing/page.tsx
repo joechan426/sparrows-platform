@@ -21,14 +21,9 @@ function stripLogosFromHtml(html: string): string {
 }
 
 export default function OngoingPage() {
-  try {
-    if (!RAW_ONGOING_HTML) throw new Error("ongoing_tournament.html missing");
-    const cleanedHtml = stripLogosFromHtml(RAW_ONGOING_HTML);
-
-    // Use srcDoc so the HTML (including its CSS/JS) renders as-is.
-    return <iframe title="Ongoing Tournament" className="embed-iframe" style={{ height: "85vh", width: "100%" }} srcDoc={cleanedHtml} />;
-  } catch {
-    // Fallback if the local ongoing_tournament.html can't be read (e.g. missing file in runtime env).
-    return <iframe title="Ongoing Tournament" src="https://joechan426.github.io/sparrowsvolleyball/" className="embed-iframe" style={{ height: "85vh", width: "100%" }} />;
+  if (!RAW_ONGOING_HTML) {
+    return <div className="page-content" style={{ padding: 24 }}>Content unavailable.</div>;
   }
+  const cleanedHtml = stripLogosFromHtml(RAW_ONGOING_HTML);
+  return <iframe title="Ongoing Tournament" className="embed-iframe" style={{ height: "100vh", width: "100%", border: "none", display: "block" }} srcDoc={cleanedHtml} />;
 }

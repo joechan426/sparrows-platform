@@ -111,7 +111,7 @@ export default function CalendarPage() {
   const router = useRouter();
   const { member } = useAuth();
   const {
-    calendarEvents,
+    displayCalendarEvents,
     ensureCalendarLoaded,
     registrations,
     ensureRegistrationsLoaded,
@@ -123,9 +123,9 @@ export default function CalendarPage() {
   const [selectedDate, setSelectedDate] = useState(() => startOfDay(new Date()));
 
   useEffect(() => {
-    if (calendarEvents) return;
+    if (displayCalendarEvents && displayCalendarEvents.length > 0) return;
     ensureCalendarLoaded().catch((err) => setError(err instanceof Error ? err.message : "Failed to load events"));
-  }, []);
+  }, [displayCalendarEvents, ensureCalendarLoaded]);
 
   // When the user first lands on Calendar (home), prefetch the other heavy pages.
   useEffect(() => {
@@ -141,21 +141,21 @@ export default function CalendarPage() {
   const registrationsSafe = registrations ?? [];
 
   const eventsWithDates = useMemo(() => {
-    const events = calendarEvents ?? [];
+    const events = displayCalendarEvents ?? [];
     return events.map((e) => ({
       ...e,
       startDate: startOfDay(new Date(e.startAt)),
       endDate: new Date(e.endAt),
     }));
-  }, [calendarEvents]);
+  }, [displayCalendarEvents]);
 
   const now = useMemo(() => new Date(), []);
   const upcomingEvents = useMemo(
     () =>
-      (calendarEvents ?? [])
+      (displayCalendarEvents ?? [])
         .filter((e) => new Date(e.endAt) >= now)
         .sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime()),
-    [calendarEvents]
+    [displayCalendarEvents]
   );
   const upcomingCup = useMemo(() => upcomingEvents.filter((e) => isSpecial(e)), [upcomingEvents]);
 

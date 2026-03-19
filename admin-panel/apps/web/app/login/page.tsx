@@ -118,12 +118,6 @@ export default function LoginPage() {
           </button>
         </form>
       </div>
-      <p className="auth-footer">
-        {isLogin ? "Don't have an account? " : "Already have an account? "}
-        <button type="button" className="link-btn" onClick={() => { setIsLogin(!isLogin); setError(""); }}>
-          {isLogin ? "Register" : "Log in"}
-        </button>
-      </p>
     </div>
   );
 }

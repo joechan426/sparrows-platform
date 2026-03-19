@@ -12,6 +12,8 @@ import {
 
 type NavRefreshContextValue = {
   calendarEvents: CalendarEvent[] | null;
+  /** Use this for display: never blanks once we have data (falls back to cache). */
+  displayCalendarEvents: CalendarEvent[] | null;
   calendarUpdatedAt: number | null;
   registrations: MemberRegistration[] | null;
   registrationsUpdatedAt: number | null;
@@ -170,19 +172,21 @@ export function NavRefreshProvider({ children }: { children: React.ReactNode }) 
       .catch(() => {});
   }, [registrationsMemberId, safeReplaceRegistrations]);
 
-  const value = useMemo<NavRefreshContextValue>(() => {
-    return {
-      calendarEvents,
-      calendarUpdatedAt,
-      registrations,
-      registrationsUpdatedAt,
-      ensureCalendarLoaded,
-      ensureRegistrationsLoaded,
-      refreshCalendarInBackground,
-      refreshRegistrationsInBackground,
-    };
-  }, [
+  const displayCalendarEvents = calendarEvents ?? getCalendarEventsCache<CalendarEvent[]>()?.value ?? null;
+
+  const value = useMemo<NavRefreshContextValue>(() => ({
     calendarEvents,
+    displayCalendarEvents,
+    calendarUpdatedAt,
+    registrations,
+    registrationsUpdatedAt,
+    ensureCalendarLoaded,
+    ensureRegistrationsLoaded,
+    refreshCalendarInBackground,
+    refreshRegistrationsInBackground,
+  }), [
+    calendarEvents,
+    displayCalendarEvents,
     calendarUpdatedAt,
     registrations,
     registrationsUpdatedAt,
