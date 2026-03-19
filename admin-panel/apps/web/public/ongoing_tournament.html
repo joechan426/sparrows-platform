@@ -304,7 +304,7 @@
       width: var(--loading-sprite-size, 88px);
       height: var(--loading-sprite-size, 88px);
       display: block;
-      background-image: url('content/img/spritesheet.png');
+      background-image: url('/images/spritesheet.png');
       background-repeat: no-repeat;
       background-size: calc(var(--loading-sprite-size, 88px) * 3) var(--loading-sprite-size, 88px);
       background-position: 0 0;
@@ -859,20 +859,6 @@
 <body>
   <div id="tournamentPage" class="tournament-page">
     <div class="tournament-page-inner">
-      <div class="tournament-logo-group">
-        <div class="tournament-logo-row">
-          <a class="tournament-logo-link" href="https://sparrowsvolleyball.com.au/">
-            <img src="/images/volleyball.png" alt="Sparrows Volleyball holiday logo" class="tournament-logo" />
-          </a>
-          <a class="tournament-logo-link" href="https://sparrowsvolleyball.com.au/">
-            <img src="/images/volleyball.png" alt="Sparrows Volleyball logo" class="tournament-logo" />
-          </a>
-          <a class="tournament-logo-link" href="https://sparrowsvolleyball.com.au/">
-            <img src="/images/pickleball.png" alt="Pickleball logo" class="tournament-logo" />
-          </a>
-        </div>
-        <div class="tournament-logo-text">Sparrows Tournament Live Results</div>
-      </div>
       <h1 class="tournament-title">Select a tournament</h1>
       <p class="tournament-subtitle">Choose which event you want to view / submit results for.</p>
       <div id="tournamentList" class="tournament-list"></div>
@@ -883,14 +869,6 @@
   <div id="appPage" style="display:none;">
 
   <div class="site-header">
-    <div class="logo-group">
-      <a href="https://sparrowsvolleyball.com.au/">
-        <img src="/images/volleyball.png" alt="Sparrow" class="logo" />
-      </a>
-      <a href="https://sparrowsvolleyball.com.au/">
-        <img id="siteSportLogo" src="/images/volleyball.png" alt="Logo" class="logo" />
-      </a>
-    </div>
     <div class="header-text">
       <h1></h1>
       <p class="description">
@@ -959,6 +937,7 @@
     const apiUrl = "https://script.google.com/macros/s/AKfycbwnepQmr17n-HfyRJozYlrFiCLbytZ7iDYszrCDANdenKKRbKvKdrHUTApe1ZbO4A/exec";
 
     let currentTournament = "";
+    const LAST_TOURNAMENT_SESSION_KEY = "sparrows:last-tournament";
     const tournamentMetaCache = {};
     const SCHEDULE_CACHE_TTL_MS = 30 * 1000;
     const LIVE_RESULTS_CACHE_TTL_MS = 15 * 1000;
@@ -1115,6 +1094,35 @@
       const newQuery = params.toString();
       const newUrl = newQuery ? `${window.location.pathname}?${newQuery}` : window.location.pathname;
       history.replaceState({}, "", newUrl);
+    }
+
+    function readLastTournamentFromSession() {
+      if (typeof sessionStorage === "undefined") return null;
+      try {
+        const value = sessionStorage.getItem(LAST_TOURNAMENT_SESSION_KEY);
+        return value ? value.trim() : null;
+      } catch (err) {
+        console.warn("Failed to read last tournament from sessionStorage", err);
+        return null;
+      }
+    }
+
+    function writeLastTournamentToSession(name) {
+      if (typeof sessionStorage === "undefined") return;
+      try {
+        if (name) sessionStorage.setItem(LAST_TOURNAMENT_SESSION_KEY, name);
+      } catch (err) {
+        console.warn("Failed to write last tournament to sessionStorage", err);
+      }
+    }
+
+    function clearLastTournamentFromSession() {
+      if (typeof sessionStorage === "undefined") return;
+      try {
+        sessionStorage.removeItem(LAST_TOURNAMENT_SESSION_KEY);
+      } catch (err) {
+        console.warn("Failed to clear last tournament from sessionStorage", err);
+      }
     }
 
     function normalizeTournamentEntry(entry) {
@@ -1321,6 +1329,7 @@
     async function enterTournament(name, { showLoader = true } = {}) {
       currentTournament = name;
       updateTournamentInUrl(name);
+      writeLastTournamentToSession(name);
       setLunarCupTheme(isLunarCupTournament(name));
       updateSpecialTournamentButtons(name);
       updateSiteSportLogo(name);
@@ -1367,6 +1376,7 @@
       if (!btn) return;
       btn.addEventListener("click", async () => {
         updateTournamentInUrl(null);
+        clearLastTournamentFromSession();
         showTournamentPage();
         await loadTournamentList();
       });
@@ -2861,11 +2871,13 @@
       bindSpecialTournamentButtons();
       const urlParams = new URLSearchParams(window.location.search);
       const initialTournament = urlParams.get("tournament");
+      const rememberedTournament = readLastTournamentFromSession();
+      const preferredTournament = initialTournament || rememberedTournament;
 
-      if (initialTournament) {
+      if (preferredTournament) {
         showLoading("Loading tournament...");
         try {
-          await enterTournament(initialTournament, { showLoader: false });
+          await enterTournament(preferredTournament, { showLoader: false });
         } finally {
           hideLoading();
         }
