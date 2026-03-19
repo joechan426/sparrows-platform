@@ -1,13 +1,11 @@
 import fs from "node:fs";
-import { fileURLToPath } from "node:url";
 
 export const dynamic = "force-dynamic";
 
-const LOCAL_INDEX_HTML_PATH = "../../ongoing_tournament.html";
+const LOCAL_INDEX_HTML_PATH = "/Users/joechan/Desktop/sparrows-platform/admin-panel/apps/web/ongoing_tournament.html";
 const RAW_ONGOING_HTML: string | null = (() => {
   try {
-    const fileUrl = new URL(LOCAL_INDEX_HTML_PATH, import.meta.url);
-    return fs.readFileSync(fileURLToPath(fileUrl), "utf-8");
+    return fs.readFileSync(LOCAL_INDEX_HTML_PATH, "utf-8");
   } catch {
     return null;
   }

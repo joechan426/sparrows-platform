@@ -108,6 +108,7 @@ function daysInMonthGrid(month: Date): DayCell[] {
 }
 
 export default function CalendarPage() {
+  const CALENDAR_STATE_KEY = "web_calendar_ui_state_v1";
   const router = useRouter();
   const { member } = useAuth();
   const {
@@ -118,14 +119,63 @@ export default function CalendarPage() {
   } = useNavRefresh();
   const [error, setError] = useState("");
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
-  const [sportFilter, setSportFilter] = useState<SportFilter>("volleyball");
-  const [currentMonth, setCurrentMonth] = useState(() => new Date());
-  const [selectedDate, setSelectedDate] = useState(() => startOfDay(new Date()));
+  const [sportFilter, setSportFilter] = useState<SportFilter>(() => {
+    if (typeof window === "undefined") return "volleyball";
+    try {
+      const raw = window.sessionStorage.getItem(CALENDAR_STATE_KEY);
+      if (!raw) return "volleyball";
+      const parsed = JSON.parse(raw) as { sportFilter?: SportFilter };
+      return parsed.sportFilter ?? "volleyball";
+    } catch {
+      return "volleyball";
+    }
+  });
+  const [currentMonth, setCurrentMonth] = useState(() => {
+    if (typeof window === "undefined") return new Date();
+    try {
+      const raw = window.sessionStorage.getItem(CALENDAR_STATE_KEY);
+      if (!raw) return new Date();
+      const parsed = JSON.parse(raw) as { currentMonth?: string };
+      return parsed.currentMonth ? new Date(parsed.currentMonth) : new Date();
+    } catch {
+      return new Date();
+    }
+  });
+  const [selectedDate, setSelectedDate] = useState(() => {
+    if (typeof window === "undefined") return startOfDay(new Date());
+    try {
+      const raw = window.sessionStorage.getItem(CALENDAR_STATE_KEY);
+      if (!raw) return startOfDay(new Date());
+      const parsed = JSON.parse(raw) as { selectedDate?: string };
+      return parsed.selectedDate ? startOfDay(new Date(parsed.selectedDate)) : startOfDay(new Date());
+    } catch {
+      return startOfDay(new Date());
+    }
+  });
+  const [lastVisibleEvents, setLastVisibleEvents] = useState<CalendarEvent[]>(() => displayCalendarEvents ?? []);
 
   useEffect(() => {
     if (displayCalendarEvents && displayCalendarEvents.length > 0) return;
     ensureCalendarLoaded().catch((err) => setError(err instanceof Error ? err.message : "Failed to load events"));
   }, [displayCalendarEvents, ensureCalendarLoaded]);
+
+  useEffect(() => {
+    if (displayCalendarEvents && displayCalendarEvents.length > 0) {
+      setLastVisibleEvents(displayCalendarEvents);
+    }
+  }, [displayCalendarEvents]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.sessionStorage.setItem(
+      CALENDAR_STATE_KEY,
+      JSON.stringify({
+        sportFilter,
+        currentMonth: currentMonth.toISOString(),
+        selectedDate: selectedDate.toISOString(),
+      })
+    );
+  }, [sportFilter, currentMonth, selectedDate]);
 
   // When the user first lands on Calendar (home), prefetch the other heavy pages.
   useEffect(() => {
@@ -141,21 +191,23 @@ export default function CalendarPage() {
   const registrationsSafe = registrations ?? [];
 
   const eventsWithDates = useMemo(() => {
-    const events = displayCalendarEvents ?? [];
+    const events = (displayCalendarEvents && displayCalendarEvents.length > 0)
+      ? displayCalendarEvents
+      : lastVisibleEvents;
     return events.map((e) => ({
       ...e,
       startDate: startOfDay(new Date(e.startAt)),
       endDate: new Date(e.endAt),
     }));
-  }, [displayCalendarEvents]);
+  }, [displayCalendarEvents, lastVisibleEvents]);
 
   const now = useMemo(() => new Date(), []);
   const upcomingEvents = useMemo(
     () =>
-      (displayCalendarEvents ?? [])
+      (((displayCalendarEvents && displayCalendarEvents.length > 0) ? displayCalendarEvents : lastVisibleEvents) ?? [])
         .filter((e) => new Date(e.endAt) >= now)
         .sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime()),
-    [displayCalendarEvents]
+    [displayCalendarEvents, lastVisibleEvents]
   );
   const upcomingCup = useMemo(() => upcomingEvents.filter((e) => isSpecial(e)), [upcomingEvents]);
 
@@ -170,7 +222,6 @@ export default function CalendarPage() {
           e.endDate >= dayStart &&
           matchesFilter(e, sportFilter)
       )
-      .filter((e) => !isSpecial(e))
       .sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
   }, [eventsWithDates, dayStart, dayEnd, sportFilter]);
 

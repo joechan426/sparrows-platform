@@ -114,15 +114,16 @@ export function NavRefreshProvider({ children }: { children: React.ReactNode }) 
   );
 
   const safeReplaceRegistrations = useCallback(
-    (memberId: string, list: MemberRegistration[]) => {
+    (memberId: string, list: MemberRegistration[], forceVisibleUpdate: boolean = false) => {
       const cached = getMemberRegistrationsCache<MemberRegistration[]>(memberId);
       const existingValue = cached?.value ?? (registrationsMemberId === memberId ? registrationsRef.current : null);
-      // Keep old list if new fetch gives empty while we already had data.
+      // If the response comes back empty but we already have items, keep the old list.
       if (list.length === 0 && existingValue && existingValue.length > 0) return;
 
       setMemberRegistrationsCache(memberId, list);
-      if (registrationsMemberId !== memberId) return;
+      if (!forceVisibleUpdate && registrationsMemberId !== memberId) return;
       const next = getMemberRegistrationsCache<MemberRegistration[]>(memberId)!;
+      setRegistrationsMemberId(memberId);
       setRegistrationsState(next.value);
       setRegistrationsUpdatedAt(next.updatedAt);
     },
@@ -139,7 +140,7 @@ export function NavRefreshProvider({ children }: { children: React.ReactNode }) 
     }
     const merged = await fetchMergedCalendarEvents();
     safeReplaceCalendarEvents(merged);
-  }, [calendarEvents]);
+  }, [calendarEvents, safeReplaceCalendarEvents]);
 
   const ensureRegistrationsLoaded = useCallback(async (memberId: string) => {
     if (registrationsMemberId === memberId && registrations) return;
@@ -151,9 +152,8 @@ export function NavRefreshProvider({ children }: { children: React.ReactNode }) 
       return;
     }
     const list = await apiMemberRegistrations(memberId);
-    setRegistrationsMemberId(memberId);
-    safeReplaceRegistrations(memberId, list);
-  }, [registrationsMemberId, registrations]);
+    safeReplaceRegistrations(memberId, list, true);
+  }, [registrationsMemberId, registrations, safeReplaceRegistrations]);
 
   const refreshCalendarInBackground = useCallback(() => {
     // fire-and-forget, but update cache + state if available
@@ -170,7 +170,7 @@ export function NavRefreshProvider({ children }: { children: React.ReactNode }) 
         safeReplaceRegistrations(memberId, list);
       })
       .catch(() => {});
-  }, [registrationsMemberId, safeReplaceRegistrations]);
+  }, [safeReplaceRegistrations]);
 
   const displayCalendarEvents = calendarEvents ?? getCalendarEventsCache<CalendarEvent[]>()?.value ?? null;
 
