@@ -255,6 +255,7 @@ export default function CalendarPage() {
   );
 
   const today = useMemo(() => startOfDay(now), [now]);
+  const isInitialLoading = !error && (!displayCalendarEvents || displayCalendarEvents.length === 0) && lastVisibleEvents.length === 0;
 
   function selectDate(d: Date) {
     setSelectedDate(startOfDay(d));
@@ -267,6 +268,13 @@ export default function CalendarPage() {
   }
 
   if (error) return <div className="page-content page-error">{error}</div>;
+  if (isInitialLoading) {
+    return (
+      <div className="page-loading">
+        <p>Loading calendar...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="page-content calendar-page">

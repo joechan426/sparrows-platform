@@ -197,7 +197,9 @@ export default function ProfilePage() {
         </button>
         {openScheduled && (
           <div className="disclosure-body">
-            {upcoming.length === 0 ? (
+            {registrations === null ? (
+              <p className="profile-muted">Loading...</p>
+            ) : upcoming.length === 0 ? (
               <p className="profile-muted">No upcoming events.</p>
             ) : (
               <ul className="event-list">
