@@ -28,7 +28,7 @@ function statusText(s: string): string {
 
 export default function ProfilePage() {
   const router = useRouter();
-  const { member, loading: authLoading, setMember } = useAuth();
+  const { member, setMember } = useAuth();
   const { registrations, registrationsUpdatedAt, ensureRegistrationsLoaded } = useNavRefresh();
   const [showPassword, setShowPassword] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
@@ -79,14 +79,6 @@ export default function ProfilePage() {
     } finally {
       setPasswordSaving(false);
     }
-  }
-
-  if (authLoading) {
-    return (
-      <div className="page-loading">
-        <p>Loading…</p>
-      </div>
-    );
   }
 
   if (!member) {

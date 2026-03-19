@@ -221,7 +221,6 @@ export default function CalendarPage() {
     setCurrentMonth((m) => new Date(m.getFullYear(), m.getMonth() + 1));
   }
 
-  if (loading) return <div className="page-loading">Loading calendar…</div>;
   if (error) return <div className="page-content page-error">{error}</div>;
 
   return (
