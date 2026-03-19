@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useCallback, useContext, useMemo, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { CalendarEvent, MemberRegistration } from "./api";
 import { apiCalendarEvents, apiMemberRegistrations } from "./api";
 import {
@@ -85,6 +85,48 @@ export function NavRefreshProvider({ children }: { children: React.ReactNode }) 
   const [registrationsUpdatedAt, setRegistrationsUpdatedAt] = useState<number | null>(null);
   const [registrationsMemberId, setRegistrationsMemberId] = useState<string | null>(null);
 
+  // Keep references to the latest state so background refresh won't blank the UI.
+  const calendarEventsRef = useRef<CalendarEvent[] | null>(calendarEvents);
+  useEffect(() => {
+    calendarEventsRef.current = calendarEvents;
+  }, [calendarEvents]);
+
+  const registrationsRef = useRef<MemberRegistration[] | null>(registrations);
+  useEffect(() => {
+    registrationsRef.current = registrations;
+  }, [registrations]);
+
+  const safeReplaceCalendarEvents = useCallback(
+    (merged: CalendarEvent[]) => {
+      const current = calendarEventsRef.current;
+      // If the new fetch result is empty but we previously had events,
+      // keep the old ones until we have a non-empty update.
+      if (merged.length === 0 && current && current.length > 0) return;
+
+      setCalendarEventsCache(merged);
+      const next = getCalendarEventsCache<CalendarEvent[]>()!;
+      setCalendarEventsState(next.value);
+      setCalendarUpdatedAt(next.updatedAt);
+    },
+    []
+  );
+
+  const safeReplaceRegistrations = useCallback(
+    (memberId: string, list: MemberRegistration[]) => {
+      const cached = getMemberRegistrationsCache<MemberRegistration[]>(memberId);
+      const existingValue = cached?.value ?? (registrationsMemberId === memberId ? registrationsRef.current : null);
+      // Keep old list if new fetch gives empty while we already had data.
+      if (list.length === 0 && existingValue && existingValue.length > 0) return;
+
+      setMemberRegistrationsCache(memberId, list);
+      if (registrationsMemberId !== memberId) return;
+      const next = getMemberRegistrationsCache<MemberRegistration[]>(memberId)!;
+      setRegistrationsState(next.value);
+      setRegistrationsUpdatedAt(next.updatedAt);
+    },
+    [registrationsMemberId]
+  );
+
   const ensureCalendarLoaded = useCallback(async () => {
     if (calendarEvents && calendarEvents.length > 0) return;
     const cached = getCalendarEventsCache<CalendarEvent[]>();
@@ -94,10 +136,7 @@ export function NavRefreshProvider({ children }: { children: React.ReactNode }) 
       return;
     }
     const merged = await fetchMergedCalendarEvents();
-    setCalendarEventsCache(merged);
-    const next = getCalendarEventsCache<CalendarEvent[]>()!;
-    setCalendarEventsState(next.value);
-    setCalendarUpdatedAt(next.updatedAt);
+    safeReplaceCalendarEvents(merged);
   }, [calendarEvents]);
 
   const ensureRegistrationsLoaded = useCallback(async (memberId: string) => {
@@ -110,38 +149,26 @@ export function NavRefreshProvider({ children }: { children: React.ReactNode }) 
       return;
     }
     const list = await apiMemberRegistrations(memberId);
-    setMemberRegistrationsCache(memberId, list);
-    const next = getMemberRegistrationsCache<MemberRegistration[]>(memberId)!;
     setRegistrationsMemberId(memberId);
-    setRegistrationsState(next.value);
-    setRegistrationsUpdatedAt(next.updatedAt);
+    safeReplaceRegistrations(memberId, list);
   }, [registrationsMemberId, registrations]);
 
   const refreshCalendarInBackground = useCallback(() => {
     // fire-and-forget, but update cache + state if available
     fetchMergedCalendarEvents()
       .then((merged) => {
-        setCalendarEventsCache(merged);
-        const next = getCalendarEventsCache<CalendarEvent[]>()!;
-        setCalendarEventsState(next.value);
-        setCalendarUpdatedAt(next.updatedAt);
+        safeReplaceCalendarEvents(merged);
       })
       .catch(() => {});
-  }, []);
+  }, [safeReplaceCalendarEvents]);
 
   const refreshRegistrationsInBackground = useCallback((memberId: string) => {
     apiMemberRegistrations(memberId)
       .then((list) => {
-        setMemberRegistrationsCache(memberId, list);
-        // only update visible state if this member is currently selected
-        if (registrationsMemberId === memberId) {
-          const next = getMemberRegistrationsCache<MemberRegistration[]>(memberId)!;
-          setRegistrationsState(next.value);
-          setRegistrationsUpdatedAt(next.updatedAt);
-        }
+        safeReplaceRegistrations(memberId, list);
       })
       .catch(() => {});
-  }, [registrationsMemberId]);
+  }, [registrationsMemberId, safeReplaceRegistrations]);
 
   const value = useMemo<NavRefreshContextValue>(() => {
     return {

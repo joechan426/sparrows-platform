@@ -37,16 +37,13 @@ export default function ProfilePage() {
   const [passwordError, setPasswordError] = useState("");
   const [passwordSuccess, setPasswordSuccess] = useState(false);
   const [passwordSaving, setPasswordSaving] = useState(false);
-  const [regLoaded, setRegLoaded] = useState(() => Boolean(registrationsUpdatedAt));
   const [openAccount, setOpenAccount] = useState(true);
   const [openScheduled, setOpenScheduled] = useState(true);
 
 
   useEffect(() => {
     if (!member?.id) return;
-    // If we already have cached registrations, don't show a loading state.
-    if (registrationsUpdatedAt) setRegLoaded(true);
-    ensureRegistrationsLoaded(member.id).finally(() => setRegLoaded(true));
+    ensureRegistrationsLoaded(member.id).catch(() => {});
   }, [member?.id]);
 
   const now = new Date();
@@ -130,7 +127,7 @@ export default function ProfilePage() {
       <div className="section-divider" />
 
       {/* My account */}
-      <section className="disclosure-section">
+          <section className="disclosure-section">
         <button
           type="button"
           className="disclosure-head"
@@ -200,7 +197,7 @@ export default function ProfilePage() {
         </button>
         {openScheduled && (
           <div className="disclosure-body">
-            {!regLoaded ? null : upcoming.length === 0 ? (
+            {upcoming.length === 0 ? (
               <p className="profile-muted">No upcoming events.</p>
             ) : (
               <ul className="event-list">
