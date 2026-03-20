@@ -51,8 +51,6 @@ export async function GET(req: NextRequest, context: any) {
 // - SPECIAL event requires teamName
 // - registration allowed only when registrationOpen = true
 export async function POST(req: NextRequest, context: any) {
-  const auth = await requireAdminAuth(req, "CALENDAR_EVENTS");
-  if (!auth.ok) return withCors(req, auth.response);
   try {
     const calendarEventId = await getIdFromContext(context);
     if (!calendarEventId) {
