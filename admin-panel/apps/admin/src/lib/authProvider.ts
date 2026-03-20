@@ -104,14 +104,18 @@ export const adminAuthProvider: AuthProvider = {
 
   onError: async (error: unknown) => {
     const status = (error as { status?: number })?.status ?? (error as { response?: { status?: number } })?.response?.status;
+    const normalizedError =
+      error instanceof Error
+        ? error
+        : new Error(typeof error === "string" ? error : "Request error");
     if (status === 401) {
       clearAuth();
       return { logout: true, redirectTo: "/login" };
     }
     if (status === 403) {
-      return { redirectTo: "/", error };
+      return { redirectTo: "/", error: normalizedError };
     }
-    return { error };
+    return { error: normalizedError };
   },
 
   getPermissions: async () => {

@@ -43,7 +43,7 @@ export const TournamentDivisions = () => {
     queryOptions: { enabled: !!tournamentId },
   });
 
-  const rows: DivisionRow[] = Array.isArray(result?.data) ? result.data : [];
+  const rows: DivisionRow[] = Array.isArray(result?.data) ? (result.data as DivisionRow[]) : [];
   const isLoading = query.isLoading;
 
   const handleCreate = async () => {

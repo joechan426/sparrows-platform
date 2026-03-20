@@ -108,7 +108,7 @@ export const TournamentRegistrations = () => {
       .catch(() => {});
   }, [tournamentId]);
 
-  const rows: RegistrationRow[] = Array.isArray(result?.data) ? result.data : [];
+  const rows: RegistrationRow[] = Array.isArray(result?.data) ? (result.data as RegistrationRow[]) : [];
   const isLoading = query.isLoading;
 
   const handleDivisionChange = async (registrationId: string, divisionId: string) => {

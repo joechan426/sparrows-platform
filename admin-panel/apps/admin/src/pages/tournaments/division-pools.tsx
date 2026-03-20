@@ -63,7 +63,7 @@ export const TournamentDivisionPools = () => {
     queryOptions: { enabled: !!divisionId },
   });
 
-  const pools: PoolRow[] = Array.isArray(result?.data) ? result.data : [];
+  const pools: PoolRow[] = Array.isArray(result?.data) ? (result.data as PoolRow[]) : [];
   const isLoading = query.isLoading;
 
   useEffect(() => {

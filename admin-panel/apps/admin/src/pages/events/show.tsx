@@ -147,7 +147,7 @@ export const EventShowPage: React.FC = () => {
         onError: (e) => {
           open?.({
             type: "error",
-            message: (e as Error)?.message ?? "Failed to update event",
+            message: (e as any)?.message ?? "Failed to update event",
           });
         },
         onSettled: () => setSaving(false),
@@ -263,7 +263,7 @@ export const EventShowPage: React.FC = () => {
                     open?.({ type: "success", message: "Event deleted" });
                     navigate("/events");
                   },
-                  onError: (e) => open?.({ type: "error", message: (e as Error)?.message ?? "Delete failed" }),
+                  onError: (e) => open?.({ type: "error", message: (e as any)?.message ?? "Delete failed" }),
                 },
               );
             }}

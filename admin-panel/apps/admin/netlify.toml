@@ -1,0 +1,8 @@
+[build]
+  # Run from monorepo root to ensure pnpm workspace + turbo build works.
+  command = "cd ../.. && pnpm install && pnpm run build --filter=admin"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+

@@ -11,15 +11,21 @@ const MODULES = [
 ] as const;
 
 export const AdminUserCreate: React.FC = () => {
+  type AdminUserCreateForm = {
+    userName: string;
+    password: string;
+    role: "ADMIN" | "MANAGER";
+    permissions: string[];
+  };
   const {
     saveButtonProps,
     register,
     formState: { errors },
     setValue,
     watch,
-  } = useForm({
+  } = useForm<AdminUserCreateForm>({
     refineCoreProps: { redirect: "list" },
-    defaultValues: { role: "MANAGER", permissions: [] as string[] },
+    defaultValues: { userName: "", password: "", role: "MANAGER", permissions: [] },
   });
 
   const role = watch("role");
@@ -30,7 +36,7 @@ export const AdminUserCreate: React.FC = () => {
 
   const handlePermissionToggle = (module: string) => {
     const next = permissions.includes(module)
-      ? permissions.filter((p) => p !== module)
+      ? permissions.filter((p: string) => p !== module)
       : [...permissions, module];
     setValue("permissions", next, { shouldDirty: true });
   };

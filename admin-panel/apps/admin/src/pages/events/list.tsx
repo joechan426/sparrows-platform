@@ -63,10 +63,11 @@ function getEventType(summary: string): string {
 export const EventList: React.FC = () => {
   const navigate = useNavigate();
   const { open: openNotification } = useNotification();
-  const { dataGridProps, tableQueryResult } = useDataGrid<CalendarEventRow>({
+  const dataGrid = useDataGrid<CalendarEventRow>({
     resource: "calendar-events",
   });
-  const refetchList = tableQueryResult?.refetch;
+  const { dataGridProps } = dataGrid;
+  const refetchList = (dataGrid as any)?.tableQueryResult?.refetch as (() => Promise<unknown>) | undefined;
 
   const invalidate = useInvalidate();
   const { mutate: update } = useUpdate();
@@ -105,7 +106,7 @@ export const EventList: React.FC = () => {
       );
       openNotification?.({ type: "success", message: `Opened registration for ${selectedIds.length} event(s)` });
       setRowSelectionModel({ type: "include", ids: new Set() });
-      invalidate({ resource: "calendar-events", invalidateStore: true });
+      invalidate({ resource: "calendar-events", invalidates: ["list", "many", "detail"] });
       await refetchList?.();
       window.location.reload();
     } catch {
@@ -130,7 +131,7 @@ export const EventList: React.FC = () => {
       );
       openNotification?.({ type: "success", message: `Closed registration for ${selectedIds.length} event(s)` });
       setRowSelectionModel({ type: "include", ids: new Set() });
-      invalidate({ resource: "calendar-events", invalidateStore: true });
+      invalidate({ resource: "calendar-events", invalidates: ["list", "many", "detail"] });
       await refetchList?.();
       window.location.reload();
     } catch {
@@ -145,7 +146,7 @@ export const EventList: React.FC = () => {
     if (!bulkDeleteConfirmPending) {
       setBulkDeleteConfirmPending(true);
       openNotification?.({
-        type: "warning",
+        type: "error",
         message: "This action cannot be undone. Click 'Delete selected' again to confirm.",
       });
       return;
@@ -158,7 +159,7 @@ export const EventList: React.FC = () => {
       openNotification?.({ type: "success", message: `Deleted ${selectedIds.length} event(s)` });
       setRowSelectionModel({ type: "include", ids: new Set() });
       setBulkDeleteConfirmPending(false);
-      invalidate({ resource: "calendar-events", invalidateStore: true });
+      invalidate({ resource: "calendar-events", invalidates: ["list", "many", "detail"] });
       await refetchList?.();
       window.location.reload();
     } catch {
@@ -237,7 +238,7 @@ export const EventList: React.FC = () => {
       .filter((e) => selectedKeys.has(eventKey(e)))
       .map((e) => ({ ...e, sourceEventId: eventKey(e) }));
     if (events.length === 0) {
-      openNotification?.({ type: "warning", message: "Select at least one event to import" });
+      openNotification?.({ type: "error", message: "Select at least one event to import" });
       return;
     }
     setImporting(true);
@@ -250,7 +251,7 @@ export const EventList: React.FC = () => {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.message ?? "Import failed");
       openNotification?.({ type: "success", message: `Import complete. Created: ${data.created}, Updated: ${data.updated}, Skipped: ${data.skipped}` });
-      invalidate({ resource: "calendar-events", invalidateStore: true });
+      invalidate({ resource: "calendar-events", invalidates: ["list", "many", "detail"] });
       await refetchList?.();
       setImportDialogOpen(false);
       window.location.reload();
@@ -273,11 +274,11 @@ export const EventList: React.FC = () => {
         onSuccess: () => {
           openNotification?.({ type: "success", message: "Event deleted" });
           setDeleteConfirm(null);
-          invalidate({ resource: "calendar-events", invalidateStore: true });
+          invalidate({ resource: "calendar-events", invalidates: ["list", "many", "detail"] });
           refetchList?.();
         },
         onError: (e) => {
-          openNotification?.({ type: "error", message: (e as Error)?.message ?? "Delete failed" });
+          openNotification?.({ type: "error", message: (e as any)?.message ?? "Delete failed" });
         },
       },
     );
@@ -358,7 +359,7 @@ export const EventList: React.FC = () => {
             onChange={() => {
               update(
                 { resource: "calendar-events", id: row.id, values: { registrationOpen: !row.registrationOpen } },
-                { mutationMode: "pessimistic" },
+                {},
               );
             }}
             inputProps={{ "aria-label": "Toggle registration" }}

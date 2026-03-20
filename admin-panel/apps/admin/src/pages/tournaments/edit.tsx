@@ -7,14 +7,14 @@ export const TournamentEdit = () => {
     saveButtonProps,
     register,
     formState: { errors },
-    refineCore: { queryResult },
+    refineCore: { query },
   } = useForm({
     refineCoreProps: {
       redirect: "show",
     },
   });
 
-  const record = (queryResult?.data as any)?.data ?? queryResult?.data;
+  const record = (query?.data as any)?.data ?? query?.data;
 
   return (
     <Edit saveButtonProps={saveButtonProps}>

@@ -151,7 +151,6 @@ export const EventRegistrationsPage: React.FC = () => {
         values: { status },
       },
       {
-        mutationMode: "pessimistic",
         onSuccess: () => {
           open?.({
             type: "success",
@@ -163,7 +162,7 @@ export const EventRegistrationsPage: React.FC = () => {
           open?.({
             type: "error",
             message:
-              (error as Error)?.message ?? "Failed to update registration status",
+              (error as any)?.message ?? "Failed to update registration status",
           });
         },
       },
@@ -171,8 +170,8 @@ export const EventRegistrationsPage: React.FC = () => {
   };
 
   const rows: EventRegistrationRow[] =
-    Array.isArray(registrationsData?.data) && registrationsData?.data
-      ? registrationsData.data
+    Array.isArray((registrationsData as any)?.data)
+      ? ((registrationsData as any).data as EventRegistrationRow[])
       : Array.isArray(registrationsData)
         ? (registrationsData as EventRegistrationRow[])
         : [];
@@ -234,7 +233,7 @@ export const EventRegistrationsPage: React.FC = () => {
     } catch (err) {
       open?.({
         type: "error",
-        message: (err as Error)?.message ?? "Failed to update some registrations",
+        message: (err as any)?.message ?? "Failed to update some registrations",
       });
     } finally {
       setBulkStatusLoading(false);
@@ -376,7 +375,7 @@ export const EventRegistrationsPage: React.FC = () => {
           setEvent((prev) => (prev ? { ...prev, capacity: cap } : prev));
         },
         onError: (err) => {
-          open?.({ type: "error", message: (err as Error)?.message ?? "Failed to update capacity" });
+          open?.({ type: "error", message: (err as any)?.message ?? "Failed to update capacity" });
         },
         onSettled: () => setCapacitySaving(false),
       },
@@ -417,7 +416,7 @@ export const EventRegistrationsPage: React.FC = () => {
     } catch (err) {
       open?.({
         type: "error",
-        message: (err as Error)?.message ?? "Failed to add participant",
+        message: (err as any)?.message ?? "Failed to add participant",
       });
     } finally {
       setAdding(false);

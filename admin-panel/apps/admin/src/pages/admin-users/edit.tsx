@@ -12,6 +12,13 @@ const MODULES = [
 ] as const;
 
 export const AdminUserEdit: React.FC = () => {
+  type AdminUserEditForm = {
+    userName: string;
+    isActive: boolean;
+    role: "ADMIN" | "MANAGER";
+    permissions: string[];
+    newPassword?: string;
+  };
   const currentAdmin = getStoredAdmin();
   const isAdmin = currentAdmin?.role === "ADMIN";
   const {
@@ -21,15 +28,9 @@ export const AdminUserEdit: React.FC = () => {
     watch,
     refineCore: { query },
     formState: { errors },
-  } = useForm({
+  } = useForm<AdminUserEditForm>({
     refineCoreProps: {
       redirect: "list",
-      onFinish: (values) => {
-        const next = { ...values };
-        if (typeof (next as any).newPassword === "string" && (next as any).newPassword.trim() === "")
-          (next as any).newPassword = undefined;
-        return next;
-      },
     },
   });
 
@@ -42,7 +43,7 @@ export const AdminUserEdit: React.FC = () => {
 
   const handlePermissionToggle = (module: string) => {
     const next = permissions.includes(module)
-      ? permissions.filter((p) => p !== module)
+      ? permissions.filter((p: string) => p !== module)
       : [...permissions, module];
     setValue("permissions", next, { shouldDirty: true });
   };

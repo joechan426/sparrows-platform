@@ -39,7 +39,7 @@ export const MemberList: React.FC = () => {
   const { dataGridProps, setFilters } = useDataGrid<MemberRow>({
     resource: "members",
     sorters: { initial: [{ field: "createdAt", order: "desc" }] },
-    initialPageSize: 25,
+    pagination: { current: 1, pageSize: 25 } as any,
   });
 
   const selectedIds = rowSelectionModel.type === "include" ? Array.from(rowSelectionModel.ids as Set<string>) : [];
@@ -81,7 +81,7 @@ export const MemberList: React.FC = () => {
       setResetPwPassword("");
       setResetPwConfirm("");
       setRowSelectionModel({ type: "include", ids: new Set() });
-      invalidate({ resource: "members", invalidateStore: true });
+      invalidate({ resource: "members", invalidates: ["list", "many", "detail"] });
     } finally {
       setResetPwLoading(false);
     }

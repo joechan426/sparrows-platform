@@ -1,7 +1,6 @@
 import React from "react";
 import { Create } from "@refinedev/mui";
 import { useForm } from "@refinedev/react-hook-form";
-import { useInvalidate } from "@refinedev/core";
 import Box from "@mui/material/Box";
 import TextField from "@mui/material/TextField";
 
@@ -15,7 +14,6 @@ function toDatetimeLocal(d: Date): string {
 }
 
 export const EventCreatePage: React.FC = () => {
-  const invalidate = useInvalidate();
   const {
     saveButtonProps,
     register,
@@ -25,11 +23,6 @@ export const EventCreatePage: React.FC = () => {
     refineCoreProps: {
       resource: "calendar-events",
       redirect: "list",
-      mutationOptions: {
-        onSuccess: () => {
-          invalidate({ resource: "calendar-events", invalidateStore: true });
-        },
-      },
     },
     defaultValues: {
       sourceType: "MANUAL",
