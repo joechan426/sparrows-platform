@@ -4,6 +4,7 @@ import "./globals.css";
 import { AuthProvider } from "@/lib/auth-context";
 import { Nav } from "@/components/nav";
 import { NavRefreshProvider } from "@/lib/nav-refresh-context";
+import { PwaStatusBanner } from "@/components/pwa-status-banner";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -26,10 +27,15 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <link rel="manifest" href="/manifest.json" />
+        <meta name="theme-color" content="#0b2f6b" />
+      </head>
       <body className={`${geistSans.variable} ${geistMono.variable}`}>
         <AuthProvider>
           <NavRefreshProvider>
             <Nav />
+            <PwaStatusBanner />
             {children}
           </NavRefreshProvider>
         </AuthProvider>

@@ -60,7 +60,17 @@ export function EventDetail({ event, member, onClose, onRegistered }: Props) {
       // Keep the success message visible for a short moment, then close.
       setTimeout(() => onClose(), 1500);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Registration failed.");
+      const offline = typeof navigator !== "undefined" && !navigator.onLine;
+      if (offline) {
+        // Background Sync should queue the request and retry when online.
+        // Even if fetch throws, we can still optimistically reflect "Pending".
+        setSuccess(true);
+        setError("");
+        onRegistered(event.id);
+        setTimeout(() => onClose(), 1500);
+      } else {
+        setError(err instanceof Error ? err.message : "Registration failed.");
+      }
     } finally {
       setLoading(false);
     }

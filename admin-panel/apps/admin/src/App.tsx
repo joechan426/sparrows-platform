@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   Refine,
   type AuthProvider,
@@ -15,6 +15,8 @@ import {
 import CssBaseline from "@mui/material/CssBaseline";
 import GlobalStyles from "@mui/material/GlobalStyles";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
+import Snackbar from "@mui/material/Snackbar";
+import Alert from "@mui/material/Alert";
 import dataProvider from "@refinedev/simple-rest";
 import { axiosWithAuth } from "./lib/axiosWithAuth";
 import routerProvider, {
@@ -69,6 +71,36 @@ const accessControlProvider: AccessControlProvider = {
   },
 };
 
+const OfflineNotice: React.FC = () => {
+  const [isOnline, setIsOnline] = useState(true);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    setIsOnline(navigator.onLine);
+
+    const onOnline = () => setIsOnline(true);
+    const onOffline = () => setIsOnline(false);
+
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
+    return () => {
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
+    };
+  }, []);
+
+  return (
+    <Snackbar
+      open={!isOnline}
+      anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+    >
+      <Alert severity="warning" variant="filled" sx={{ maxWidth: 520 }}>
+        You are offline. Some admin actions may fail.
+      </Alert>
+    </Snackbar>
+  );
+};
+
 const App: React.FC = () => {
   const theme = createTheme(RefineThemes.Blue, {
     palette: {
@@ -85,6 +117,7 @@ const App: React.FC = () => {
         <GlobalStyles styles={{ html: { WebkitFontSmoothing: "auto" } }} />
 
         <RefineSnackbarProvider>
+          <OfflineNotice />
           <Refine
             authProvider={adminAuthProvider}
             accessControlProvider={accessControlProvider}

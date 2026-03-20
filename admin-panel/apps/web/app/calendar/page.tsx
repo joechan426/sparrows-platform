@@ -4,8 +4,13 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import type { CalendarEvent, MemberRegistration } from "@/lib/api";
-import { EventDetail } from "@/components/event-detail";
+import dynamic from "next/dynamic";
 import { useNavRefresh } from "@/lib/nav-refresh-context";
+
+const EventDetail = dynamic(
+  () => import("@/components/event-detail").then((m) => m.EventDetail),
+  { ssr: false },
+);
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 type SportFilter = "volleyball" | "pickleball" | "tennis";

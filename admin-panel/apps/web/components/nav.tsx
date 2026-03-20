@@ -57,7 +57,15 @@ export function Nav() {
             className="nav-left-logo-link"
             aria-label={label}
           >
-            <Image src={img} alt="" width={36} height={36} className="nav-left-logo" />
+            <Image
+              src={img}
+              alt=""
+              width={36}
+              height={36}
+              className="nav-left-logo"
+              loading="lazy"
+              sizes="36px"
+            />
           </a>
         ))}
       </span>
@@ -104,7 +112,15 @@ export function Nav() {
             className="nav-item nav-item-contact-icon"
             aria-label={label}
           >
-            <Image src={img} alt="" width={38} height={38} className="nav-contact-icon" />
+            <Image
+              src={img}
+              alt=""
+              width={38}
+              height={38}
+              className="nav-contact-icon"
+              loading="lazy"
+              sizes="38px"
+            />
           </a>
         ))}
       </span>

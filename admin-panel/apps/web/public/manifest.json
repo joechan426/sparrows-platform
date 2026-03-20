@@ -1,0 +1,22 @@
+{
+  "short_name": "Sparrows",
+  "name": "Sparrows Platform",
+  "start_url": "/calendar",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0b2f6b",
+  "icons": [
+    {
+      "src": "/images/volleyball_logo.svg",
+      "sizes": "48x48",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "/images/pickleball_logo.svg",
+      "sizes": "48x48",
+      "type": "image/svg+xml"
+    }
+  ]
+}
+
