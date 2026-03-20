@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import AppBar from "@mui/material/AppBar";
 import Stack from "@mui/material/Stack";
 import Toolbar from "@mui/material/Toolbar";
+import Button from "@mui/material/Button";
 import Typography from "@mui/material/Typography";
 import Avatar from "@mui/material/Avatar";
 import { HamburgerMenu } from "@refinedev/mui";
@@ -30,19 +31,18 @@ export const HeaderWithProfileLink: React.FC<{ sticky?: boolean }> = ({
             justifyContent="center"
           >
             {user?.name && (
-              <Typography
-                variant="subtitle2"
+              <Button
                 component={Link}
                 to="/profile"
-                sx={{
-                  color: "inherit",
-                  textDecoration: "none",
-                  "&:hover": { textDecoration: "underline" },
-                }}
+                variant="text"
+                color="inherit"
+                sx={{ textTransform: "none", px: 0.5 }}
                 data-testid="header-user-name"
               >
-                {user.name}
-              </Typography>
+                <Typography variant="subtitle2" component="span">
+                  {user.name}
+                </Typography>
+              </Button>
             )}
             {user?.avatar && <Avatar src={user?.avatar} alt={user?.name} />}
           </Stack>
