@@ -8,7 +8,9 @@ function withCors(req: NextRequest, res: NextResponse) {
   const origin = req.headers.get("origin");
   if (origin) {
     res.headers.set("Access-Control-Allow-Origin", origin);
-    res.headers.set("Access-Control-Allow-Credentials", "true");
+    // Admin panel login fetch does not use cookies/`credentials: include`.
+    // Keep Allow-Credentials=false to avoid strict browser CORS rejections.
+    res.headers.set("Access-Control-Allow-Credentials", "false");
     res.headers.set("Vary", "Origin");
   } else {
     res.headers.set("Access-Control-Allow-Origin", "*");

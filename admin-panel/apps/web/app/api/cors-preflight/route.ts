@@ -14,8 +14,7 @@ export async function OPTIONS(req: NextRequest) {
     status: 204,
     headers: {
       "Access-Control-Allow-Origin": allowOrigin,
-      // If the browser is sending cookies/authorization headers, allow credentials.
-      "Access-Control-Allow-Credentials": requestOrigin ? "true" : "false",
+      "Access-Control-Allow-Credentials": "false",
       "Access-Control-Allow-Methods": requestedMethod,
       "Access-Control-Allow-Headers": requestedHeaders ? requestedHeaders : "Content-Type, Authorization",
       "Access-Control-Max-Age": "86400",

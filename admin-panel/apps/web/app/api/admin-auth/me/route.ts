@@ -5,7 +5,7 @@ function withCors(req: NextRequest, res: NextResponse) {
   const origin = req.headers.get("origin");
   if (origin) {
     res.headers.set("Access-Control-Allow-Origin", origin);
-    res.headers.set("Access-Control-Allow-Credentials", "true");
+    res.headers.set("Access-Control-Allow-Credentials", "false");
     res.headers.set("Vary", "Origin");
   } else {
     res.headers.set("Access-Control-Allow-Origin", "*");
