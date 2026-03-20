@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "../../../../lib/prisma";
 import { requireAdminAuth } from "../../../../lib/admin-auth";
+import { withCors, corsOptions } from "../../../../lib/cors";
 
 const DEFAULT_GOOGLE_CALENDAR_ICAL_URL =
   "https://calendar.google.com/calendar/ical/945081910faa58ca2e3f90dc85e35fa627841dd35b5dbb4a0c3714c13363ab2d%40group.calendar.google.com/public/basic.ics";
@@ -85,15 +86,18 @@ function parseIcalToEvents(icsText: string): ParsedIcalEvent[] {
 // Returns list of events from the iCal feed (no DB write) so UI can let user select which to import.
 export async function GET(req: NextRequest) {
   const auth = await requireAdminAuth(req, "CALENDAR_EVENTS");
-  if (!auth.ok) return auth.response;
+  if (!auth.ok) return withCors(req, auth.response);
   try {
     const url = new URL(req.url);
     const feedUrl = url.searchParams.get("url")?.trim() || DEFAULT_GOOGLE_CALENDAR_ICAL_URL;
     const res = await fetch(feedUrl, { next: { revalidate: 0 } });
     if (!res.ok) {
-      return NextResponse.json(
-        { message: "Failed to fetch calendar feed", status: res.status },
-        { status: 502 },
+      return withCors(
+        req,
+        NextResponse.json(
+          { message: "Failed to fetch calendar feed", status: res.status },
+          { status: 502 }
+        )
       );
     }
     const icsText = await res.text();
@@ -102,12 +106,15 @@ export async function GET(req: NextRequest) {
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     events = events.filter((ev) => new Date(ev.start).getTime() >= startOfToday.getTime());
     events.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
-    return NextResponse.json(events, { status: 200 });
+    return withCors(req, NextResponse.json(events, { status: 200 }));
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : String(e);
-    return NextResponse.json(
-      { message: "Failed to preview calendar", error: message },
-      { status: 500 },
+    return withCors(
+      req,
+      NextResponse.json(
+        { message: "Failed to preview calendar", error: message },
+        { status: 500 }
+      )
     );
   }
 }
@@ -117,15 +124,21 @@ export async function GET(req: NextRequest) {
 // If sourceEventId is provided (e.g. uid|start), use it so each occurrence is a separate record.
 export async function POST(req: NextRequest) {
   const auth = await requireAdminAuth(req, "CALENDAR_EVENTS");
-  if (!auth.ok) return auth.response;
+  if (!auth.ok) return withCors(req, auth.response);
   try {
     const body = await req.json().catch(() => ({}));
     const eventsToImport = Array.isArray(body.events) ? body.events : [];
 
     if (eventsToImport.length === 0) {
-      return NextResponse.json(
-        { message: "No events selected. Use GET /api/calendar-events/import to list events, then POST with { events: [...] }." },
-        { status: 400 },
+      return withCors(
+        req,
+        NextResponse.json(
+          {
+            message:
+              "No events selected. Use GET /api/calendar-events/import to list events, then POST with { events: [...] }.",
+          },
+          { status: 400 }
+        )
       );
     }
 
@@ -157,12 +170,15 @@ export async function POST(req: NextRequest) {
         },
       });
       if (duplicate) {
-        return NextResponse.json(
-          {
-            message:
-              "An event with the same title, start time, and end time already exists. If you still need it, please create the event manually.",
-          },
-          { status: 400 },
+        return withCors(
+          req,
+          NextResponse.json(
+            {
+              message:
+                "An event with the same title, start time, and end time already exists. If you still need it, please create the event manually.",
+            },
+            { status: 400 }
+          )
         );
       }
 
@@ -220,22 +236,22 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    return NextResponse.json(
-      { message: "Import complete", ...results },
-      { status: 200 },
+    return withCors(
+      req,
+      NextResponse.json({ message: "Import complete", ...results }, { status: 200 })
     );
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : String(e);
-    return NextResponse.json(
-      { message: "Failed to import calendar events", error: message },
-      { status: 500 },
+    return withCors(
+      req,
+      NextResponse.json(
+        { message: "Failed to import calendar events", error: message },
+        { status: 500 }
+      )
     );
   }
 }
 
-export async function OPTIONS() {
-  return new NextResponse(null, {
-    status: 204,
-    headers: { Allow: "GET, POST, OPTIONS" },
-  });
+export async function OPTIONS(req: NextRequest) {
+  return corsOptions(req);
 }

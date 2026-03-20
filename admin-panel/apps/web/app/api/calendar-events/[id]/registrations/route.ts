@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "../../../../../lib/prisma";
 import { requireAdminAuth } from "../../../../../lib/admin-auth";
+import { withCors, corsOptions } from "../../../../../lib/cors";
 
 async function getIdFromContext(context: any): Promise<string | undefined> {
   const params = await Promise.resolve(context?.params);
@@ -10,11 +11,14 @@ async function getIdFromContext(context: any): Promise<string | undefined> {
 // GET /api/calendar-events/:id/registrations
 export async function GET(req: NextRequest, context: any) {
   const auth = await requireAdminAuth(req, "CALENDAR_EVENTS");
-  if (!auth.ok) return auth.response;
+  if (!auth.ok) return withCors(req, auth.response);
   try {
     const calendarEventId = await getIdFromContext(context);
     if (!calendarEventId) {
-      return NextResponse.json({ message: "Missing calendar event id" }, { status: 400 });
+      return withCors(
+        req,
+        NextResponse.json({ message: "Missing calendar event id" }, { status: 400 })
+      );
     }
 
     const registrations = await prisma.eventRegistration.findMany({
@@ -26,14 +30,17 @@ export async function GET(req: NextRequest, context: any) {
       },
     });
 
-    return NextResponse.json(registrations, { status: 200 });
+    return withCors(req, NextResponse.json(registrations, { status: 200 }));
   } catch (e: any) {
-    return NextResponse.json(
-      {
-        message: "Failed to list event registrations",
-        error: e?.message ?? String(e),
-      },
-      { status: 500 },
+    return withCors(
+      req,
+      NextResponse.json(
+        {
+          message: "Failed to list event registrations",
+          error: e?.message ?? String(e),
+        },
+        { status: 500 }
+      )
     );
   }
 }
@@ -45,11 +52,14 @@ export async function GET(req: NextRequest, context: any) {
 // - registration allowed only when registrationOpen = true
 export async function POST(req: NextRequest, context: any) {
   const auth = await requireAdminAuth(req, "CALENDAR_EVENTS");
-  if (!auth.ok) return auth.response;
+  if (!auth.ok) return withCors(req, auth.response);
   try {
     const calendarEventId = await getIdFromContext(context);
     if (!calendarEventId) {
-      return NextResponse.json({ message: "Missing calendar event id" }, { status: 400 });
+      return withCors(
+        req,
+        NextResponse.json({ message: "Missing calendar event id" }, { status: 400 })
+      );
     }
 
     const body = await req.json().catch(() => ({}));
@@ -63,9 +73,9 @@ export async function POST(req: NextRequest, context: any) {
         : null;
 
     if (!preferredName) {
-      return NextResponse.json(
-        { message: "preferredName is required" },
-        { status: 400 },
+      return withCors(
+        req,
+        NextResponse.json({ message: "preferredName is required" }, { status: 400 })
       );
     }
 
@@ -74,22 +84,28 @@ export async function POST(req: NextRequest, context: any) {
     });
 
     if (!event) {
-      return NextResponse.json({ message: "Event not found" }, { status: 404 });
+      return withCors(req, NextResponse.json({ message: "Event not found" }, { status: 404 }));
     }
 
     if (!event.registrationOpen) {
-      return NextResponse.json(
-        { message: "Registration is currently closed for this event" },
-        { status: 400 },
+      return withCors(
+        req,
+        NextResponse.json(
+          { message: "Registration is currently closed for this event" },
+          { status: 400 }
+        )
       );
     }
 
     const isSpecial = event.eventType === "SPECIAL";
 
     if (isSpecial && !teamName) {
-      return NextResponse.json(
-        { message: "teamName is required for SPECIAL events" },
-        { status: 400 },
+      return withCors(
+        req,
+        NextResponse.json(
+          { message: "teamName is required for SPECIAL events" },
+          { status: 400 }
+        )
       );
     }
 
@@ -137,25 +153,28 @@ export async function POST(req: NextRequest, context: any) {
       return NextResponse.json(registration, { status: 201 });
     } catch (e: any) {
       if (e?.code === "P2002") {
-        return NextResponse.json(
-          { message: "Member is already registered for this event" },
-          { status: 409 },
+        return withCors(
+          req,
+          NextResponse.json(
+            { message: "Member is already registered for this event" },
+            { status: 409 }
+          )
         );
       }
       throw e;
     }
   } catch (e: any) {
-    return NextResponse.json(
-      { message: "Failed to create event registration", error: e?.message ?? String(e) },
-      { status: 500 },
+    return withCors(
+      req,
+      NextResponse.json(
+        { message: "Failed to create event registration", error: e?.message ?? String(e) },
+        { status: 500 }
+      )
     );
   }
 }
 
-export async function OPTIONS() {
-  return new NextResponse(null, {
-    status: 204,
-    headers: { Allow: "GET, HEAD, OPTIONS, POST" },
-  });
+export async function OPTIONS(req: NextRequest) {
+  return corsOptions(req);
 }
 
