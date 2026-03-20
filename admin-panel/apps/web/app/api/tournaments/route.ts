@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "../../../lib/prisma";
 import { requireAdminAuth } from "../../../lib/admin-auth";
+import { withCors, corsJson, corsOptions } from "../../../lib/cors";
 
 function asTournamentType(input: unknown): "CUP" | "LEAGUE" | undefined {
   if (input == null) return undefined;
@@ -13,7 +14,7 @@ function asTournamentType(input: unknown): "CUP" | "LEAGUE" | undefined {
 // GET /api/tournaments?_start=0&_end=25
 export async function GET(req: NextRequest) {
   const auth = await requireAdminAuth(req, "TOURNAMENTS");
-  if (!auth.ok) return auth.response;
+  if (!auth.ok) return withCors(req, auth.response);
   try {
     const url = new URL(req.url);
     const search = url.searchParams;
@@ -34,16 +35,15 @@ export async function GET(req: NextRequest) {
       prisma.tournament.count(),
     ]);
 
-    return NextResponse.json(items, {
+    return corsJson(req, items, {
       status: 200,
-      headers: {
-        "X-Total-Count": String(total),
-      },
+      headers: { "X-Total-Count": String(total) },
     });
   } catch (e: any) {
-    return NextResponse.json(
+    return corsJson(
+      req,
       { message: "Failed to list tournaments", error: e?.message ?? String(e) },
-      { status: 500 },
+      { status: 500 }
     );
   }
 }
@@ -51,7 +51,7 @@ export async function GET(req: NextRequest) {
 // POST /api/tournaments
 export async function POST(req: NextRequest) {
   const auth = await requireAdminAuth(req, "TOURNAMENTS");
-  if (!auth.ok) return auth.response;
+  if (!auth.ok) return withCors(req, auth.response);
   try {
     const body = await req.json().catch(() => ({}));
 
@@ -71,21 +71,17 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    return NextResponse.json(created, { status: 201 });
+    return corsJson(req, created, { status: 201 });
   } catch (e: any) {
-    return NextResponse.json(
+    return corsJson(
+      req,
       { message: "Failed to create tournament", error: e?.message ?? String(e) },
-      { status: 500 },
+      { status: 500 }
     );
   }
 }
 
-export async function OPTIONS() {
-  return new NextResponse(null, {
-    status: 204,
-    headers: {
-      Allow: "GET, HEAD, OPTIONS, POST",
-    },
-  });
+export async function OPTIONS(req: NextRequest) {
+  return corsOptions(req);
 }
 

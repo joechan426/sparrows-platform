@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "../../../../lib/prisma";
+import { corsJson, corsOptions } from "../../../../lib/cors";
 
 async function getIdFromContext(context: any): Promise<string | undefined> {
   const params = await Promise.resolve(context?.params);
@@ -10,15 +11,16 @@ async function getIdFromContext(context: any): Promise<string | undefined> {
 export async function GET(req: NextRequest, context: any) {
   try {
     const id = await getIdFromContext(context);
-    if (!id) return NextResponse.json({ message: "Missing id" }, { status: 400 });
+    if (!id) return corsJson(req, { message: "Missing id" }, { status: 400 });
 
     const member = await prisma.member.findUnique({ where: { id } });
-    if (!member) return NextResponse.json({ message: "Not found" }, { status: 404 });
+    if (!member) return corsJson(req, { message: "Not found" }, { status: 404 });
 
     const { passwordHash: _, ...safe } = member;
-    return NextResponse.json(safe, { status: 200 });
+    return corsJson(req, safe, { status: 200 });
   } catch (e: any) {
-    return NextResponse.json(
+    return corsJson(
+      req,
       { message: "Failed to fetch member", error: e?.message ?? String(e) },
       { status: 500 },
     );
@@ -29,7 +31,7 @@ export async function GET(req: NextRequest, context: any) {
 export async function PATCH(req: NextRequest, context: any) {
   try {
     const id = await getIdFromContext(context);
-    if (!id) return NextResponse.json({ message: "Missing id" }, { status: 400 });
+    if (!id) return corsJson(req, { message: "Missing id" }, { status: 400 });
 
     const body = await req.json().catch(() => ({}));
 
@@ -38,7 +40,8 @@ export async function PATCH(req: NextRequest, context: any) {
     if (typeof body.preferredName === "string") {
       const preferredName = body.preferredName.trim();
       if (!preferredName) {
-        return NextResponse.json(
+        return corsJson(
+          req,
           { message: "preferredName cannot be empty" },
           { status: 400 },
         );
@@ -49,7 +52,8 @@ export async function PATCH(req: NextRequest, context: any) {
     if (typeof body.email === "string") {
       const email = body.email.trim();
       if (!email) {
-        return NextResponse.json(
+        return corsJson(
+          req,
           { message: "email cannot be empty" },
           { status: 400 },
         );
@@ -58,7 +62,8 @@ export async function PATCH(req: NextRequest, context: any) {
     }
 
     if (Object.keys(data).length === 0) {
-      return NextResponse.json(
+      return corsJson(
+        req,
         { message: "No updatable fields provided" },
         { status: 400 },
       );
@@ -71,10 +76,11 @@ export async function PATCH(req: NextRequest, context: any) {
       });
 
       const { passwordHash: __, ...safe } = updated;
-      return NextResponse.json(safe, { status: 200 });
+      return corsJson(req, safe, { status: 200 });
     } catch (e: any) {
       if (e?.code === "P2002") {
-        return NextResponse.json(
+        return corsJson(
+          req,
           { message: "Email must be unique" },
           { status: 409 },
         );
@@ -82,17 +88,15 @@ export async function PATCH(req: NextRequest, context: any) {
       throw e;
     }
   } catch (e: any) {
-    return NextResponse.json(
+    return corsJson(
+      req,
       { message: "Failed to update member", error: e?.message ?? String(e) },
       { status: 500 },
     );
   }
 }
 
-export async function OPTIONS() {
-  return new NextResponse(null, {
-    status: 204,
-    headers: { Allow: "GET, HEAD, OPTIONS, PATCH" },
-  });
+export async function OPTIONS(req: NextRequest) {
+  return corsOptions(req);
 }
 

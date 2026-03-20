@@ -1,11 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "../../../lib/prisma";
 import { requireAdminAuth } from "../../../lib/admin-auth";
+import { withCors, corsJson, corsOptions } from "../../../lib/cors";
 
 // GET /api/members?_start=0&_end=25&q=search (optional q: filter by name or email)
 export async function GET(req: NextRequest) {
   const auth = await requireAdminAuth(req, "MEMBERS");
-  if (!auth.ok) return auth.response;
+  if (!auth.ok) return withCors(req, auth.response);
   try {
     const url = new URL(req.url);
     const search = url.searchParams;
@@ -44,14 +45,15 @@ export async function GET(req: NextRequest) {
       ({ passwordHash: _passwordHash, ...m }: { passwordHash?: string; [key: string]: any }) => m
     );
 
-    return NextResponse.json(items, {
+    return corsJson(req, items, {
       status: 200,
       headers: {
         "X-Total-Count": String(total),
       },
     });
   } catch (e: any) {
-    return NextResponse.json(
+    return corsJson(
+      req,
       { message: "Failed to list members", error: e?.message ?? String(e) },
       { status: 500 },
     );
@@ -61,7 +63,7 @@ export async function GET(req: NextRequest) {
 // POST /api/members
 export async function POST(req: NextRequest) {
   const auth = await requireAdminAuth(req, "MEMBERS");
-  if (!auth.ok) return auth.response;
+  if (!auth.ok) return withCors(req, auth.response);
   try {
     const body = await req.json().catch(() => ({}));
 
@@ -70,7 +72,8 @@ export async function POST(req: NextRequest) {
       typeof body.preferredName === "string" ? body.preferredName.trim() : "";
 
     if (!email || !preferredName) {
-      return NextResponse.json(
+      return corsJson(
+        req,
         { message: "preferredName and email are required" },
         { status: 400 },
       );
@@ -81,7 +84,8 @@ export async function POST(req: NextRequest) {
     });
 
     if (existing) {
-      return NextResponse.json(
+      return corsJson(
+        req,
         { message: "Member with this email already exists", id: existing.id },
         { status: 409 },
       );
@@ -94,21 +98,17 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    return NextResponse.json(created, { status: 201 });
+    return corsJson(req, created, { status: 201 });
   } catch (e: any) {
-    return NextResponse.json(
+    return corsJson(
+      req,
       { message: "Failed to create member", error: e?.message ?? String(e) },
       { status: 500 },
     );
   }
 }
 
-export async function OPTIONS() {
-  return new NextResponse(null, {
-    status: 204,
-    headers: {
-      Allow: "GET, HEAD, OPTIONS, POST",
-    },
-  });
+export async function OPTIONS(req: NextRequest) {
+  return corsOptions(req);
 }
 

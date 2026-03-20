@@ -2,13 +2,14 @@ import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "../../../lib/prisma";
 import bcrypt from "bcryptjs";
 import { requireAdminAuth } from "../../../lib/admin-auth";
+import { withCors, corsJson, corsOptions } from "../../../lib/cors";
 
 const SALT_ROUNDS = 10;
 
 // GET /api/admin-users — list all admin users (ADMIN only)
 export async function GET(req: NextRequest) {
   const result = await requireAdminAuth(req, null);
-  if (!result.ok) return result.response;
+  if (!result.ok) return withCors(req, result.response);
   try {
     const users = await prisma.adminUser.findMany({
       orderBy: { createdAt: "desc" },
@@ -33,12 +34,17 @@ export async function GET(req: NextRequest) {
       permissions: u.permissions.map((p: { module: string }) => p.module),
     })
     );
-    return NextResponse.json(list, {
+    return corsJson(req, list, {
       headers: { "X-Total-Count": String(list.length) },
+      status: 200,
     });
   } catch (e: unknown) {
-    return NextResponse.json(
-      { message: "Failed to list admin users", error: e instanceof Error ? e.message : String(e) },
+    return corsJson(
+      req,
+      {
+        message: "Failed to list admin users",
+        error: e instanceof Error ? e.message : String(e),
+      },
       { status: 500 }
     );
   }
@@ -47,7 +53,7 @@ export async function GET(req: NextRequest) {
 // POST /api/admin-users — create admin/manager (ADMIN only)
 export async function POST(req: NextRequest) {
   const result = await requireAdminAuth(req, null);
-  if (!result.ok) return result.response;
+  if (!result.ok) return withCors(req, result.response);
   try {
     const body = await req.json().catch(() => ({}));
     const userName = typeof body.userName === "string" ? body.userName.trim() : "";
@@ -58,15 +64,19 @@ export async function POST(req: NextRequest) {
       : [];
 
     if (!userName || !password) {
-      return NextResponse.json({ message: "User name and password are required" }, { status: 400 });
+      return corsJson(req, { message: "User name and password are required" }, { status: 400 });
     }
     const { validateAdminPassword } = await import("../../../lib/password-rules");
     const valid = validateAdminPassword(password);
-    if (!valid.ok) return NextResponse.json({ message: valid.message }, { status: 400 });
+    if (!valid.ok) return corsJson(req, { message: valid.message }, { status: 400 });
 
     const existing = await prisma.adminUser.findUnique({ where: { userName } });
     if (existing) {
-      return NextResponse.json({ message: "An admin user with this user name already exists" }, { status: 409 });
+      return corsJson(
+        req,
+        { message: "An admin user with this user name already exists" },
+        { status: 409 }
+      );
     }
 
     const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
@@ -82,19 +92,31 @@ export async function POST(req: NextRequest) {
       include: { permissions: { select: { module: true } } },
     });
 
-    return NextResponse.json({
-      id: admin.id,
-      userName: admin.userName,
-      role: admin.role,
-      isActive: admin.isActive,
-      createdAt: admin.createdAt,
-      updatedAt: admin.updatedAt,
-      permissions: admin.permissions.map((p: { module: string }) => p.module),
-    });
+    return corsJson(
+      req,
+      {
+        id: admin.id,
+        userName: admin.userName,
+        role: admin.role,
+        isActive: admin.isActive,
+        createdAt: admin.createdAt,
+        updatedAt: admin.updatedAt,
+        permissions: admin.permissions.map((p: { module: string }) => p.module),
+      },
+      { status: 201 }
+    );
   } catch (e: unknown) {
-    return NextResponse.json(
-      { message: "Failed to create admin user", error: e instanceof Error ? e.message : String(e) },
+    return corsJson(
+      req,
+      {
+        message: "Failed to create admin user",
+        error: e instanceof Error ? e.message : String(e),
+      },
       { status: 500 }
     );
   }
+}
+
+export async function OPTIONS(req: NextRequest) {
+  return corsOptions(req);
 }

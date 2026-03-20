@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "../../../../../lib/prisma";
+import { corsJson, corsOptions } from "../../../../../lib/cors";
 
 async function getIdFromContext(context: any): Promise<string | undefined> {
   const params = await Promise.resolve(context?.params);
@@ -12,7 +13,7 @@ export async function GET(req: NextRequest, context: any) {
   try {
     const memberId = await getIdFromContext(context);
     if (!memberId) {
-      return NextResponse.json({ message: "Missing member id" }, { status: 400 });
+      return corsJson(req, { message: "Missing member id" }, { status: 400 });
     }
 
     const registrations = await prisma.eventRegistration.findMany({
@@ -23,9 +24,10 @@ export async function GET(req: NextRequest, context: any) {
       },
     });
 
-    return NextResponse.json(registrations, { status: 200 });
+    return corsJson(req, registrations, { status: 200 });
   } catch (e: any) {
-    return NextResponse.json(
+    return corsJson(
+      req,
       {
         message: "Failed to list member registrations",
         error: e?.message ?? String(e),
@@ -35,9 +37,6 @@ export async function GET(req: NextRequest, context: any) {
   }
 }
 
-export async function OPTIONS() {
-  return new NextResponse(null, {
-    status: 204,
-    headers: { Allow: "GET, HEAD, OPTIONS" },
-  });
+export async function OPTIONS(req: NextRequest) {
+  return corsOptions(req);
 }

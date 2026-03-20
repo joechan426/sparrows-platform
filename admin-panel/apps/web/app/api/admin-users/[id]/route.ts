@@ -2,21 +2,23 @@ import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "../../../../lib/prisma";
 import bcrypt from "bcryptjs";
 import { requireAdminAuth } from "../../../../lib/admin-auth";
+import { withCors, corsJson, corsOptions } from "../../../../lib/cors";
 
 const SALT_ROUNDS = 10;
 
 // GET /api/admin-users/:id — get one admin user (ADMIN only)
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const result = await requireAdminAuth(req, null);
-  if (!result.ok) return result.response;
+  if (!result.ok) return withCors(req, result.response);
   const { id } = await params;
   try {
     const admin = await prisma.adminUser.findUnique({
       where: { id },
       include: { permissions: { select: { module: true } } },
     });
-    if (!admin) return NextResponse.json({ message: "Admin user not found" }, { status: 404 });
-    return NextResponse.json({
+    if (!admin)
+      return corsJson(req, { message: "Admin user not found" }, { status: 404 });
+    return corsJson(req, {
       id: admin.id,
       userName: admin.userName,
       role: admin.role,
@@ -26,8 +28,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       permissions: admin.permissions.map((p: { module: string }) => p.module),
     });
   } catch (e: unknown) {
-    return NextResponse.json(
-      { message: "Failed to fetch admin user", error: e instanceof Error ? e.message : String(e) },
+    return corsJson(
+      req,
+      {
+        message: "Failed to fetch admin user",
+        error: e instanceof Error ? e.message : String(e),
+      },
       { status: 500 }
     );
   }
@@ -36,7 +42,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 // PATCH /api/admin-users/:id — update isActive, permissions, and/or password (ADMIN only)
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const result = await requireAdminAuth(req, null);
-  if (!result.ok) return result.response;
+  if (!result.ok) return withCors(req, result.response);
   const { id } = await params;
   try {
     const body = await req.json().catch(() => ({}));
@@ -53,7 +59,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (newUserName.length > 0) {
       const existing = await prisma.adminUser.findFirst({ where: { userName: newUserName } });
       if (existing && existing.id !== id) {
-        return NextResponse.json({ message: "This user name is already in use" }, { status: 409 });
+        return corsJson(req, { message: "This user name is already in use" }, { status: 409 });
       }
       updates.userName = newUserName;
     }
@@ -61,7 +67,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (newPassword.length > 0) {
       const { validateAdminPassword } = await import("../../../../lib/password-rules");
       const valid = validateAdminPassword(newPassword);
-      if (!valid.ok) return NextResponse.json({ message: valid.message }, { status: 400 });
+      if (!valid.ok) return corsJson(req, { message: valid.message }, { status: 400 });
       updates.passwordHash = await bcrypt.hash(newPassword, SALT_ROUNDS);
     }
     if (Array.isArray(data.permissions)) {
@@ -82,7 +88,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       include: { permissions: { select: { module: true } } },
     });
 
-    return NextResponse.json({
+    return corsJson(req, {
       id: admin.id,
       userName: admin.userName,
       role: admin.role,
@@ -92,10 +98,19 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       permissions: admin.permissions.map((p: { module: string }) => p.module),
     });
   } catch (e: unknown) {
-    if ((e as { code?: string })?.code === "P2025") return NextResponse.json({ message: "Admin user not found" }, { status: 404 });
-    return NextResponse.json(
-      { message: "Failed to update admin user", error: e instanceof Error ? e.message : String(e) },
+    if ((e as { code?: string })?.code === "P2025")
+      return corsJson(req, { message: "Admin user not found" }, { status: 404 });
+    return corsJson(
+      req,
+      {
+        message: "Failed to update admin user",
+        error: e instanceof Error ? e.message : String(e),
+      },
       { status: 500 }
     );
   }
+}
+
+export async function OPTIONS(req: NextRequest) {
+  return corsOptions(req);
 }
