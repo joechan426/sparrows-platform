@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "../../../../lib/prisma";
 import { requireAdminAuth } from "../../../../lib/admin-auth";
+import { withCors, corsOptions } from "../../../../lib/cors";
 
 async function getIdFromContext(context: any): Promise<string | undefined> {
   const params = await Promise.resolve(context?.params);
@@ -24,16 +25,20 @@ function classifyEventType(title: string): "NORMAL" | "SPECIAL" {
 export async function GET(req: NextRequest, context: any) {
   try {
     const id = await getIdFromContext(context);
-    if (!id) return NextResponse.json({ message: "Missing id" }, { status: 400 });
+    if (!id) return withCors(req, NextResponse.json({ message: "Missing id" }, { status: 400 }));
 
     const event = await prisma.calendarEvent.findUnique({ where: { id } });
-    if (!event) return NextResponse.json({ message: "Not found" }, { status: 404 });
+    if (!event)
+      return withCors(req, NextResponse.json({ message: "Not found" }, { status: 404 }));
 
-    return NextResponse.json(event, { status: 200 });
+    return withCors(req, NextResponse.json(event, { status: 200 }));
   } catch (e: any) {
-    return NextResponse.json(
-      { message: "Failed to fetch calendar event", error: e?.message ?? String(e) },
-      { status: 500 },
+    return withCors(
+      req,
+      NextResponse.json(
+        { message: "Failed to fetch calendar event", error: e?.message ?? String(e) },
+        { status: 500 }
+      )
     );
   }
 }
@@ -42,10 +47,10 @@ export async function GET(req: NextRequest, context: any) {
 // Managers can update basic fields and toggle registrationOpen.
 export async function PATCH(req: NextRequest, context: any) {
   const auth = await requireAdminAuth(req, "CALENDAR_EVENTS");
-  if (!auth.ok) return auth.response;
+  if (!auth.ok) return withCors(req, auth.response);
   try {
     const id = await getIdFromContext(context);
-    if (!id) return NextResponse.json({ message: "Missing id" }, { status: 400 });
+    if (!id) return withCors(req, NextResponse.json({ message: "Missing id" }, { status: 400 }));
 
     const body = await req.json().catch(() => ({}));
 
@@ -54,9 +59,12 @@ export async function PATCH(req: NextRequest, context: any) {
     if (typeof body.title === "string") {
       const title = body.title.trim();
       if (!title) {
-        return NextResponse.json(
+        return withCors(
+          req,
+          NextResponse.json(
           { message: "title cannot be empty" },
           { status: 400 },
+          )
         );
       }
       data.title = title;
@@ -81,9 +89,12 @@ export async function PATCH(req: NextRequest, context: any) {
     if (body.capacity !== undefined) {
       const cap = body.capacity === null || body.capacity === "" ? null : Number(body.capacity);
       if (cap !== null && (!Number.isInteger(cap) || cap < 0)) {
-        return NextResponse.json(
-          { message: "capacity must be a non-negative integer or null" },
-          { status: 400 },
+        return withCors(
+          req,
+          NextResponse.json(
+            { message: "capacity must be a non-negative integer or null" },
+            { status: 400 }
+          )
         );
       }
       data.capacity = cap;
@@ -92,9 +103,12 @@ export async function PATCH(req: NextRequest, context: any) {
     if (body.startAt != null) {
       const startAt = new Date(body.startAt);
       if (Number.isNaN(startAt.getTime())) {
-        return NextResponse.json(
-          { message: "startAt must be a valid date" },
-          { status: 400 },
+        return withCors(
+          req,
+          NextResponse.json(
+            { message: "startAt must be a valid date" },
+            { status: 400 }
+          )
         );
       }
       data.startAt = startAt;
@@ -103,18 +117,24 @@ export async function PATCH(req: NextRequest, context: any) {
     if (body.endAt != null) {
       const endAt = new Date(body.endAt);
       if (Number.isNaN(endAt.getTime())) {
-        return NextResponse.json(
-          { message: "endAt must be a valid date" },
-          { status: 400 },
+        return withCors(
+          req,
+          NextResponse.json(
+            { message: "endAt must be a valid date" },
+            { status: 400 }
+          )
         );
       }
       data.endAt = endAt;
     }
 
     if (Object.keys(data).length === 0) {
-      return NextResponse.json(
-        { message: "No updatable fields provided" },
-        { status: 400 },
+      return withCors(
+        req,
+        NextResponse.json(
+          { message: "No updatable fields provided" },
+          { status: 400 }
+        )
       );
     }
 
@@ -123,11 +143,14 @@ export async function PATCH(req: NextRequest, context: any) {
       data,
     });
 
-    return NextResponse.json(updated, { status: 200 });
+    return withCors(req, NextResponse.json(updated, { status: 200 }));
   } catch (e: any) {
-    return NextResponse.json(
-      { message: "Failed to update calendar event", error: e?.message ?? String(e) },
-      { status: 500 },
+    return withCors(
+      req,
+      NextResponse.json(
+        { message: "Failed to update calendar event", error: e?.message ?? String(e) },
+        { status: 500 }
+      )
     );
   }
 }
@@ -135,31 +158,31 @@ export async function PATCH(req: NextRequest, context: any) {
 // DELETE /api/calendar-events/:id
 export async function DELETE(req: NextRequest, context: any) {
   const auth = await requireAdminAuth(req, "CALENDAR_EVENTS");
-  if (!auth.ok) return auth.response;
+  if (!auth.ok) return withCors(req, auth.response);
   try {
     const id = await getIdFromContext(context);
-    if (!id) return NextResponse.json({ message: "Missing id" }, { status: 400 });
+    if (!id) return withCors(req, NextResponse.json({ message: "Missing id" }, { status: 400 }));
 
     await prisma.calendarEvent.delete({
       where: { id },
     });
 
-    return NextResponse.json({ ok: true }, { status: 200 });
+    return withCors(req, NextResponse.json({ ok: true }, { status: 200 }));
   } catch (e: any) {
     if (e?.code === "P2025") {
-      return NextResponse.json({ message: "Event not found" }, { status: 404 });
+      return withCors(req, NextResponse.json({ message: "Event not found" }, { status: 404 }));
     }
-    return NextResponse.json(
-      { message: "Failed to delete calendar event", error: e?.message ?? String(e) },
-      { status: 500 },
+    return withCors(
+      req,
+      NextResponse.json(
+        { message: "Failed to delete calendar event", error: e?.message ?? String(e) },
+        { status: 500 }
+      )
     );
   }
 }
 
-export async function OPTIONS() {
-  return new NextResponse(null, {
-    status: 204,
-    headers: { Allow: "GET, HEAD, OPTIONS, PATCH, DELETE" },
-  });
+export async function OPTIONS(req: NextRequest) {
+  return corsOptions(req);
 }
 

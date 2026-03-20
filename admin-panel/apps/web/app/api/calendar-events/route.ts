@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "../../../lib/prisma";
 import { requireAdminAuth } from "../../../lib/admin-auth";
+import { withCors, corsOptions } from "../../../lib/cors";
 
 function classifySportType(title: string): "VOLLEYBALL" | "PICKLEBALL" | "TENNIS" {
   const t = title.toLowerCase();
@@ -62,16 +63,20 @@ export async function GET(req: NextRequest) {
       })
     );
 
-    return NextResponse.json(items, {
-      status: 200,
-      headers: {
-        "X-Total-Count": String(total),
-      },
-    });
+    return withCors(
+      req,
+      NextResponse.json(items, {
+        status: 200,
+        headers: { "X-Total-Count": String(total) },
+      })
+    );
   } catch (e: any) {
-    return NextResponse.json(
-      { message: "Failed to list calendar events", error: e?.message ?? String(e) },
-      { status: 500 },
+    return withCors(
+      req,
+      NextResponse.json(
+        { message: "Failed to list calendar events", error: e?.message ?? String(e) },
+        { status: 500 }
+      )
     );
   }
 }
@@ -80,7 +85,7 @@ export async function GET(req: NextRequest) {
 // Manual creation (sourceType MANUAL, sourceEventId optional) or upsert by sourceEventId + sourceType.
 export async function POST(req: NextRequest) {
   const auth = await requireAdminAuth(req, "CALENDAR_EVENTS");
-  if (!auth.ok) return auth.response;
+  if (!auth.ok) return withCors(req, auth.response);
   try {
     const body = await req.json().catch(() => ({}));
 
@@ -94,9 +99,12 @@ export async function POST(req: NextRequest) {
     const sourceType = asSourceType(body.sourceType);
 
     if (!title || !startAt || !endAt) {
-      return NextResponse.json(
+      return withCors(
+        req,
+        NextResponse.json(
         { message: "title, startAt, and endAt are required" },
         { status: 400 },
+        )
       );
     }
 
@@ -105,9 +113,12 @@ export async function POST(req: NextRequest) {
       sourceEventId = `manual-${randomUUID()}`;
     }
     if (!sourceEventId) {
-      return NextResponse.json(
+      return withCors(
+        req,
+        NextResponse.json(
         { message: "sourceEventId is required for non-manual events" },
         { status: 400 },
+        )
       );
     }
 
@@ -159,21 +170,19 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    return NextResponse.json(created, { status: 201 });
+    return withCors(req, NextResponse.json(created, { status: 201 }));
   } catch (e: any) {
-    return NextResponse.json(
-      { message: "Failed to create or update calendar event", error: e?.message ?? String(e) },
-      { status: 500 },
+    return withCors(
+      req,
+      NextResponse.json(
+        { message: "Failed to create or update calendar event", error: e?.message ?? String(e) },
+        { status: 500 }
+      )
     );
   }
 }
 
-export async function OPTIONS() {
-  return new NextResponse(null, {
-    status: 204,
-    headers: {
-      Allow: "GET, HEAD, OPTIONS, POST",
-    },
-  });
+export async function OPTIONS(req: NextRequest) {
+  return corsOptions(req);
 }
 

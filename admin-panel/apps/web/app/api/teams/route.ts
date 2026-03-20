@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "../../../lib/prisma";
 import { requireAdminAuth } from "../../../lib/admin-auth";
+import { withCors, corsOptions } from "../../../lib/cors";
 
 function json(data: unknown, init?: ResponseInit) {
   return NextResponse.json(data, {
@@ -14,7 +15,7 @@ function json(data: unknown, init?: ResponseInit) {
 
 export async function GET(req: NextRequest) {
   const auth = await requireAdminAuth(req, "TEAMS");
-  if (!auth.ok) return auth.response;
+  if (!auth.ok) return withCors(req, auth.response);
   try {
     const url = new URL(req.url);
 
@@ -29,7 +30,7 @@ export async function GET(req: NextRequest) {
       select: { id: true },
     });
 
-    if (!org) return json([]);
+    if (!org) return withCors(req, json([]));
 
     const teams = await prisma.team.findMany({
       where: { orgId: org.id },
@@ -38,27 +39,27 @@ export async function GET(req: NextRequest) {
       take,
     });
 
-    return json(teams);
+    return withCors(req, json(teams));
   } catch (e: any) {
-    return json({ message: e?.message ?? "Internal Server Error" }, { status: 500 });
+    return withCors(req, json({ message: e?.message ?? "Internal Server Error" }, { status: 500 }));
   }
 }
 
 export async function POST(req: NextRequest) {
   const auth = await requireAdminAuth(req, "TEAMS");
-  if (!auth.ok) return auth.response;
+  if (!auth.ok) return withCors(req, auth.response);
   try {
     const body = await req.json();
 
     const name = typeof body?.name === "string" ? body.name.trim() : "";
-    if (!name) return json({ message: "Missing name" }, { status: 400 });
+    if (!name) return withCors(req, json({ message: "Missing name" }, { status: 400 }));
 
     const org = await prisma.organization.findFirst({
       orderBy: { createdAt: "asc" },
       select: { id: true },
     });
 
-    if (!org) return json({ message: "Missing organization" }, { status: 400 });
+    if (!org) return withCors(req, json({ message: "Missing organization" }, { status: 400 }));
 
     const created = await prisma.team.create({
       data: {
@@ -67,8 +68,12 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    return json(created, { status: 201 });
+    return withCors(req, json(created, { status: 201 }));
   } catch (e: any) {
-    return json({ message: e?.message ?? "Internal Server Error" }, { status: 500 });
+    return withCors(req, json({ message: e?.message ?? "Internal Server Error" }, { status: 500 }));
   }
+}
+
+export async function OPTIONS(req: NextRequest) {
+  return corsOptions(req);
 }

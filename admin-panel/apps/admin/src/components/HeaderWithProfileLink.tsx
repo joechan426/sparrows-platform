@@ -34,12 +34,22 @@ export const HeaderWithProfileLink: React.FC<{ sticky?: boolean }> = ({
               <Button
                 component={Link}
                 to="/profile"
-                variant="text"
-                color="inherit"
-                sx={{ textTransform: "none", px: 0.5 }}
+                variant="contained"
+                sx={{
+                  textTransform: "none",
+                  px: 1,
+                  backgroundColor: "#0b2f6b",
+                  color: "#ffffff",
+                  boxShadow: "0px 3px 10px rgba(0,0,0,0.25)",
+                  borderRadius: "8px",
+                  "&:hover": {
+                    backgroundColor: "#08306b",
+                    boxShadow: "0px 5px 16px rgba(0,0,0,0.28)",
+                  },
+                }}
                 data-testid="header-user-name"
               >
-                <Typography variant="subtitle2" component="span">
+                <Typography variant="subtitle2" component="span" sx={{ color: "inherit" }}>
                   {user.name}
                 </Typography>
               </Button>
