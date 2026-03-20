@@ -2,7 +2,6 @@ import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "../../../lib/prisma";
 import bcrypt from "bcryptjs";
 import { requireAdminAuth } from "../../../lib/admin-auth";
-import type { AdminRole } from "@prisma/client";
 
 const SALT_ROUNDS = 10;
 
@@ -15,15 +14,25 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: "desc" },
       include: { permissions: { select: { module: true } } },
     });
-    const list = users.map((u) => ({
+    const list = users.map(
+      (u: {
+        id: string;
+        userName: string;
+        role: "ADMIN" | "MANAGER";
+        isActive: boolean;
+        createdAt: Date;
+        updatedAt: Date;
+        permissions: { module: string }[];
+      }) => ({
       id: u.id,
       userName: u.userName,
       role: u.role,
       isActive: u.isActive,
       createdAt: u.createdAt,
       updatedAt: u.updatedAt,
-      permissions: u.permissions.map((p) => p.module),
-    }));
+      permissions: u.permissions.map((p: { module: string }) => p.module),
+    })
+    );
     return NextResponse.json(list, {
       headers: { "X-Total-Count": String(list.length) },
     });
@@ -43,7 +52,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => ({}));
     const userName = typeof body.userName === "string" ? body.userName.trim() : "";
     const password = typeof body.password === "string" ? body.password : "";
-    const role = (body.role === "MANAGER" || body.role === "ADMIN" ? body.role : "MANAGER") as AdminRole;
+    const role: "MANAGER" | "ADMIN" = body.role === "MANAGER" || body.role === "ADMIN" ? body.role : "MANAGER";
     const permissions: ("TOURNAMENTS" | "TEAMS" | "CALENDAR_EVENTS" | "MEMBERS")[] = Array.isArray(body.permissions)
       ? body.permissions.filter((p: string) => ["TOURNAMENTS", "TEAMS", "CALENDAR_EVENTS", "MEMBERS"].includes(p))
       : [];
@@ -80,7 +89,7 @@ export async function POST(req: NextRequest) {
       isActive: admin.isActive,
       createdAt: admin.createdAt,
       updatedAt: admin.updatedAt,
-      permissions: admin.permissions.map((p) => p.module),
+      permissions: admin.permissions.map((p: { module: string }) => p.module),
     });
   } catch (e: unknown) {
     return NextResponse.json(

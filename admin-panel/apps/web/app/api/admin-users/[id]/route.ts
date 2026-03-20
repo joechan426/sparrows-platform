@@ -2,7 +2,6 @@ import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "../../../../lib/prisma";
 import bcrypt from "bcryptjs";
 import { requireAdminAuth } from "../../../../lib/admin-auth";
-import type { AdminModule } from "@prisma/client";
 
 const SALT_ROUNDS = 10;
 
@@ -24,7 +23,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       isActive: admin.isActive,
       createdAt: admin.createdAt,
       updatedAt: admin.updatedAt,
-      permissions: admin.permissions.map((p) => p.module),
+      permissions: admin.permissions.map((p: { module: string }) => p.module),
     });
   } catch (e: unknown) {
     return NextResponse.json(
@@ -46,7 +45,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       isActive?: boolean;
       userName?: string;
       passwordHash?: string;
-      permissions?: { deleteMany: {}; create: { module: AdminModule }[] };
+      permissions?: { deleteMany: {}; create: { module: string }[] };
     } = {};
 
     if (typeof data.isActive === "boolean") updates.isActive = data.isActive;
@@ -66,12 +65,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       updates.passwordHash = await bcrypt.hash(newPassword, SALT_ROUNDS);
     }
     if (Array.isArray(data.permissions)) {
-      const modules = data.permissions.filter((p: string) =>
-        ["TOURNAMENTS", "TEAMS", "CALENDAR_EVENTS", "MEMBERS"].includes(p)
-      ) as AdminModule[];
+      const modules = data.permissions.filter(
+        (p: string) => ["TOURNAMENTS", "TEAMS", "CALENDAR_EVENTS", "MEMBERS"].includes(p)
+      );
       updates.permissions = {
         deleteMany: {},
-        create: modules.map((module) => ({ module })),
+        create: modules.map((module: string) => ({ module })),
       };
     }
 
@@ -88,7 +87,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       isActive: admin.isActive,
       createdAt: admin.createdAt,
       updatedAt: admin.updatedAt,
-      permissions: admin.permissions.map((p) => p.module),
+      permissions: admin.permissions.map((p: { module: string }) => p.module),
     });
   } catch (e: unknown) {
     if ((e as { code?: string })?.code === "P2025") return NextResponse.json({ message: "Admin user not found" }, { status: 404 });
