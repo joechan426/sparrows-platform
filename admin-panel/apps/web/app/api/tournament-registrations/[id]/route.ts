@@ -1,11 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "../../../../lib/prisma";
 import { requireAdminAuth } from "../../../../lib/admin-auth";
-import { RegistrationStatus } from "@prisma/client";
 
-const ALLOWED_STATUSES: RegistrationStatus[] = ["APPROVED", "REJECTED"];
+type AllowedRegistrationStatus = "APPROVED" | "REJECTED";
+const ALLOWED_STATUSES: AllowedRegistrationStatus[] = ["APPROVED", "REJECTED"];
 
-function asAllowedStatus(input: unknown): RegistrationStatus | null {
+function asAllowedStatus(input: unknown): AllowedRegistrationStatus | null {
   if (input == null) return null;
   const v = String(input).toUpperCase().trim();
   if (v === "APPROVED") return "APPROVED";
@@ -46,7 +46,7 @@ export async function PATCH(req: NextRequest, context: { params?: Promise<{ id?:
       return NextResponse.json({ message: "Registration not found" }, { status: 404 });
     }
 
-    const data: { status?: RegistrationStatus; poolId?: string | null; divisionId?: string } = {};
+    const data: { status?: AllowedRegistrationStatus; poolId?: string | null; divisionId?: string } = {};
     if (status !== null) data.status = status;
     if (divisionId !== undefined && divisionId !== existing.divisionId) {
       const division = await prisma.division.findUnique({

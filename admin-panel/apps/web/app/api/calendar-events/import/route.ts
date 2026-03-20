@@ -1,26 +1,21 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "../../../../lib/prisma";
 import { requireAdminAuth } from "../../../../lib/admin-auth";
-import {
-  CalendarEventSourceType,
-  CalendarEventType,
-  SportType,
-} from "@prisma/client";
 
 const DEFAULT_GOOGLE_CALENDAR_ICAL_URL =
   "https://calendar.google.com/calendar/ical/945081910faa58ca2e3f90dc85e35fa627841dd35b5dbb4a0c3714c13363ab2d%40group.calendar.google.com/public/basic.ics";
 
-function classifySportType(title: string): SportType {
+function classifySportType(title: string): "VOLLEYBALL" | "PICKLEBALL" | "TENNIS" {
   const t = title.toLowerCase();
-  if (t.includes("pickleball")) return SportType.PICKLEBALL;
-  if (t.includes("tennis")) return SportType.TENNIS;
-  return SportType.VOLLEYBALL;
+  if (t.includes("pickleball")) return "PICKLEBALL";
+  if (t.includes("tennis")) return "TENNIS";
+  return "VOLLEYBALL";
 }
 
-function classifyEventType(title: string): CalendarEventType {
+function classifyEventType(title: string): "NORMAL" | "SPECIAL" {
   const t = title.toLowerCase();
-  if (t.includes("cup")) return CalendarEventType.SPECIAL;
-  return CalendarEventType.NORMAL;
+  if (t.includes("cup")) return "SPECIAL";
+  return "NORMAL";
 }
 
 /** Parse ICAL date-time value (e.g. 20260320T100000Z or 20260320T100000) to Date */
@@ -186,7 +181,7 @@ export async function POST(req: NextRequest) {
           where: {
             sourceEventId_sourceType: {
               sourceEventId,
-              sourceType: CalendarEventSourceType.GOOGLE,
+              sourceType: "GOOGLE",
             },
           },
         });
@@ -199,8 +194,8 @@ export async function POST(req: NextRequest) {
               startAt: start,
               endAt: end,
               location,
-              sportType,
-              eventType,
+              sportType: sportType as any,
+              eventType: eventType as any,
             },
           });
           results.updated += 1;
@@ -208,14 +203,14 @@ export async function POST(req: NextRequest) {
           await prisma.calendarEvent.create({
             data: {
               sourceEventId,
-              sourceType: CalendarEventSourceType.GOOGLE,
+              sourceType: "GOOGLE",
               title: summary,
               description,
               startAt: start,
               endAt: end,
               location,
-              sportType,
-              eventType,
+              sportType: sportType as any,
+              eventType: eventType as any,
             },
           });
           results.created += 1;

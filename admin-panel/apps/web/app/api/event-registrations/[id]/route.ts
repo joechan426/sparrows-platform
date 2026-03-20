@@ -1,7 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "../../../../lib/prisma";
 import { requireAdminAuth } from "../../../../lib/admin-auth";
-import { EventRegistrationStatus } from "@prisma/client";
 
 async function getIdFromContext(context: any): Promise<string | undefined> {
   const params = await Promise.resolve(context?.params);
@@ -27,14 +26,10 @@ export async function PATCH(req: NextRequest, context: any) {
       );
     }
 
-    const allowed: EventRegistrationStatus[] = [
-      EventRegistrationStatus.PENDING,
-      EventRegistrationStatus.APPROVED,
-      EventRegistrationStatus.WAITING_LIST,
-      EventRegistrationStatus.REJECTED,
-    ];
+    type AllowedStatus = "PENDING" | "APPROVED" | "WAITING_LIST" | "REJECTED";
+    const allowed: AllowedStatus[] = ["PENDING", "APPROVED", "WAITING_LIST", "REJECTED"];
 
-    const nextStatus = allowed.find((s) => s === statusRaw as EventRegistrationStatus);
+    const nextStatus = allowed.find((s) => s === statusRaw) ?? null;
     if (!nextStatus) {
       return NextResponse.json(
         {
@@ -45,7 +40,7 @@ export async function PATCH(req: NextRequest, context: any) {
       );
     }
 
-    if (nextStatus === EventRegistrationStatus.APPROVED) {
+    if (nextStatus === "APPROVED") {
       const reg = await prisma.eventRegistration.findUnique({
         where: { id },
         include: { event: true },
@@ -55,10 +50,10 @@ export async function PATCH(req: NextRequest, context: any) {
         const currentApproved = await prisma.eventRegistration.count({
           where: {
             calendarEventId: reg.calendarEventId,
-            status: EventRegistrationStatus.APPROVED,
+            status: "APPROVED",
           },
         });
-        const isAlreadyApproved = reg.status === EventRegistrationStatus.APPROVED;
+        const isAlreadyApproved = reg.status === "APPROVED";
         const wouldBeApproved = isAlreadyApproved ? currentApproved : currentApproved + 1;
         if (wouldBeApproved > reg.event.capacity) {
           return NextResponse.json(
@@ -72,7 +67,7 @@ export async function PATCH(req: NextRequest, context: any) {
     const updated = await prisma.eventRegistration.update({
       where: { id },
       data: {
-        status: nextStatus,
+        status: nextStatus as any,
       },
     });
 

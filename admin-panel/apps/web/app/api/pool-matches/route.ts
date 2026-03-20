@@ -1,7 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "../../../lib/prisma";
 import { requireAdminAuth } from "../../../lib/admin-auth";
-import { MatchStage, MatchStatus } from "@prisma/client";
 
 function json(data: unknown, init?: ResponseInit) {
   return NextResponse.json(data, {
@@ -23,7 +22,7 @@ export async function GET(req: NextRequest) {
     if (!poolId) return json({ message: "Missing poolId" }, { status: 400 });
 
     const matches = await prisma.match.findMany({
-      where: { poolId, stage: MatchStage.POOL },
+      where: { poolId, stage: "POOL" },
       include: {
         teamARegistration: { include: { team: true } },
         teamBRegistration: { include: { team: true } },
@@ -56,7 +55,7 @@ export async function POST(req: NextRequest) {
     if (!pool) return json({ message: "Pool not found" }, { status: 400 });
 
     const existingMatches = await prisma.match.count({
-      where: { poolId, stage: MatchStage.POOL },
+      where: { poolId, stage: "POOL" },
     });
     if (existingMatches > 0) {
       return json(
@@ -94,10 +93,10 @@ export async function POST(req: NextRequest) {
             tournamentId: pool.division.tournamentId,
             divisionId: pool.divisionId,
             poolId: pool.id,
-            stage: MatchStage.POOL,
+            stage: "POOL",
             teamARegistrationId: pair.aId,
             teamBRegistrationId: pair.bId,
-            status: MatchStatus.SCHEDULED,
+            status: "SCHEDULED",
           },
         });
         createdMatches.push(match);

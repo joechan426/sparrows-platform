@@ -1,30 +1,24 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "../../../lib/prisma";
 import { requireAdminAuth } from "../../../lib/admin-auth";
-import {
-  CalendarEventSourceType,
-  CalendarEventType,
-  EventRegistrationStatus,
-  SportType,
-} from "@prisma/client";
 
-function classifySportType(title: string): SportType {
+function classifySportType(title: string): "VOLLEYBALL" | "PICKLEBALL" | "TENNIS" {
   const t = title.toLowerCase();
-  if (t.includes("pickleball")) return SportType.PICKLEBALL;
-  if (t.includes("tennis")) return SportType.TENNIS;
-  return SportType.VOLLEYBALL;
+  if (t.includes("pickleball")) return "PICKLEBALL";
+  if (t.includes("tennis")) return "TENNIS";
+  return "VOLLEYBALL";
 }
 
-function classifyEventType(title: string): CalendarEventType {
+function classifyEventType(title: string): "NORMAL" | "SPECIAL" {
   const t = title.toLowerCase();
-  if (t.includes("cup")) return CalendarEventType.SPECIAL;
-  return CalendarEventType.NORMAL;
+  if (t.includes("cup")) return "SPECIAL";
+  return "NORMAL";
 }
 
-function asSourceType(input: unknown): CalendarEventSourceType {
+function asSourceType(input: unknown): "GOOGLE" | "MANUAL" {
   const v = String(input ?? "").toUpperCase().trim();
-  if (v === "GOOGLE") return CalendarEventSourceType.GOOGLE;
-  return CalendarEventSourceType.MANUAL;
+  if (v === "GOOGLE") return "GOOGLE";
+  return "MANUAL";
 }
 
 // GET /api/calendar-events?_start=0&_end=25 — used by web app (event list) and admin panel. No admin auth so web app can list.
@@ -47,7 +41,7 @@ export async function GET(req: NextRequest) {
         orderBy: { startAt: "asc" },
         include: {
           registrations: {
-            where: { status: EventRegistrationStatus.APPROVED },
+            where: { status: "APPROVED" },
             select: { id: true },
           },
         },
@@ -55,10 +49,18 @@ export async function GET(req: NextRequest) {
       prisma.calendarEvent.count(),
     ]);
 
-    const items = rawItems.map(({ registrations, ...e }) => ({
-      ...e,
-      approvedCount: registrations.length,
-    }));
+    const items = rawItems.map(
+      ({
+        registrations,
+        ...e
+      }: {
+        registrations: { id: string }[];
+        [key: string]: unknown;
+      }) => ({
+        ...e,
+        approvedCount: registrations.length,
+      })
+    );
 
     return NextResponse.json(items, {
       status: 200,
@@ -98,7 +100,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (sourceType === CalendarEventSourceType.MANUAL && !sourceEventId) {
+    if (sourceType === "MANUAL" && !sourceEventId) {
       const { randomUUID } = await import("crypto");
       sourceEventId = `manual-${randomUUID()}`;
     }
@@ -140,9 +142,9 @@ export async function POST(req: NextRequest) {
         startAt,
         endAt,
         location,
-        sourceType,
-        sportType,
-        eventType,
+        sourceType: sourceType as any,
+        sportType: sportType as any,
+        eventType: eventType as any,
         capacity: capacity ?? undefined,
       },
       update: {
@@ -151,8 +153,8 @@ export async function POST(req: NextRequest) {
         startAt,
         endAt,
         location,
-        sportType,
-        eventType,
+        sportType: sportType as any,
+        eventType: eventType as any,
         capacity: capacity ?? undefined,
       },
     });

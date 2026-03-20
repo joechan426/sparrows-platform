@@ -1,7 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdminAuth } from "@/lib/admin-auth";
-import { MatchStage } from "@prisma/client";
 
 function json(data: unknown, init?: ResponseInit) {
   return NextResponse.json(data, {
@@ -48,7 +47,7 @@ export async function POST(
     if (!division) return json({ message: "Not found" }, { status: 404 });
 
     const existingKnockout = await prisma.match.findFirst({
-      where: { divisionId, stage: MatchStage.KNOCKOUT },
+      where: { divisionId, stage: "KNOCKOUT" },
     });
     if (existingKnockout) {
       return json(
@@ -184,7 +183,7 @@ export async function POST(
             tournamentId: division.tournamentId,
             divisionId,
             poolId: null,
-            stage: MatchStage.KNOCKOUT,
+            stage: "KNOCKOUT",
             teamARegistrationId: p.regA,
             teamBRegistrationId: p.regB,
             seedA: p.seedA,

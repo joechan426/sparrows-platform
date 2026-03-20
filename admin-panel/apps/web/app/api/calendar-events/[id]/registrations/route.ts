@@ -1,7 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "../../../../../lib/prisma";
 import { requireAdminAuth } from "../../../../../lib/admin-auth";
-import { CalendarEventType, EventRegistrationStatus } from "@prisma/client";
 
 async function getIdFromContext(context: any): Promise<string | undefined> {
   const params = await Promise.resolve(context?.params);
@@ -85,7 +84,7 @@ export async function POST(req: NextRequest, context: any) {
       );
     }
 
-    const isSpecial = event.eventType === CalendarEventType.SPECIAL;
+    const isSpecial = event.eventType === "SPECIAL";
 
     if (isSpecial && !teamName) {
       return NextResponse.json(
@@ -131,7 +130,7 @@ export async function POST(req: NextRequest, context: any) {
           memberId: member.id,
           calendarEventId,
           teamName: teamName ?? undefined,
-          status: EventRegistrationStatus.PENDING,
+          status: "PENDING",
         },
       });
 

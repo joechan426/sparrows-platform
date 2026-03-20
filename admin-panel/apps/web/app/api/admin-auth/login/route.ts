@@ -33,12 +33,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: "Invalid user name or password" }, { status: 401 });
     }
 
-    // Keep runtime behavior identical; use `string[]` to avoid relying on a type exported
-    // by `@prisma/client/edge` (which may differ between prisma builds).
-    const permissions: string[] =
+    // `AdminPayload.permissions` is typed as `AdminModule[]` in `lib/admin-auth`.
+    // Keep the runtime values as strings, but make TS happy by casting to the expected type.
+    const permissions: AdminPayload["permissions"] =
       admin.role === "ADMIN"
-        ? ["TOURNAMENTS", "TEAMS", "CALENDAR_EVENTS", "MEMBERS"]
-        : admin.permissions.map((p: { module: string }) => p.module);
+        ? (["TOURNAMENTS", "TEAMS", "CALENDAR_EVENTS", "MEMBERS"] as AdminPayload["permissions"])
+        : (admin.permissions.map((p: { module: string }) => p.module) as AdminPayload["permissions"]);
 
     const payload: AdminPayload = {
       id: admin.id,

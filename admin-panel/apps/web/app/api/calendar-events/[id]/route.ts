@@ -1,24 +1,23 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "../../../../lib/prisma";
 import { requireAdminAuth } from "../../../../lib/admin-auth";
-import { CalendarEventType, SportType } from "@prisma/client";
 
 async function getIdFromContext(context: any): Promise<string | undefined> {
   const params = await Promise.resolve(context?.params);
   return params?.id ? String(params.id) : undefined;
 }
 
-function classifySportType(title: string): SportType {
+function classifySportType(title: string): "VOLLEYBALL" | "PICKLEBALL" | "TENNIS" {
   const t = title.toLowerCase();
-  if (t.includes("pickleball")) return SportType.PICKLEBALL;
-  if (t.includes("tennis")) return SportType.TENNIS;
-  return SportType.VOLLEYBALL;
+  if (t.includes("pickleball")) return "PICKLEBALL";
+  if (t.includes("tennis")) return "TENNIS";
+  return "VOLLEYBALL";
 }
 
-function classifyEventType(title: string): CalendarEventType {
+function classifyEventType(title: string): "NORMAL" | "SPECIAL" {
   const t = title.toLowerCase();
-  if (t.includes("cup")) return CalendarEventType.SPECIAL;
-  return CalendarEventType.NORMAL;
+  if (t.includes("cup")) return "SPECIAL";
+  return "NORMAL";
 }
 
 // GET /api/calendar-events/:id — used by web app and admin panel. No admin auth so web app can load event.
@@ -61,8 +60,10 @@ export async function PATCH(req: NextRequest, context: any) {
         );
       }
       data.title = title;
-      data.sportType = classifySportType(title);
-      data.eventType = classifyEventType(title);
+      // Prisma enums can differ in TS exports between prisma builds,
+      // so cast to allow writing these controlled string values.
+      data.sportType = classifySportType(title) as any;
+      data.eventType = classifyEventType(title) as any;
     }
 
     if (typeof body.description === "string") {

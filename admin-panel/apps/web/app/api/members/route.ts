@@ -40,7 +40,9 @@ export async function GET(req: NextRequest) {
       prisma.member.count({ where }),
     ]);
 
-    const items = rawItems.map(({ passwordHash: _, ...m }) => m);
+    const items = rawItems.map(
+      ({ passwordHash: _passwordHash, ...m }: { passwordHash?: string; [key: string]: any }) => m
+    );
 
     return NextResponse.json(items, {
       status: 200,

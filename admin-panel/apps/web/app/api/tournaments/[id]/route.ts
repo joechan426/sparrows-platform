@@ -1,13 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "../../../../lib/prisma";
 import { requireAdminAuth } from "../../../../lib/admin-auth";
-import { TournamentType } from "@prisma/client";
 
-function asTournamentType(input: unknown): TournamentType | undefined {
+function asTournamentType(input: unknown): "CUP" | "LEAGUE" | undefined {
   if (input == null) return undefined;
   const v = String(input).toUpperCase().trim();
-  if (v === "CUP") return TournamentType.CUP;
-  if (v === "LEAGUE") return TournamentType.LEAGUE;
+  if (v === "CUP") return "CUP";
+  if (v === "LEAGUE") return "LEAGUE";
   return undefined;
 }
 
@@ -51,7 +50,7 @@ export async function PATCH(req: NextRequest, context: any) {
       where: { id },
       data: {
         name: body.name ?? body.title,
-        type: asTournamentType(body.type),
+        type: asTournamentType(body.type) as any,
         location: body.location,
         notes: body.notes,
       },

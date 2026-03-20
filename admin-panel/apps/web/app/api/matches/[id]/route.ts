@@ -1,7 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "../../../../lib/prisma";
 import { requireAdminAuth } from "../../../../lib/admin-auth";
-import { MatchStatus } from "@prisma/client";
 
 function json(data: unknown, init?: ResponseInit) {
   return NextResponse.json(data, {
@@ -105,7 +104,7 @@ export async function PATCH(
       courtName?: string | null;
       scheduledAt?: Date | null;
       dutyRegistrationId?: string | null;
-      status?: MatchStatus;
+      status?: string;
     } = {};
 
     if (body.courtName !== undefined) {
@@ -120,7 +119,7 @@ export async function PATCH(
         : null;
     }
 
-    const updated = await prisma.$transaction(async (tx) => {
+    const updated = await prisma.$transaction(async (tx: any) => {
       if (setsInput.length > 0) {
         await tx.matchSet.deleteMany({ where: { matchId: id } });
         for (const s of setsInput) {
@@ -135,7 +134,7 @@ export async function PATCH(
             },
           });
         }
-        data.status = MatchStatus.COMPLETED;
+        data.status = "COMPLETED";
       }
 
       const updatedMatch = await tx.match.update({
