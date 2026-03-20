@@ -23,3 +23,14 @@ export async function GET(req: NextRequest) {
     })
   );
 }
+
+// Explicit CORS preflight handler.
+// Needed because browser will send OPTIONS before GET when Authorization header is present.
+export async function OPTIONS(req: NextRequest) {
+  return withCors(
+    req,
+    new NextResponse(null, {
+      status: 204,
+    })
+  );
+}
