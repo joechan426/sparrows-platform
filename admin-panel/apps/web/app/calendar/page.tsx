@@ -117,6 +117,7 @@ export default function CalendarPage() {
     registrations,
     ensureRegistrationsLoaded,
     refreshRegistrationsInBackground,
+    refreshCalendarInBackground,
   } = useNavRefresh();
   const [error, setError] = useState("");
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
@@ -201,17 +202,28 @@ export default function CalendarPage() {
     if (!member?.id) return;
 
     const memberId = member.id;
-    const REFRESH_MS = 15000;
+    const REFRESH_REG_MS = 15000;
+    const REFRESH_CAL_MS = 30000;
+
+    let lastCalRefreshAt = 0;
 
     const maybeRefresh = () => {
       if (document.visibilityState !== "visible") return;
+      // registrations status changes should be fast (~15s)
       refreshRegistrationsInBackground(memberId);
+
+      // registrationOpen changes can be a bit slower (~30s)
+      const now = Date.now();
+      if (now - lastCalRefreshAt >= REFRESH_CAL_MS) {
+        lastCalRefreshAt = now;
+        refreshCalendarInBackground();
+      }
     };
 
     // Refresh immediately when landing on the page.
     maybeRefresh();
 
-    const intervalId = window.setInterval(maybeRefresh, REFRESH_MS);
+    const intervalId = window.setInterval(maybeRefresh, REFRESH_REG_MS);
     document.addEventListener("visibilitychange", maybeRefresh);
     window.addEventListener("focus", maybeRefresh);
 
