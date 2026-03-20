@@ -76,7 +76,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     const admin = await prisma.adminUser.update({
       where: { id },
-      data: updates,
+      // TS: Prisma expects `AdminModule` enum; we store/validate module strings and cast
+      // to keep runtime behavior while avoiding enum export inconsistencies across prisma builds.
+      data: updates as any,
       include: { permissions: { select: { module: true } } },
     });
 

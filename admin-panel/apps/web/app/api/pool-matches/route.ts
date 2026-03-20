@@ -85,7 +85,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const created = await prisma.$transaction(async (tx) => {
+    const created = await prisma.$transaction(async (tx: any) => {
       const createdMatches = [];
       for (const pair of pairs) {
         const match = await tx.match.create({

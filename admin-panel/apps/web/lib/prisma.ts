@@ -1,16 +1,17 @@
-import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
+import { createRequire } from "module";
+
+// PrismaClient named exports can vary across environments.
+// Use `require` + `any` to avoid build-time type export mismatches.
+const require = createRequire(import.meta.url);
 
 // Reuse PrismaClient (and Pool) during HMR in development.
-const globalForPrisma = globalThis as unknown as {
-  prisma?: PrismaClient;
-  pool?: Pool;
-};
+const globalForPrisma = globalThis as unknown as { prisma?: any; pool?: Pool };
 
-let prismaSingleton: PrismaClient | undefined;
+let prismaSingleton: any | undefined;
 
-export function getPrisma(): PrismaClient {
+export function getPrisma(): any {
   if (prismaSingleton) return prismaSingleton;
 
   const connectionString = process.env.DATABASE_URL;
@@ -28,10 +29,13 @@ export function getPrisma(): PrismaClient {
 
   const client =
     globalForPrisma.prisma ??
-    new PrismaClient({
+    (() => {
+      const { PrismaClient } = require("@prisma/client") as { PrismaClient: any };
+      return new PrismaClient({
       adapter,
       log: ["error", "warn"],
-    });
+      });
+    })();
 
   prismaSingleton = client;
 
@@ -49,9 +53,9 @@ export function getPrisma(): PrismaClient {
  * merely loaded during Next.js build (e.g. "Collecting page data") where
  * env may be unavailable. Fails only at request time when DB is actually used.
  */
-export const prisma = new Proxy({} as PrismaClient, {
+export const prisma = new Proxy({} as any, {
   get(_target, prop: string) {
-    return (getPrisma() as unknown as Record<string, unknown>)[prop];
+    return (getPrisma() as Record<string, unknown>)[prop];
   },
 });
 

@@ -6,10 +6,14 @@
 import { type NextRequest, NextResponse } from "next/server";
 import jwt, { type Secret } from "jsonwebtoken";
 import { prisma } from "./prisma";
-import type { AdminModule, AdminRole } from "@prisma/client";
 
 const JWT_SECRET: Secret = process.env.ADMIN_JWT_SECRET ?? process.env.JWT_SECRET ?? "change-me-in-production";
 const JWT_EXPIRY = "7d";
+
+// Avoid relying on `@prisma/client` enum exports at type level.
+// Prisma enum exports can differ depending on the prisma build/edge/client generation.
+export type AdminRole = "ADMIN" | "MANAGER";
+export type AdminModule = "TOURNAMENTS" | "TEAMS" | "CALENDAR_EVENTS" | "MEMBERS";
 
 export type AdminPayload = {
   id: string;
@@ -78,7 +82,10 @@ export async function requireAdminAuth(
   });
   if (!admin || !admin.isActive) return { ok: false, response: unauthorized("Account inactive or not found") };
 
-  const permissions: AdminModule[] = admin.role === "ADMIN" ? ["TOURNAMENTS", "TEAMS", "CALENDAR_EVENTS", "MEMBERS"] : admin.permissions.map((p) => p.module);
+  const permissions: AdminModule[] =
+    admin.role === "ADMIN"
+      ? ["TOURNAMENTS", "TEAMS", "CALENDAR_EVENTS", "MEMBERS"]
+      : admin.permissions.map((p: { module: AdminModule }) => p.module);
   const adminPayload: AdminPayload = { id: admin.id, userName: admin.userName, role: admin.role, permissions };
 
   if (module === "any") return { ok: true, admin: adminPayload };
