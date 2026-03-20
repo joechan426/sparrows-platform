@@ -116,6 +116,7 @@ export default function CalendarPage() {
     ensureCalendarLoaded,
     registrations,
     ensureRegistrationsLoaded,
+    refreshRegistrationsInBackground,
   } = useNavRefresh();
   const [error, setError] = useState("");
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
@@ -187,6 +188,34 @@ export default function CalendarPage() {
     if (!member?.id) return;
     ensureRegistrationsLoaded(member.id).catch(() => {});
   }, [member?.id]);
+
+  // Keep event registration status in sync with admin-panel changes.
+  // Polling is only active while this tab is visible to avoid unnecessary traffic.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!member?.id) return;
+
+    const memberId = member.id;
+    const REFRESH_MS = 15000;
+
+    const maybeRefresh = () => {
+      if (document.visibilityState !== "visible") return;
+      refreshRegistrationsInBackground(memberId);
+    };
+
+    // Refresh immediately when landing on the page.
+    maybeRefresh();
+
+    const intervalId = window.setInterval(maybeRefresh, REFRESH_MS);
+    document.addEventListener("visibilitychange", maybeRefresh);
+    window.addEventListener("focus", maybeRefresh);
+
+    return () => {
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", maybeRefresh);
+      window.removeEventListener("focus", maybeRefresh);
+    };
+  }, [member?.id, refreshRegistrationsInBackground]);
 
   const registrationsSafe = registrations ?? [];
 

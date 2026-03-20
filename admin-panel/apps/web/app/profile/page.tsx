@@ -29,7 +29,12 @@ function statusText(s: string): string {
 export default function ProfilePage() {
   const router = useRouter();
   const { member, setMember } = useAuth();
-  const { registrations, registrationsUpdatedAt, ensureRegistrationsLoaded } = useNavRefresh();
+  const {
+    registrations,
+    registrationsUpdatedAt,
+    ensureRegistrationsLoaded,
+    refreshRegistrationsInBackground,
+  } = useNavRefresh();
   const [showPassword, setShowPassword] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -45,6 +50,32 @@ export default function ProfilePage() {
     if (!member?.id) return;
     ensureRegistrationsLoaded(member.id).catch(() => {});
   }, [member?.id]);
+
+  // Keep event registration status in sync with admin-panel changes.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!member?.id) return;
+
+    const memberId = member.id;
+    const REFRESH_MS = 15000;
+
+    const maybeRefresh = () => {
+      if (document.visibilityState !== "visible") return;
+      refreshRegistrationsInBackground(memberId);
+    };
+
+    maybeRefresh();
+
+    const intervalId = window.setInterval(maybeRefresh, REFRESH_MS);
+    document.addEventListener("visibilitychange", maybeRefresh);
+    window.addEventListener("focus", maybeRefresh);
+
+    return () => {
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", maybeRefresh);
+      window.removeEventListener("focus", maybeRefresh);
+    };
+  }, [member?.id, refreshRegistrationsInBackground]);
 
   const now = new Date();
   const upcoming = (registrations ?? [])
