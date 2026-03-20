@@ -1,9 +1,16 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireAdminAuth } from "../../../../lib/admin-auth";
 
-function withCors(res: NextResponse) {
-  res.headers.set("Access-Control-Allow-Origin", "*");
-  res.headers.set("Access-Control-Allow-Credentials", "false");
+function withCors(req: NextRequest, res: NextResponse) {
+  const origin = req.headers.get("origin");
+  if (origin) {
+    res.headers.set("Access-Control-Allow-Origin", origin);
+    res.headers.set("Access-Control-Allow-Credentials", "true");
+    res.headers.set("Vary", "Origin");
+  } else {
+    res.headers.set("Access-Control-Allow-Origin", "*");
+    res.headers.set("Access-Control-Allow-Credentials", "false");
+  }
   res.headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
   res.headers.set("Access-Control-Allow-Methods", "GET,POST,PATCH,PUT,DELETE,OPTIONS");
   return res;
@@ -12,8 +19,9 @@ function withCors(res: NextResponse) {
 // GET /api/admin-auth/me — return current admin (requires Authorization: Bearer <token>)
 export async function GET(req: NextRequest) {
   const result = await requireAdminAuth(req, "any");
-  if (!result.ok) return withCors(result.response);
+  if (!result.ok) return withCors(req, result.response);
   return withCors(
+    req,
     NextResponse.json({
       id: result.admin.id,
       userName: result.admin.userName,

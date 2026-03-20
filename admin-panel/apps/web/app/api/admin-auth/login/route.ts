@@ -4,10 +4,16 @@ import bcrypt from "bcryptjs";
 import { signToken } from "../../../../lib/admin-auth";
 import type { AdminPayload } from "../../../../lib/admin-auth";
 
-function withCors(res: NextResponse) {
-  // Login does not use cookies; using `*` keeps CORS robust across deploy origins.
-  res.headers.set("Access-Control-Allow-Origin", "*");
-  res.headers.set("Access-Control-Allow-Credentials", "false");
+function withCors(req: NextRequest, res: NextResponse) {
+  const origin = req.headers.get("origin");
+  if (origin) {
+    res.headers.set("Access-Control-Allow-Origin", origin);
+    res.headers.set("Access-Control-Allow-Credentials", "true");
+    res.headers.set("Vary", "Origin");
+  } else {
+    res.headers.set("Access-Control-Allow-Origin", "*");
+    res.headers.set("Access-Control-Allow-Credentials", "false");
+  }
   res.headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
   res.headers.set("Access-Control-Allow-Methods", "GET,POST,PATCH,PUT,DELETE,OPTIONS");
   return res;
@@ -25,7 +31,7 @@ export async function POST(req: NextRequest) {
     const rememberMe = body.rememberMe === true;
 
     if (!userName || !password) {
-      return withCors(NextResponse.json({ message: "User name and password are required" }, { status: 400 }));
+      return withCors(req, NextResponse.json({ message: "User name and password are required" }, { status: 400 }));
     }
 
     const admin = await prisma.adminUser.findUnique({
@@ -34,12 +40,12 @@ export async function POST(req: NextRequest) {
     });
 
     if (!admin || !admin.isActive) {
-      return withCors(NextResponse.json({ message: "Invalid user name or password" }, { status: 401 }));
+      return withCors(req, NextResponse.json({ message: "Invalid user name or password" }, { status: 401 }));
     }
 
     const ok = await bcrypt.compare(password, admin.passwordHash);
     if (!ok) {
-      return withCors(NextResponse.json({ message: "Invalid user name or password" }, { status: 401 }));
+      return withCors(req, NextResponse.json({ message: "Invalid user name or password" }, { status: 401 }));
     }
 
     // `AdminPayload.permissions` is typed as `AdminModule[]` in `lib/admin-auth`.
@@ -59,13 +65,15 @@ export async function POST(req: NextRequest) {
     const token = signToken(payload, rememberMe ? LONG_EXPIRY : SHORT_EXPIRY);
 
     return withCors(
+      req,
       NextResponse.json({
-      token,
-      admin: { id: admin.id, userName: admin.userName, role: admin.role, permissions },
+        token,
+        admin: { id: admin.id, userName: admin.userName, role: admin.role, permissions },
       })
     );
   } catch (e: unknown) {
     return withCors(
+      req,
       NextResponse.json(
         { message: "Login failed", error: e instanceof Error ? e.message : String(e) },
         { status: 500 }
