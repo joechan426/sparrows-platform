@@ -115,7 +115,7 @@ const App: React.FC = () => {
                 list: "/events",
                 show: "/events/:id",
                 create: "/events/create",
-                meta: { label: "Calendar Events" },
+                meta: { label: "Events" },
               },
               { name: "event-registrations", meta: { parent: "calendar-events" } },
               {

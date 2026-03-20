@@ -393,7 +393,7 @@ export const EventList: React.FC = () => {
   return (
     <>
       <List
-        title="Calendar Events"
+        title="Events"
         headerButtons={
           <Stack direction="row" spacing={1} flexWrap="wrap" alignItems="center">
             <Button variant="contained" onClick={openImportDialog}>

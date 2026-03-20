@@ -7,7 +7,7 @@ import { validateAdminPassword } from "../../lib/password-rules";
 const MODULES = [
   { value: "TOURNAMENTS", label: "Tournaments" },
   { value: "TEAMS", label: "Teams" },
-  { value: "CALENDAR_EVENTS", label: "Calendar Events" },
+  { value: "CALENDAR_EVENTS", label: "Events" },
   { value: "MEMBERS", label: "Members" },
 ] as const;
 

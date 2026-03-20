@@ -154,6 +154,11 @@ export default function CalendarPage() {
     }
   });
   const [lastVisibleEvents, setLastVisibleEvents] = useState<CalendarEvent[]>(() => displayCalendarEvents ?? []);
+  const [optimisticPendingEventIds, setOptimisticPendingEventIds] = useState<Set<string>>(
+    () => new Set()
+  );
+
+  const isAdminPanelEvent = (e: CalendarEvent) => !String(e.id ?? "").startsWith("ics-");
 
   useEffect(() => {
     if (displayCalendarEvents && displayCalendarEvents.length > 0) return;
@@ -396,6 +401,9 @@ export default function CalendarPage() {
           ) : (
             filteredEventsForSelectedDate.map((event) => {
               const myReg = registrationsSafe.find((r) => r.event?.id === event.id);
+              const optimisticPending = optimisticPendingEventIds.has(event.id);
+              const canRegister = isAdminPanelEvent(event);
+              const effectiveStatus = myReg?.status ?? (optimisticPending ? "PENDING" : undefined);
               return (
                 <div key={event.id} className="card-event calendar-event-row">
                   <div className="calendar-event-info">
@@ -407,9 +415,11 @@ export default function CalendarPage() {
                       {event.registrationOpen ? "Open" : "Closed"}
                     </div>
                   </div>
-                  {myReg ? (
-                    <span className={`pill ${statusClass(myReg.status)}`}>{statusText(myReg.status)}</span>
-                  ) : (
+                  {effectiveStatus ? (
+                    <span className={`pill ${statusClass(effectiveStatus)}`}>
+                      {statusText(effectiveStatus)}
+                    </span>
+                  ) : canRegister ? (
                     <button
                       type="button"
                       className={`btn-register ${!event.registrationOpen ? "btn-register-disabled" : ""}`}
@@ -418,6 +428,8 @@ export default function CalendarPage() {
                     >
                       Register
                     </button>
+                  ) : (
+                    <span aria-hidden="true" style={{ display: "inline-block", minWidth: 96 }} />
                   )}
                 </div>
               );
@@ -437,6 +449,9 @@ export default function CalendarPage() {
           <ul className="what-next-list">
             {upcomingCup.map((event) => {
               const myReg = registrationsSafe.find((r) => r.event?.id === event.id);
+              const optimisticPending = optimisticPendingEventIds.has(event.id);
+              const canRegister = isAdminPanelEvent(event);
+              const effectiveStatus = myReg?.status ?? (optimisticPending ? "PENDING" : undefined);
               return (
                 <li key={event.id} className="what-next-item">
                   <div className="what-next-item-info">
@@ -446,9 +461,11 @@ export default function CalendarPage() {
                       {event.location && ` · ${event.location}`}
                     </div>
                   </div>
-                  {myReg ? (
-                    <span className={`pill ${statusClass(myReg.status)}`}>{statusText(myReg.status)}</span>
-                  ) : (
+                  {effectiveStatus ? (
+                    <span className={`pill ${statusClass(effectiveStatus)}`}>
+                      {statusText(effectiveStatus)}
+                    </span>
+                  ) : canRegister ? (
                     <button
                       type="button"
                       className={`btn-register ${!event.registrationOpen ? "btn-register-disabled" : ""}`}
@@ -457,6 +474,8 @@ export default function CalendarPage() {
                     >
                       Register
                     </button>
+                  ) : (
+                    <span aria-hidden="true" style={{ display: "inline-block", minWidth: 96 }} />
                   )}
                 </li>
               );
@@ -470,7 +489,17 @@ export default function CalendarPage() {
           event={selectedEvent}
           member={member}
           onClose={() => setSelectedEvent(null)}
-          onRegistered={() => setSelectedEvent(null)}
+          onRegistered={(eventId) => {
+            // Optimistic UI: show Pending immediately after a successful registration.
+            setOptimisticPendingEventIds((prev) => {
+              const next = new Set(prev);
+              next.add(eventId);
+              return next;
+            });
+            if (member?.id) {
+              refreshRegistrationsInBackground(member.id);
+            }
+          }}
         />
       )}
     </div>

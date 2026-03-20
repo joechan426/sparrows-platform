@@ -22,7 +22,7 @@ type Props = {
   event: CalendarEvent;
   member: Member | null;
   onClose: () => void;
-  onRegistered: () => void;
+  onRegistered: (eventId: string) => void;
 };
 
 export function EventDetail({ event, member, onClose, onRegistered }: Props) {
@@ -55,7 +55,10 @@ export function EventDetail({ event, member, onClose, onRegistered }: Props) {
         special ? teamName.trim() || null : null
       );
       setSuccess(true);
-      setTimeout(() => onRegistered(), 1500);
+      // Optimistically update the UI (Pending pill) immediately.
+      onRegistered(event.id);
+      // Keep the success message visible for a short moment, then close.
+      setTimeout(() => onClose(), 1500);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Registration failed.");
     } finally {
