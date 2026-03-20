@@ -10,3 +10,11 @@
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
+
+[[headers]]
+  for = "/api/*"
+  [headers.values]
+    Access-Control-Allow-Origin = "*"
+    Access-Control-Allow-Credentials = "false"
+    Access-Control-Allow-Methods = "GET,POST,PATCH,PUT,DELETE,OPTIONS"
+    Access-Control-Allow-Headers = "Content-Type, Authorization"

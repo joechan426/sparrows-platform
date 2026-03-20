@@ -5,8 +5,7 @@ import { NextResponse, type NextRequest } from "next/server";
  * Requests are rewritten here by next.config.js when Access-Control-Request-Method header is present.
  */
 export async function OPTIONS(req: NextRequest) {
-  const requestOrigin = req.headers.get("origin") ?? "";
-  const allowOrigin = requestOrigin ? requestOrigin : "*";
+  const allowOrigin = "*";
   const requestedHeadersRaw = req.headers.get("access-control-request-headers") ?? "";
   const requestedHeaders = requestedHeadersRaw.trim();
   const requestedMethod = req.headers.get("access-control-request-method") ?? "POST";

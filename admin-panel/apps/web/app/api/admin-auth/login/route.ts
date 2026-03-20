@@ -5,17 +5,8 @@ import { signToken } from "../../../../lib/admin-auth";
 import type { AdminPayload } from "../../../../lib/admin-auth";
 
 function withCors(req: NextRequest, res: NextResponse) {
-  const origin = req.headers.get("origin");
-  if (origin) {
-    res.headers.set("Access-Control-Allow-Origin", origin);
-    // Admin panel login fetch does not use cookies/`credentials: include`.
-    // Keep Allow-Credentials=false to avoid strict browser CORS rejections.
-    res.headers.set("Access-Control-Allow-Credentials", "false");
-    res.headers.set("Vary", "Origin");
-  } else {
-    res.headers.set("Access-Control-Allow-Origin", "*");
-    res.headers.set("Access-Control-Allow-Credentials", "false");
-  }
+  res.headers.set("Access-Control-Allow-Origin", "*");
+  res.headers.set("Access-Control-Allow-Credentials", "false");
   res.headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
   res.headers.set("Access-Control-Allow-Methods", "GET,POST,PATCH,PUT,DELETE,OPTIONS");
   return res;
@@ -82,4 +73,11 @@ export async function POST(req: NextRequest) {
       )
     );
   }
+}
+
+// Explicit CORS preflight handler.
+// Without this, some Netlify/Next runtimes may respond to OPTIONS without
+// Access-Control-Allow-* headers, causing the actual POST to fail with TypeError.
+export async function OPTIONS(req: NextRequest) {
+  return withCors(req, new NextResponse(null, { status: 204 }));
 }
