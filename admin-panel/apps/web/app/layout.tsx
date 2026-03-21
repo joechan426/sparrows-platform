@@ -24,8 +24,13 @@ export const metadata: Metadata = {
     statusBarStyle: "default",
   },
   icons: {
-    icon: [{ url: "/images/volleyball.png", sizes: "512x512", type: "image/png" }],
+    icon: [
+      { url: "/images/volleyball.png", sizes: "32x32", type: "image/png" },
+      { url: "/images/volleyball.png", sizes: "192x192", type: "image/png" },
+      { url: "/images/volleyball.png", sizes: "512x512", type: "image/png" },
+    ],
     apple: "/images/volleyball.png",
+    shortcut: "/images/volleyball.png",
   },
 };
 

@@ -1,9 +1,19 @@
-import React from "react";
+import React, { useState } from "react";
 import { List, useDataGrid, EditButton } from "@refinedev/mui";
-import { DataGrid, type GridColDef } from "@mui/x-data-grid";
+import { useInvalidate, useNotification } from "@refinedev/core";
+import { DataGrid, type GridColDef, type GridRowSelectionModel } from "@mui/x-data-grid";
 import Chip from "@mui/material/Chip";
 import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
+import Dialog from "@mui/material/Dialog";
+import DialogTitle from "@mui/material/DialogTitle";
+import DialogContent from "@mui/material/DialogContent";
+import DialogContentText from "@mui/material/DialogContentText";
+import DialogActions from "@mui/material/DialogActions";
 import { Link } from "react-router-dom";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
+import { getToken, getStoredAdmin } from "../../lib/admin-auth";
+import { apiUrl } from "../../lib/api-base";
 
 type AdminUserRow = {
   id: string;
@@ -20,6 +30,55 @@ export const AdminUserList: React.FC = () => {
     resource: "admin-users",
     sorters: { initial: [{ field: "createdAt", order: "desc" }] },
   });
+
+  const [rowSelectionModel, setRowSelectionModel] = useState<GridRowSelectionModel>({
+    type: "include",
+    ids: new Set<string>(),
+  });
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
+  const invalidate = useInvalidate();
+  const { open: notify } = useNotification();
+
+  const selectedIds =
+    rowSelectionModel.type === "include" ? Array.from(rowSelectionModel.ids as Set<string>) : [];
+
+  const selfId = getStoredAdmin()?.id;
+
+  const handleDeleteConfirm = async () => {
+    if (selectedIds.length === 0) return;
+    if (selfId && selectedIds.includes(selfId)) {
+      notify?.({ type: "error", message: "You cannot delete your own account." });
+      return;
+    }
+    setDeleteLoading(true);
+    try {
+      const token = getToken();
+      const res = await fetch(apiUrl("/admin-users/delete-batch"), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ ids: selectedIds }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        notify?.({ type: "error", message: data?.message ?? "Delete failed" });
+        return;
+      }
+      notify?.({
+        type: "success",
+        message: `Deleted ${data.deleted ?? 0} admin user(s).`,
+      });
+      setDeleteOpen(false);
+      setRowSelectionModel({ type: "include", ids: new Set() });
+      invalidate({ resource: "admin-users", invalidates: ["list", "many", "detail"] });
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
 
   const columns = React.useMemo<GridColDef[]>(
     () => [
@@ -91,12 +150,63 @@ export const AdminUserList: React.FC = () => {
         width: 80,
       },
     ],
-    []
+    [],
   );
 
+  const selectionIncludesSelf = Boolean(selfId && selectedIds.includes(selfId));
+
   return (
-    <List title="Admin users">
-      <DataGrid {...dataGridProps} columns={columns} autoHeight />
+    <List
+      title="Admin users"
+      headerButtons={
+        <Button
+          variant="outlined"
+          color="error"
+          startIcon={<DeleteOutlineIcon />}
+          disabled={selectedIds.length === 0}
+          onClick={() => setDeleteOpen(true)}
+        >
+          Delete user{selectedIds.length === 1 ? "" : "s"}
+          {selectedIds.length > 0 ? ` (${selectedIds.length})` : ""}
+        </Button>
+      }
+    >
+      <DataGrid
+        {...dataGridProps}
+        columns={columns}
+        autoHeight
+        checkboxSelection
+        disableRowSelectionOnClick
+        rowSelectionModel={rowSelectionModel}
+        onRowSelectionModelChange={setRowSelectionModel}
+      />
+      <Dialog open={deleteOpen} onClose={() => !deleteLoading && setDeleteOpen(false)}>
+        <DialogTitle>Delete admin user{selectedIds.length === 1 ? "" : "s"}?</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            This will permanently remove {selectedIds.length} selected account
+            {selectedIds.length === 1 ? "" : "s"} from the database. This cannot be undone.
+          </DialogContentText>
+          {selectionIncludesSelf && (
+            <DialogContentText color="error" sx={{ mt: 1 }}>
+              Your own account is selected — you cannot delete it. Deselect yourself or cancel.
+            </DialogContentText>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteOpen(false)} disabled={deleteLoading}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleDeleteConfirm}
+            color="error"
+            variant="contained"
+            disabled={deleteLoading || selectionIncludesSelf}
+          >
+            {deleteLoading ? "Deleting…" : "Delete"}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </List>
   );
 };
