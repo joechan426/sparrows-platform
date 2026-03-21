@@ -406,16 +406,28 @@ export const EventList: React.FC = () => {
       <List
         title="Events"
         headerButtons={
-          <Stack direction="row" spacing={1} flexWrap="wrap" alignItems="center">
-            <Button variant="contained" onClick={openImportDialog}>
-              Import from Google Calendar
-            </Button>
-            <Button variant="contained" color="primary" onClick={() => navigate("/events/create")}>
-              Create event
-            </Button>
+          <Stack spacing={1} alignItems="stretch" sx={{ width: "100%", maxWidth: "100%" }}>
+            <Stack
+              direction={{ xs: "column", sm: "row" }}
+              spacing={1}
+              flexWrap="wrap"
+              alignItems={{ xs: "stretch", sm: "center" }}
+            >
+              <Button variant="contained" onClick={openImportDialog} sx={{ width: { xs: "100%", sm: "auto" } }}>
+                Import from Google Calendar
+              </Button>
+              <Button
+                variant="contained"
+                color="primary"
+                onClick={() => navigate("/events/create")}
+                sx={{ width: { xs: "100%", sm: "auto" } }}
+              >
+                Create event
+              </Button>
+            </Stack>
             {selectedCount > 0 && (
-              <>
-                <Typography variant="body2" color="text.secondary" sx={{ ml: 1 }}>
+              <Stack direction="row" spacing={1} flexWrap="wrap" alignItems="center">
+                <Typography variant="body2" color="text.secondary" sx={{ ml: { sm: 1 } }}>
                   {selectedCount} selected
                 </Typography>
                 <Button variant="outlined" size="small" onClick={handleBulkOpenRegistration} disabled={bulkActionLoading}>
@@ -427,7 +439,7 @@ export const EventList: React.FC = () => {
                 <Button variant="outlined" size="small" color="error" onClick={handleBulkDelete} disabled={bulkActionLoading}>
                   Delete selected
                 </Button>
-              </>
+              </Stack>
             )}
           </Stack>
         }
