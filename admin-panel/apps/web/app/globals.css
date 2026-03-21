@@ -544,6 +544,56 @@ input[type="password"] {
   font-weight: 500;
   color: #000;
 }
+.profile-name-with-action {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.btn-edit-preferred-name {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 0 14px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--sparrows-green);
+  background: var(--sparrows-green-bg);
+  border: 1px solid var(--sparrows-green-border);
+  border-radius: 8px;
+  cursor: pointer;
+}
+.profile-edit-name-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  max-width: 100%;
+}
+.profile-edit-name-input {
+  width: 100%;
+  max-width: 100%;
+  padding: 10px 12px;
+  font-size: 1rem;
+  border: 1px solid var(--separator);
+  border-radius: 8px;
+  box-sizing: border-box;
+}
+.profile-edit-name-error {
+  margin: 0;
+}
+.profile-edit-name-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.profile-edit-name-save,
+.profile-edit-name-cancel {
+  flex: 1;
+  min-width: 120px;
+  max-width: 200px;
+}
 .profile-buttons-row {
   display: flex;
   gap: 12px;

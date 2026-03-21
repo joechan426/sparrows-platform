@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
-import { apiChangePassword } from "@/lib/api";
+import { apiChangePassword, apiUpdateMember } from "@/lib/api";
 import type { MemberRegistration } from "@/lib/api";
 import { useNavRefresh } from "@/lib/nav-refresh-context";
 import { ContactUsBlock } from "@/components/contact-us-block";
@@ -45,7 +45,10 @@ export default function ProfilePage() {
   const [passwordSaving, setPasswordSaving] = useState(false);
   const [openAccount, setOpenAccount] = useState(true);
   const [openScheduled, setOpenScheduled] = useState(true);
-
+  const [editingPreferredName, setEditingPreferredName] = useState(false);
+  const [preferredNameDraft, setPreferredNameDraft] = useState("");
+  const [nameSaving, setNameSaving] = useState(false);
+  const [nameError, setNameError] = useState("");
 
   useEffect(() => {
     if (!member?.id) return;
@@ -82,6 +85,27 @@ export default function ProfilePage() {
   const upcoming = (registrations ?? [])
     .filter((r) => r.event && new Date(r.event.endAt) >= now)
     .sort((a, b) => (a.event?.startAt ? new Date(a.event.startAt).getTime() : 0) - (b.event?.startAt ? new Date(b.event.startAt).getTime() : 0));
+
+  async function handleSavePreferredName(e: React.FormEvent) {
+    e.preventDefault();
+    if (!member) return;
+    const next = preferredNameDraft.trim();
+    if (!next) {
+      setNameError("Name is required.");
+      return;
+    }
+    setNameError("");
+    setNameSaving(true);
+    try {
+      const updated = await apiUpdateMember(member.id, { preferredName: next });
+      setMember(updated);
+      setEditingPreferredName(false);
+    } catch (err) {
+      setNameError(err instanceof Error ? err.message : "Update failed.");
+    } finally {
+      setNameSaving(false);
+    }
+  }
 
   async function handleChangePassword(e: React.FormEvent) {
     e.preventDefault();
@@ -176,7 +200,50 @@ export default function ProfilePage() {
             <div className="profile-readonly-fields">
               <div className="profile-field-row">
                 <span className="profile-label">Name</span>
-                <span className="profile-value">{member.preferredName ?? "—"}</span>
+                {!editingPreferredName ? (
+                  <div className="profile-name-with-action">
+                    <span className="profile-value">{member.preferredName ?? "—"}</span>
+                    <button
+                      type="button"
+                      className="btn-edit-preferred-name"
+                      onClick={() => {
+                        setPreferredNameDraft(member.preferredName ?? "");
+                        setNameError("");
+                        setEditingPreferredName(true);
+                      }}
+                    >
+                      Edit
+                    </button>
+                  </div>
+                ) : (
+                  <form className="profile-edit-name-form" onSubmit={handleSavePreferredName}>
+                    <input
+                      type="text"
+                      className="profile-edit-name-input"
+                      value={preferredNameDraft}
+                      onChange={(e) => setPreferredNameDraft(e.target.value)}
+                      autoComplete="name"
+                      aria-label="Preferred name"
+                    />
+                    {nameError && <p className="form-error profile-edit-name-error">{nameError}</p>}
+                    <div className="profile-edit-name-actions">
+                      <button type="submit" className="btn-primary profile-edit-name-save" disabled={nameSaving}>
+                        {nameSaving ? "Saving…" : "Save"}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-secondary profile-edit-name-cancel"
+                        disabled={nameSaving}
+                        onClick={() => {
+                          setEditingPreferredName(false);
+                          setNameError("");
+                        }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </form>
+                )}
               </div>
               <div className="profile-field-row">
                 <span className="profile-label">Email</span>
