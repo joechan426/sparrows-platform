@@ -61,6 +61,7 @@ CREATE TABLE match_sets (
 
 -- Members represent app/web users for event registration.
 -- Only preferred_name and email are required profile fields for now.
+-- Admin bulk delete removes related event_registrations first, then the member (application-level).
 CREATE TABLE members (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   preferred_name TEXT NOT NULL,
