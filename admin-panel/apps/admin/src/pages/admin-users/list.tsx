@@ -1,9 +1,10 @@
 import React, { useState } from "react";
-import { List, useDataGrid, EditButton } from "@refinedev/mui";
+import { List, useDataGrid, EditButton, CreateButton } from "@refinedev/mui";
 import { useInvalidate, useNotification } from "@refinedev/core";
 import { DataGrid, type GridColDef, type GridRowSelectionModel } from "@mui/x-data-grid";
 import Chip from "@mui/material/Chip";
 import Box from "@mui/material/Box";
+import Stack from "@mui/material/Stack";
 import Button from "@mui/material/Button";
 import Dialog from "@mui/material/Dialog";
 import DialogTitle from "@mui/material/DialogTitle";
@@ -159,16 +160,19 @@ export const AdminUserList: React.FC = () => {
     <List
       title="Admin users"
       headerButtons={
-        <Button
-          variant="outlined"
-          color="error"
-          startIcon={<DeleteOutlineIcon />}
-          disabled={selectedIds.length === 0}
-          onClick={() => setDeleteOpen(true)}
-        >
-          Delete user{selectedIds.length === 1 ? "" : "s"}
-          {selectedIds.length > 0 ? ` (${selectedIds.length})` : ""}
-        </Button>
+        <Stack direction="row" spacing={1} flexWrap="wrap" alignItems="center">
+          <CreateButton>Create Admin user</CreateButton>
+          <Button
+            variant="outlined"
+            color="error"
+            startIcon={<DeleteOutlineIcon />}
+            disabled={selectedIds.length === 0}
+            onClick={() => setDeleteOpen(true)}
+          >
+            Delete user{selectedIds.length === 1 ? "" : "s"}
+            {selectedIds.length > 0 ? ` (${selectedIds.length})` : ""}
+          </Button>
+        </Stack>
       }
     >
       <DataGrid
