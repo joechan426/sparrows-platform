@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef } from "react";
 import { Link as RouterLink, useLocation } from "react-router-dom";
-import { useMenu } from "@refinedev/core";
+import { useMenu, useLogout } from "@refinedev/core";
 import type { TreeMenuItem } from "@refinedev/core";
 import { useMediaQuery, useTheme } from "@mui/material";
 import Paper from "@mui/material/Paper";
@@ -27,6 +27,7 @@ export const AdminMobileBottomNav: React.FC = () => {
   const isDesktop = useMediaQuery("(min-width:1025px)");
   const location = useLocation();
   const { menuItems } = useMenu();
+  const { mutate: logout, isPending: logoutPending } = useLogout();
   const activeLinkRef = useRef<HTMLAnchorElement | null>(null);
 
   const tabs = useMemo(() => {
@@ -118,6 +119,42 @@ export const AdminMobileBottomNav: React.FC = () => {
             </Box>
           );
         })}
+        <Box
+          component="button"
+          type="button"
+          aria-label="Log out"
+          disabled={logoutPending}
+          onClick={() => logout()}
+          sx={{
+            flex: "0 0 auto",
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            px: 1.25,
+            py: 0.75,
+            minHeight: 44,
+            borderRadius: 2,
+            border: "none",
+            margin: 0,
+            cursor: logoutPending ? "default" : "pointer",
+            fontFamily: "inherit",
+            fontSize: "0.75rem",
+            lineHeight: 1.15,
+            fontWeight: 500,
+            color: "error.main",
+            bgcolor: "transparent",
+            whiteSpace: "nowrap",
+            WebkitTapHighlightColor: "transparent",
+            "&:active": {
+              opacity: logoutPending ? 1 : 0.85,
+            },
+            "&:disabled": {
+              opacity: 0.6,
+            },
+          }}
+        >
+          {logoutPending ? "…" : "Logout"}
+        </Box>
       </Box>
     </Paper>
   );
