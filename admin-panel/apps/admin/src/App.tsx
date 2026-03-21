@@ -57,6 +57,7 @@ import { ProfilePage } from "./pages/profile";
 
 import { HeaderWithProfileLink } from "./components/HeaderWithProfileLink";
 import { adminAuthProvider, canAccessResource } from "./lib/authProvider";
+import { normalizeAccessControlResource } from "./lib/accessControlResource";
 import { getApiBase } from "./lib/api-base";
 import { getStoredAdmin } from "./lib/admin-auth";
 import { AdminDefaultRedirect } from "./components/AdminDefaultRedirect";
@@ -66,10 +67,11 @@ import { AdminMobileBottomNav } from "./components/AdminMobileBottomNav";
 import { PullToRefresh } from "./components/PullToRefresh";
 
 const accessControlProvider: AccessControlProvider = {
-  can: async ({ resource, action }) => {
+  can: async ({ resource }) => {
     const admin = getStoredAdmin();
     if (!admin) return { can: false };
-    const can = canAccessResource(resource ?? "");
+    const name = normalizeAccessControlResource(resource);
+    const can = name ? canAccessResource(name) : false;
     return { can };
   },
 };

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef } from "react";
 import { Link as RouterLink, useLocation } from "react-router-dom";
 import { useMenu, useLogout } from "@refinedev/core";
 import type { TreeMenuItem } from "@refinedev/core";
+import { canAccessResource } from "../lib/authProvider";
 import { useMediaQuery, useTheme } from "@mui/material";
 import Paper from "@mui/material/Paper";
 import Box from "@mui/material/Box";
@@ -31,13 +32,19 @@ export const AdminMobileBottomNav: React.FC = () => {
   const activeLinkRef = useRef<HTMLAnchorElement | null>(null);
 
   const tabs = useMemo(() => {
-    const roots = menuItems.filter(isRootListItem);
+    const roots = menuItems.filter(isRootListItem).filter((item) => {
+      const name = typeof item.name === "string" ? item.name : "";
+      return name && canAccessResource(name);
+    });
     const fromMenu = roots.map((item) => ({
       key: String(item.key ?? item.name ?? item.route),
       label: item.label ?? item.name ?? item.route,
       route: item.route as string,
     }));
-    return [...fromMenu, { key: "profile", label: "Profile", route: "/profile" }];
+    const dashboardTab = canAccessResource("dashboard")
+      ? [{ key: "dashboard", label: "Dashboard", route: "/" }]
+      : [];
+    return [...dashboardTab, ...fromMenu, { key: "profile", label: "Profile", route: "/profile" }];
   }, [menuItems]);
 
   useEffect(() => {

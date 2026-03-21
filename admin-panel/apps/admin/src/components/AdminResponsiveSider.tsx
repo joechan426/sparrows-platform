@@ -1,12 +1,12 @@
 import React from "react";
 import { useMediaQuery } from "@mui/material";
-import { ThemedSider } from "@refinedev/mui";
+import { AdminThemedSider } from "./AdminThemedSider";
 
-type ThemedSiderProps = React.ComponentProps<typeof ThemedSider>;
+type AdminThemedSiderProps = React.ComponentProps<typeof AdminThemedSider>;
 
-/** Desktop (≥1025px): default Refine sidebar. Compact: hidden — use bottom tab bar instead. */
-export const AdminResponsiveSider: React.FC<ThemedSiderProps> = (props) => {
+/** Desktop (≥1025px): sidebar with menu filtered by module access. Compact: hidden — use bottom tab bar instead. */
+export const AdminResponsiveSider: React.FC<AdminThemedSiderProps> = (props) => {
   const isDesktop = useMediaQuery("(min-width:1025px)");
   if (!isDesktop) return null;
-  return <ThemedSider {...props} />;
+  return <AdminThemedSider {...props} />;
 };

@@ -136,6 +136,9 @@ export const adminAuthProvider: AuthProvider = {
 
 /** Whether the current user can access a Refine resource (by name). */
 export function canAccessResource(resourceName: string): boolean {
+  if (resourceName === "dashboard") {
+    return !!getStoredAdmin();
+  }
   if (resourceName === "admin-users") {
     const admin = getStoredAdmin();
     return admin?.role === "ADMIN";
