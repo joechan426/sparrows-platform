@@ -262,9 +262,9 @@ export const EventList: React.FC = () => {
     }
   };
 
-  const handleDeleteClick = (row: CalendarEventRow) => {
+  const handleDeleteClick = React.useCallback((row: CalendarEventRow) => {
     setDeleteConfirm({ id: row.id, title: row.title ?? "This event" });
-  };
+  }, []);
 
   const handleDeleteConfirm = () => {
     if (!deleteConfirm) return;
@@ -369,13 +369,24 @@ export const EventList: React.FC = () => {
       {
         field: "actions",
         headerName: "Actions",
-        width: 220,
+        /* Wide enough for “Registrations” + “Delete” side-by-side (esp. mobile). */
+        width: 312,
+        minWidth: 312,
+        maxWidth: 312,
         sortable: false,
         align: "center",
         headerAlign: "center",
         renderCell: ({ row }) => (
           <Box sx={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <Stack direction="row" spacing={1} flexWrap="wrap" justifyContent="center" useFlexGap>
+            <Stack
+              direction="row"
+              spacing={1}
+              flexWrap="nowrap"
+              justifyContent="center"
+              alignItems="center"
+              useFlexGap
+              sx={{ flexShrink: 0 }}
+            >
               <Button size="small" variant="outlined" component={Link} to={`/events/${row.id}/registrations`}>
                 Registrations
               </Button>
@@ -387,7 +398,7 @@ export const EventList: React.FC = () => {
         ),
       },
     ],
-    [update],
+    [update, handleDeleteClick],
   );
 
   return (

@@ -1,7 +1,19 @@
 {
-  "short_name": "Material UI Authentication example",
-  "name": "Material UI Authentication example",
+  "short_name": "Sparrows Admin",
+  "name": "Sparrows Admin",
   "icons": [
+    {
+      "src": "/images/volleyball_logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/images/volleyball_logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
     {
       "src": "favicon.ico",
       "sizes": "64x64 32x32 24x24 16x16",
@@ -10,6 +22,6 @@
   ],
   "start_url": ".",
   "display": "standalone",
-  "theme_color": "#000000",
+  "theme_color": "#064e3b",
   "background_color": "#ffffff"
 }

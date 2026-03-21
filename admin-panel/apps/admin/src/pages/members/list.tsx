@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { List, useDataGrid } from "@refinedev/mui";
-import { useInvalidate } from "@refinedev/core";
+import { useInvalidate, useNotification } from "@refinedev/core";
 import { DataGrid, type GridColDef, type GridRowSelectionModel } from "@mui/x-data-grid";
 import { useNavigate } from "react-router-dom";
 import Typography from "@mui/material/Typography";
@@ -15,6 +15,7 @@ import DialogContentText from "@mui/material/DialogContentText";
 import DialogActions from "@mui/material/DialogActions";
 import SearchIcon from "@mui/icons-material/Search";
 import LockIcon from "@mui/icons-material/Lock";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import { getToken } from "../../lib/admin-auth";
 import { apiUrl } from "../../lib/api-base";
 
@@ -33,8 +34,11 @@ export const MemberList: React.FC = () => {
   const [resetPwConfirm, setResetPwConfirm] = useState("");
   const [resetPwLoading, setResetPwLoading] = useState(false);
   const [resetPwError, setResetPwError] = useState("");
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
   const navigate = useNavigate();
   const invalidate = useInvalidate();
+  const { open: notify } = useNotification();
 
   const { dataGridProps, setFilters } = useDataGrid<MemberRow>({
     resource: "members",
@@ -84,6 +88,36 @@ export const MemberList: React.FC = () => {
       invalidate({ resource: "members", invalidates: ["list", "many", "detail"] });
     } finally {
       setResetPwLoading(false);
+    }
+  };
+
+  const handleDeleteMembersConfirm = async () => {
+    if (selectedIds.length === 0) return;
+    setDeleteLoading(true);
+    try {
+      const token = getToken();
+      const res = await fetch(apiUrl("/members/delete-batch"), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ memberIds: selectedIds }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        notify?.({ type: "error", message: data?.message ?? "Delete failed" });
+        return;
+      }
+      notify?.({
+        type: "success",
+        message: `Deleted ${data.deletedMembers ?? 0} member(s). Removed ${data.deletedRegistrations ?? 0} event registration(s).`,
+      });
+      setDeleteOpen(false);
+      setRowSelectionModel({ type: "include", ids: new Set() });
+      invalidate({ resource: "members", invalidates: ["list", "many", "detail"] });
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -170,6 +204,16 @@ export const MemberList: React.FC = () => {
         >
           Reset password {selectedIds.length > 0 ? `(${selectedIds.length})` : ""}
         </Button>
+        <Button
+          variant="outlined"
+          color="error"
+          startIcon={<DeleteOutlineIcon />}
+          disabled={selectedIds.length === 0}
+          sx={{ alignSelf: { xs: "stretch", sm: "auto" } }}
+          onClick={() => setDeleteOpen(true)}
+        >
+          Delete member{selectedIds.length === 1 ? "" : "s"}{selectedIds.length > 0 ? ` (${selectedIds.length})` : ""}
+        </Button>
       </Box>
       <DataGrid
         {...dataGridProps}
@@ -217,6 +261,24 @@ export const MemberList: React.FC = () => {
           </Button>
           <Button onClick={handleResetPasswordSubmit} variant="contained" disabled={resetPwLoading}>
             {resetPwLoading ? "Saving…" : "Reset password"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+      <Dialog open={deleteOpen} onClose={() => !deleteLoading && setDeleteOpen(false)}>
+        <DialogTitle>Delete member{selectedIds.length === 1 ? "" : "s"}?</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            This will permanently remove {selectedIds.length} selected member
+            {selectedIds.length === 1 ? "" : "s"} from the database and delete all of their event registrations.
+            This cannot be undone.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteOpen(false)} disabled={deleteLoading}>
+            Cancel
+          </Button>
+          <Button onClick={handleDeleteMembersConfirm} color="error" variant="contained" disabled={deleteLoading}>
+            {deleteLoading ? "Deleting…" : "Delete"}
           </Button>
         </DialogActions>
       </Dialog>
