@@ -195,8 +195,8 @@ input[type="password"] {
 
 .imgDark { display: none; }
 
-/* Nav — match app bottom tab bar (at top on web); larger buttons and text */
-.nav {
+/* Nav — desktop: top bar (unchanged). Phone / tablet: fixed bottom tab bar. */
+.nav-desktop {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -205,6 +205,76 @@ input[type="password"] {
   padding: 0.65rem 1rem;
   background: #fff;
   border-bottom: 0.5px solid var(--separator);
+}
+
+/* Bottom tab bar — hidden on desktop */
+.nav-mobile-bottom {
+  display: none;
+}
+
+@media (max-width: 1024px) {
+  .nav-desktop {
+    display: none !important;
+  }
+
+  .nav-mobile-bottom {
+    display: flex;
+    align-items: stretch;
+    justify-content: space-around;
+    gap: 2px;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 200;
+    padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px));
+    background: #fff;
+    border-top: 0.5px solid var(--separator);
+    box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.06);
+  }
+
+  .nav-mobile-item {
+    flex: 1 1 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 4px 2px;
+    font-size: 0.65rem;
+    font-weight: 500;
+    color: rgba(0, 0, 0, 0.55);
+    text-align: center;
+    border-radius: 10px;
+    transition: background 0.15s ease, color 0.15s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .nav-mobile-item-active {
+    font-weight: 600;
+    color: #000;
+    background: var(--nav-selected-bg);
+  }
+
+  .nav-mobile-tab-icon {
+    display: block;
+    object-fit: contain;
+    flex-shrink: 0;
+  }
+
+  .nav-mobile-tab-text {
+    display: block;
+    line-height: 1.15;
+    max-width: 76px;
+    overflow-wrap: break-word;
+    hyphens: auto;
+  }
+
+  /* Space for fixed tab bar + safe area */
+  body {
+    padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+  }
 }
 .nav-item {
   display: inline-flex;
@@ -352,6 +422,38 @@ input[type="password"] {
   font-weight: 600;
   color: #000;
   margin-bottom: 8px;
+}
+
+/* Contact Us on profile (guest + logged-in) */
+.profile-contact-section {
+  padding: 8px 12px 12px;
+}
+.profile-contact-hint {
+  font-size: 0.875rem;
+  color: rgba(0, 0, 0, 0.6);
+  margin: 0 0 12px;
+}
+.profile-contact-icons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+}
+.profile-contact-link {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  color: #000;
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+.profile-contact-icon {
+  display: block;
+  object-fit: contain;
+}
+.profile-contact-link-label {
+  text-align: center;
 }
 .form-error {
   font-size: 0.75rem;

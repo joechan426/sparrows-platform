@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/auth-context";
 import { apiChangePassword } from "@/lib/api";
 import type { MemberRegistration } from "@/lib/api";
 import { useNavRefresh } from "@/lib/nav-refresh-context";
+import { ContactUsBlock } from "@/components/contact-us-block";
 
 function formatDate(d: string): string {
   return new Date(d).toLocaleDateString(undefined, { dateStyle: "medium" });
@@ -134,6 +135,8 @@ export default function ProfilePage() {
             </a>
           </p>
           <div className="section-divider" />
+          <ContactUsBlock />
+          <div className="section-divider" />
           <a
             href="https://sparrowsvolleyball.com.au/news"
             target="_blank"
@@ -257,6 +260,10 @@ export default function ProfilePage() {
         <span className="disclosure-title">My Sparrows History</span>
         <span className="chevron-right">›</span>
       </Link>
+
+      <div className="section-divider" />
+
+      <ContactUsBlock />
 
       <div className="section-divider" />
 

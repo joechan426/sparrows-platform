@@ -16,8 +16,17 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Sparrows",
+  title: "Sparrows Sport Club",
   description: "Sparrows member and event registration",
+  appleWebApp: {
+    capable: true,
+    title: "Sparrows Sport Club",
+    statusBarStyle: "default",
+  },
+  icons: {
+    icon: [{ url: "/images/volleyball.png", sizes: "512x512", type: "image/png" }],
+    apple: "/images/volleyball.png",
+  },
 };
 
 export default function RootLayout({
@@ -36,7 +45,7 @@ export default function RootLayout({
           <NavRefreshProvider>
             <Nav />
             <PwaStatusBanner />
-            {children}
+            <main className="main-with-nav">{children}</main>
           </NavRefreshProvider>
         </AuthProvider>
       </body>
