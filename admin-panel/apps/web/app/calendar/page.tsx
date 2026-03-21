@@ -6,6 +6,7 @@ import { useAuth } from "@/lib/auth-context";
 import type { CalendarEvent, MemberRegistration } from "@/lib/api";
 import dynamic from "next/dynamic";
 import { useNavRefresh } from "@/lib/nav-refresh-context";
+import { approvedRegistrationHint } from "@/lib/calendar-registration-hint";
 
 const EventDetail = dynamic(
   () => import("@/components/event-detail").then((m) => m.EventDetail),
@@ -37,6 +38,16 @@ function statusClass(s: string): string {
 }
 function statusText(s: string): string {
   return s.toUpperCase() === "WAITING_LIST" ? "Waiting list" : s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+}
+
+function JoinHint({ event }: { event: CalendarEvent }) {
+  const hint = approvedRegistrationHint(event);
+  if (!hint) return null;
+  return (
+    <span className="calendar-approved-hint" aria-label={`Approved participants: ${hint}`}>
+      {hint}
+    </span>
+  );
 }
 
 function startOfDay(d: Date): Date {
@@ -433,18 +444,24 @@ export default function CalendarPage() {
                     </div>
                   </div>
                   {effectiveStatus ? (
-                    <span className={`pill ${statusClass(effectiveStatus)}`}>
-                      {statusText(effectiveStatus)}
-                    </span>
+                    <div className="calendar-event-actions">
+                      <span className={`pill ${statusClass(effectiveStatus)}`}>
+                        {statusText(effectiveStatus)}
+                      </span>
+                      <JoinHint event={event} />
+                    </div>
                   ) : canRegister ? (
-                    <button
-                      type="button"
-                      className={`btn-register ${!event.registrationOpen ? "btn-register-disabled" : ""}`}
-                      onClick={() => setSelectedEvent(event)}
-                      disabled={!event.registrationOpen}
-                    >
-                      Register
-                    </button>
+                    <div className="calendar-event-actions">
+                      <button
+                        type="button"
+                        className={`btn-register ${!event.registrationOpen ? "btn-register-disabled" : ""}`}
+                        onClick={() => setSelectedEvent(event)}
+                        disabled={!event.registrationOpen}
+                      >
+                        Register
+                      </button>
+                      <JoinHint event={event} />
+                    </div>
                   ) : (
                     <span aria-hidden="true" style={{ display: "inline-block", minWidth: 96 }} />
                   )}
@@ -479,18 +496,24 @@ export default function CalendarPage() {
                     </div>
                   </div>
                   {effectiveStatus ? (
-                    <span className={`pill ${statusClass(effectiveStatus)}`}>
-                      {statusText(effectiveStatus)}
-                    </span>
+                    <div className="calendar-event-actions">
+                      <span className={`pill ${statusClass(effectiveStatus)}`}>
+                        {statusText(effectiveStatus)}
+                      </span>
+                      <JoinHint event={event} />
+                    </div>
                   ) : canRegister ? (
-                    <button
-                      type="button"
-                      className={`btn-register ${!event.registrationOpen ? "btn-register-disabled" : ""}`}
-                      onClick={() => setSelectedEvent(event)}
-                      disabled={!event.registrationOpen}
-                    >
-                      Register
-                    </button>
+                    <div className="calendar-event-actions">
+                      <button
+                        type="button"
+                        className={`btn-register ${!event.registrationOpen ? "btn-register-disabled" : ""}`}
+                        onClick={() => setSelectedEvent(event)}
+                        disabled={!event.registrationOpen}
+                      >
+                        Register
+                      </button>
+                      <JoinHint event={event} />
+                    </div>
                   ) : (
                     <span aria-hidden="true" style={{ display: "inline-block", minWidth: 96 }} />
                   )}

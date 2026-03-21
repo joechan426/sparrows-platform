@@ -27,11 +27,25 @@ export async function GET(req: NextRequest, context: any) {
     const id = await getIdFromContext(context);
     if (!id) return withCors(req, NextResponse.json({ message: "Missing id" }, { status: 400 }));
 
-    const event = await prisma.calendarEvent.findUnique({ where: { id } });
-    if (!event)
-      return withCors(req, NextResponse.json({ message: "Not found" }, { status: 404 }));
+    const raw = await prisma.calendarEvent.findUnique({
+      where: { id },
+      include: {
+        registrations: {
+          where: { status: "APPROVED" },
+          select: { id: true },
+        },
+      },
+    });
+    if (!raw) return withCors(req, NextResponse.json({ message: "Not found" }, { status: 404 }));
 
-    return withCors(req, NextResponse.json(event, { status: 200 }));
+    const { registrations, ...event } = raw;
+    return withCors(
+      req,
+      NextResponse.json(
+        { ...event, approvedCount: registrations.length },
+        { status: 200 }
+      )
+    );
   } catch (e: any) {
     return withCors(
       req,

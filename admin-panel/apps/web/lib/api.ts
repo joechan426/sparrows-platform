@@ -29,6 +29,8 @@ export type CalendarEvent = {
   eventType: string;
   registrationOpen: boolean;
   capacity: number | null;
+  /** Present when loaded from API; count of APPROVED registrations */
+  approvedCount?: number;
 };
 
 export type MemberRegistration = {

@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import type { CalendarEvent, Member } from "@/lib/api";
 import { apiRegisterForEvent } from "@/lib/api";
+import { approvedRegistrationHint } from "@/lib/calendar-registration-hint";
 
 function formatDate(d: string): string {
   return new Date(d).toLocaleDateString(undefined, { dateStyle: "medium" });
@@ -26,6 +27,7 @@ type Props = {
 };
 
 export function EventDetail({ event, member, onClose, onRegistered }: Props) {
+  const joinHint = event.registrationOpen ? approvedRegistrationHint(event) : null;
   const [preferredName, setPreferredName] = useState(member?.preferredName ?? "");
   const [email, setEmail] = useState(member?.email ?? "");
   const [teamName, setTeamName] = useState("");
@@ -95,7 +97,15 @@ export function EventDetail({ event, member, onClose, onRegistered }: Props) {
           <dt>Sport</dt>
           <dd>{event.sportType || "—"}</dd>
           <dt>Registration</dt>
-          <dd>{event.registrationOpen ? "Open" : "Closed"}</dd>
+          <dd>
+            {event.registrationOpen ? "Open" : "Closed"}
+            {joinHint ? (
+              <>
+                {" · "}
+                <span className="event-detail-join-hint">{joinHint}</span>
+              </>
+            ) : null}
+          </dd>
         </dl>
 
         {!member && (

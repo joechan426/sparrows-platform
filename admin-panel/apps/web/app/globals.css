@@ -882,6 +882,23 @@ input[type="password"] {
   gap: 10px;
   padding: 8px;
 }
+.calendar-event-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  max-width: min(100%, 220px);
+}
+.calendar-approved-hint {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.55);
+  line-height: 1.2;
+  text-align: right;
+  white-space: nowrap;
+}
 .calendar-event-info {
   flex: 1;
   min-width: 0;
@@ -955,6 +972,9 @@ input[type="password"] {
   background: rgba(255,255,255,0.7);
   border-radius: 10px;
 }
+.what-next-item .calendar-event-actions {
+  max-width: min(100%, 240px);
+}
 .what-next-item-title {
   font-size: 0.9375rem;
   font-weight: 700;
@@ -1024,6 +1044,10 @@ input[type="password"] {
 .event-detail-dl dd {
   margin-left: 0;
   color: #000;
+}
+.event-detail-join-hint {
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.6);
 }
 .event-detail-form-title {
   font-size: 1rem;
