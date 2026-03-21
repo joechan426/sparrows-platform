@@ -227,7 +227,8 @@ input[type="password"] {
     right: 0;
     bottom: 0;
     z-index: 200;
-    padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px));
+    /* Extra vertical padding so bottom rounded corners don't overlap tab text. */
+    padding: 12px 6px calc(12px + env(safe-area-inset-bottom, 0px));
     background: #fff;
     border-top: 0.5px solid var(--separator);
     box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.06);
@@ -240,8 +241,8 @@ input[type="password"] {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 4px;
-    padding: 4px 2px;
+    gap: 6px;
+    padding: 8px 2px;
     font-size: 0.65rem;
     font-weight: 500;
     color: rgba(0, 0, 0, 0.55);
@@ -265,7 +266,7 @@ input[type="password"] {
 
   .nav-mobile-tab-text {
     display: block;
-    line-height: 1.15;
+    line-height: 1.05;
     max-width: 76px;
     overflow-wrap: break-word;
     hyphens: auto;
@@ -273,7 +274,7 @@ input[type="password"] {
 
   /* Space for fixed tab bar + safe area */
   body {
-    padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px));
   }
 }
 .nav-item {

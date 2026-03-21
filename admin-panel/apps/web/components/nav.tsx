@@ -20,26 +20,26 @@ const NAV_ITEMS: {
     href: "https://sparrowsvolleyball.com.au/shop",
     label: "Shop",
     internal: false,
-    tabIcon: "/images/volleyball_logo.svg",
+    tabIcon: "/images/shop_logo.png",
   },
   {
     href: "https://www.youtube.com/@SparrowsVolleyball/videos",
     label: "Videos",
     internal: false,
-    tabIcon: "/images/pickleball_logo.svg",
+    tabIcon: "/images/videos_logo.png",
   },
   {
     href: "/calendar",
     label: "Calendar",
     internal: true,
-    tabIcon: "/images/volleyball.svg",
+    tabIcon: "/images/calendar_logo.png",
   },
   {
     href: "/ongoing",
     label: "Ongoing Tournament",
     labelMobile: "Ongoing",
     internal: true,
-    tabIcon: "/images/pickleball.svg",
+    tabIcon: "/images/tournament_logo.png",
   },
   {
     href: "/profile",
@@ -171,11 +171,11 @@ export function Nav() {
               <Image
                 src={tabIcon}
                 alt=""
-                width={26}
-                height={26}
+                width={28}
+                height={28}
                 className="nav-mobile-tab-icon"
                 loading="lazy"
-                sizes="26px"
+                sizes="28px"
               />
               <span className="nav-mobile-tab-text">{tabLabel}</span>
             </Link>
@@ -190,11 +190,11 @@ export function Nav() {
               <Image
                 src={tabIcon}
                 alt=""
-                width={26}
-                height={26}
+                width={28}
+                height={28}
                 className="nav-mobile-tab-icon"
                 loading="lazy"
-                sizes="26px"
+                sizes="28px"
               />
               <span className="nav-mobile-tab-text">{tabLabel}</span>
             </a>
