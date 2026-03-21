@@ -132,13 +132,22 @@ export const MemberList: React.FC = () => {
 
   return (
     <List title="Members">
-      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 2, alignItems: "center", mb: 2 }}>
+      <Box
+        sx={{
+          display: "flex",
+          flexDirection: { xs: "column", sm: "row" },
+          flexWrap: "wrap",
+          gap: 2,
+          alignItems: { xs: "stretch", sm: "center" },
+          mb: 2,
+        }}
+      >
         <TextField
           size="small"
           placeholder="Search by name or email…"
           value={searchInput}
           onChange={(e) => setSearchInput(e.target.value)}
-          sx={{ maxWidth: 400 }}
+          sx={{ width: { xs: "100%", sm: "auto" }, maxWidth: { xs: "100%", sm: 400 } }}
           InputProps={{
             startAdornment: (
               <InputAdornment position="start">
@@ -151,6 +160,7 @@ export const MemberList: React.FC = () => {
           variant="outlined"
           startIcon={<LockIcon />}
           disabled={selectedIds.length === 0}
+          sx={{ alignSelf: { xs: "stretch", sm: "auto" } }}
           onClick={() => {
             setResetPwError("");
             setResetPwPassword("");

@@ -312,7 +312,7 @@ export const EventRegistrationsPage: React.FC = () => {
         headerAlign: "center",
         renderCell: ({ row }: { row: EventRegistrationRow }) => (
           <Box sx={{ width: "100%", height: "100%", display: "flex", justifyContent: "center", alignItems: "center" }}>
-            <Stack direction="row" spacing={1} flexWrap="nowrap">
+            <Stack direction="row" spacing={1} flexWrap="wrap" justifyContent="center" useFlexGap>
               <Button
                 size="small"
                 variant="outlined"

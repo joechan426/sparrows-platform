@@ -375,7 +375,7 @@ export const EventList: React.FC = () => {
         headerAlign: "center",
         renderCell: ({ row }) => (
           <Box sx={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <Stack direction="row" spacing={1}>
+            <Stack direction="row" spacing={1} flexWrap="wrap" justifyContent="center" useFlexGap>
               <Button size="small" variant="outlined" component={Link} to={`/events/${row.id}/registrations`}>
                 Registrations
               </Button>
@@ -426,7 +426,7 @@ export const EventList: React.FC = () => {
           placeholder="Search event & sport…"
           value={listSearchQuery}
           onChange={(e) => setListSearchQuery(e.target.value)}
-          sx={{ mb: 1, minWidth: 220 }}
+          sx={{ mb: 1, width: { xs: "100%", sm: "auto" }, minWidth: { xs: 0, sm: 220 } }}
           slotProps={{ input: { startAdornment: <InputAdornment position="start">Search</InputAdornment> } }}
         />
         <DataGrid

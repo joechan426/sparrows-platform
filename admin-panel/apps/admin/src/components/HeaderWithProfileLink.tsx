@@ -7,17 +7,20 @@ import Toolbar from "@mui/material/Toolbar";
 import Button from "@mui/material/Button";
 import Typography from "@mui/material/Typography";
 import Avatar from "@mui/material/Avatar";
+import useMediaQuery from "@mui/material/useMediaQuery";
 import { HamburgerMenu } from "@refinedev/mui";
 
 export const HeaderWithProfileLink: React.FC<{ sticky?: boolean }> = ({
   sticky = true,
 }) => {
   const { data: user } = useGetIdentity();
+  /** Match sparrowsweb: ≤1024px uses bottom tab bar instead of drawer. */
+  const showSiderHamburger = useMediaQuery("(min-width:1025px)");
 
   return (
     <AppBar position={sticky ? "sticky" : "relative"}>
       <Toolbar>
-        <HamburgerMenu />
+        {showSiderHamburger ? <HamburgerMenu /> : null}
         <Stack
           direction="row"
           width="100%"

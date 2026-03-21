@@ -61,6 +61,8 @@ import { getApiBase } from "./lib/api-base";
 import { getStoredAdmin } from "./lib/admin-auth";
 import { AdminDefaultRedirect } from "./components/AdminDefaultRedirect";
 import { RequireResourceAccess } from "./components/RequireResourceAccess";
+import { AdminResponsiveSider } from "./components/AdminResponsiveSider";
+import { AdminMobileBottomNav } from "./components/AdminMobileBottomNav";
 
 const accessControlProvider: AccessControlProvider = {
   can: async ({ resource, action }) => {
@@ -114,7 +116,39 @@ const App: React.FC = () => {
     <BrowserRouter>
       <ThemeProvider theme={theme}>
         <CssBaseline />
-        <GlobalStyles styles={{ html: { WebkitFontSmoothing: "auto" } }} />
+        <GlobalStyles
+          styles={(theme) => ({
+            html: { WebkitFontSmoothing: "auto" },
+            /* Mobile / tablet (≤1024px): match sparrowsweb app-like usability */
+            "@media (max-width: 1024px)": {
+              main: {
+                /* Comfortable tap targets */
+                "& .MuiButton-root:not(.MuiIconButton-root)": {
+                  minHeight: 44,
+                },
+                "& .MuiIconButton-root": {
+                  padding: theme.spacing(1.25),
+                },
+                /* Data grids: allow horizontal scroll instead of squishing */
+                "& .MuiDataGrid-root": {
+                  minWidth: 520,
+                },
+                "& .MuiCard-root": {
+                  overflow: "hidden",
+                },
+                "& .MuiCardContent-root": {
+                  overflowX: "auto",
+                  WebkitOverflowScrolling: "touch",
+                },
+                "& .MuiDialogActions-root": {
+                  flexWrap: "wrap",
+                  gap: theme.spacing(1),
+                  justifyContent: "flex-end",
+                },
+              },
+            },
+          })}
+        />
 
         <RefineSnackbarProvider>
           <OfflineNotice />
@@ -205,6 +239,16 @@ const App: React.FC = () => {
                   <Authenticated key="protected-routes">
                     <ThemedLayout
                       Header={() => <HeaderWithProfileLink />}
+                      Sider={(siderProps) => <AdminResponsiveSider {...siderProps} />}
+                      Footer={() => <AdminMobileBottomNav />}
+                      childrenBoxProps={{
+                        sx: {
+                          "@media (max-width: 1024px)": {
+                            /* Space for fixed bottom tab bar (same as sparrowsweb) */
+                            paddingBottom: "calc(72px + env(safe-area-inset-bottom, 0px))",
+                          },
+                        },
+                      }}
                       Title={() => (
                         <Link to="/" style={{ textDecoration: "none" }}>
                           <div

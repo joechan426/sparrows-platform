@@ -92,7 +92,13 @@ export const TournamentShow = () => {
 
         <Divider sx={{ mb: 2 }} />
 
-        <Tabs value={current} sx={{ mb: 2 }}>
+        <Tabs
+          value={current}
+          variant="scrollable"
+          scrollButtons="auto"
+          allowScrollButtonsMobile
+          sx={{ mb: 2 }}
+        >
           <Tab label="Overview" value="overview" component={Link} to={base} />
           <Tab label="Teams" value="teams" component={Link} to={`${base}/teams`} />
           <Tab label="Divisions" value="divisions" component={Link} to={`${base}/divisions`} />
