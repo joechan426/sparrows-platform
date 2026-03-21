@@ -63,6 +63,7 @@ import { AdminDefaultRedirect } from "./components/AdminDefaultRedirect";
 import { RequireResourceAccess } from "./components/RequireResourceAccess";
 import { AdminResponsiveSider } from "./components/AdminResponsiveSider";
 import { AdminMobileBottomNav } from "./components/AdminMobileBottomNav";
+import { PullToRefresh } from "./components/PullToRefresh";
 
 const accessControlProvider: AccessControlProvider = {
   can: async ({ resource, action }) => {
@@ -151,6 +152,7 @@ const App: React.FC = () => {
         />
 
         <RefineSnackbarProvider>
+          <PullToRefresh />
           <OfflineNotice />
           <Refine
             authProvider={adminAuthProvider}

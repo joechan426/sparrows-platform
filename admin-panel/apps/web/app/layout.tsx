@@ -5,6 +5,7 @@ import { AuthProvider } from "@/lib/auth-context";
 import { Nav } from "@/components/nav";
 import { NavRefreshProvider } from "@/lib/nav-refresh-context";
 import { PwaStatusBanner } from "@/components/pwa-status-banner";
+import { PullToRefresh } from "@/components/pull-to-refresh";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -52,6 +53,7 @@ export default function RootLayout({
       <body className={`${geistSans.variable} ${geistMono.variable}`}>
         <AuthProvider>
           <NavRefreshProvider>
+            <PullToRefresh />
             <Nav />
             <PwaStatusBanner />
             <main className="main-with-nav">{children}</main>
