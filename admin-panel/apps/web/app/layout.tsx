@@ -25,12 +25,12 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
-      { url: "/images/volleyball.png?v=2", sizes: "32x32", type: "image/png" },
-      { url: "/images/volleyball.png?v=2", sizes: "192x192", type: "image/png" },
-      { url: "/images/volleyball.png?v=2", sizes: "512x512", type: "image/png" },
+      { url: "/images/volleyball.png?v=3", sizes: "32x32", type: "image/png" },
+      { url: "/images/volleyball.png?v=3", sizes: "192x192", type: "image/png" },
+      { url: "/images/volleyball.png?v=3", sizes: "512x512", type: "image/png" },
     ],
-    apple: "/images/volleyball.png?v=2",
-    shortcut: "/images/volleyball.png?v=2",
+    apple: "/images/volleyball.png?v=3",
+    shortcut: "/images/volleyball.png?v=3",
   },
 };
 
@@ -45,9 +45,9 @@ export default function RootLayout({
         <link rel="manifest" href="/manifest.json" />
         <meta name="theme-color" content="#0b2f6b" />
         {/* Explicit favicon links (bypass SW/cache confusion); app/icon.png also set for Next.js */}
-        <link rel="icon" type="image/png" href="/images/volleyball.png?v=2" sizes="32x32" />
-        <link rel="icon" type="image/png" href="/images/volleyball.png?v=2" sizes="192x192" />
-        <link rel="shortcut icon" type="image/png" href="/images/volleyball.png?v=2" />
+        <link rel="icon" type="image/png" href="/images/volleyball.png?v=3" sizes="32x32" />
+        <link rel="icon" type="image/png" href="/images/volleyball.png?v=3" sizes="192x192" />
+        <link rel="shortcut icon" type="image/png" href="/images/volleyball.png?v=3" />
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable}`}>
         <AuthProvider>

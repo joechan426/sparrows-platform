@@ -43,6 +43,15 @@ const withPWA = nextPWA({
   skipWaiting: true,
   disable: process.env.NODE_ENV === "development",
   runtimeCaching: [
+    // Tab favicon: never cache stale default icon (Chrome prefers /favicon.ico).
+    {
+      urlPattern: /^\/favicon\.ico(\?.*)?$/i,
+      handler: "NetworkOnly",
+    },
+    {
+      urlPattern: /^\/icon\.png(\?.*)?$/i,
+      handler: "NetworkOnly",
+    },
     // Next.js static assets
     {
       urlPattern: /^\/_next\/static\/.*$/i,
