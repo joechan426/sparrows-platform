@@ -9,7 +9,6 @@ import SwiftUI
 import WebKit
 import Combine
 import UIKit
-import AuthenticationServices
 
 @MainActor
 private final class SparrowsNewsPreloader: ObservableObject {
@@ -133,15 +132,19 @@ final class MemberProfileStore: ObservableObject {
             setMember(member)
         } catch let err as SparrowsAPIError {
             switch err {
+            case .transport(let msg):
+                authError = msg
+            case .decode:
+                authError = err.localizedDescription
             case .httpStatus(409, _):
                 authError = "This email is already registered. Use Login instead."
             case .httpStatus(_, let msg):
                 authError = msg ?? "Registration failed."
             default:
-                authError = "Network error. Check your connection and API URL."
+                authError = err.localizedDescription
             }
         } catch {
-            authError = "Network error. Check your connection and API URL."
+            authError = error.localizedDescription
         }
     }
 
@@ -159,30 +162,19 @@ final class MemberProfileStore: ObservableObject {
             setMember(member)
         } catch let err as SparrowsAPIError {
             switch err {
+            case .transport(let msg):
+                authError = msg
+            case .decode:
+                authError = err.localizedDescription
             case .httpStatus(401, _):
                 authError = "Invalid email or password."
             case .httpStatus(_, let msg):
                 authError = msg ?? "Login failed."
             default:
-                authError = "Network error. Check your connection and API URL."
+                authError = err.localizedDescription
             }
         } catch {
-            authError = "Network error. Check your connection and API URL."
-        }
-    }
-
-    func loginWithApple(identityToken: String) async {
-        isAuthLoading = true
-        authError = nil
-        defer { isAuthLoading = false }
-        do {
-            let member = try await AuthAPI.loginWithApple(identityToken: identityToken)
-            setMember(member)
-        } catch let err as SparrowsAPIError {
-            if case .httpStatus(_, let msg) = err { authError = msg }
-            else { authError = "Apple sign-in failed." }
-        } catch {
-            authError = "Apple sign-in failed."
+            authError = error.localizedDescription
         }
     }
 
@@ -237,15 +229,50 @@ final class MemberProfileStore: ObservableObject {
             }
         } catch let err as SparrowsAPIError {
             switch err {
+            case .transport(let msg):
+                saveError = msg
+            case .decode:
+                saveError = err.localizedDescription
             case .httpStatus(409, _):
                 saveError = "This email is already registered. Try logging in instead."
             case .httpStatus(let code, let msg):
                 saveError = msg ?? "Request failed (\(code))."
             default:
-                saveError = "Network error. Check your connection and API URL."
+                saveError = err.localizedDescription
             }
         } catch {
-            saveError = "Network error. Check your connection and API URL."
+            saveError = error.localizedDescription
+        }
+    }
+
+    /// Update display name only (PATCH preferredName).
+    func updatePreferredName(_ newName: String) async {
+        let trimmed = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let id = memberId else { return }
+        guard !trimmed.isEmpty else {
+            saveError = "Name is required."
+            return
+        }
+        isSaving = true
+        saveError = nil
+        defer { isSaving = false }
+        do {
+            let updated = try await MemberAPI.update(id: id, preferredName: trimmed, email: nil)
+            preferredName = updated.preferredName
+            persist()
+        } catch let err as SparrowsAPIError {
+            switch err {
+            case .transport(let msg):
+                saveError = msg
+            case .decode:
+                saveError = err.localizedDescription
+            case .httpStatus(_, let msg):
+                saveError = msg ?? "Update failed."
+            default:
+                saveError = err.localizedDescription
+            }
+        } catch {
+            saveError = error.localizedDescription
         }
     }
 
@@ -263,9 +290,11 @@ final class MemberProfileStore: ObservableObject {
         } catch let err as SparrowsAPIError {
             if case .httpStatus(401, _) = err { saveError = "Current password is incorrect." }
             else if case .httpStatus(_, let msg) = err { saveError = msg ?? "Change password failed." }
-            else { saveError = "Change password failed." }
+            else if case .transport = err { saveError = err.localizedDescription }
+            else if case .decode = err { saveError = err.localizedDescription }
+            else { saveError = err.localizedDescription }
         } catch {
-            saveError = "Network error."
+            saveError = error.localizedDescription
         }
     }
 
@@ -1610,6 +1639,21 @@ private struct ShopPageScrapeResult {
 }
 
 /// Shared status pill styling (Pending=dark gray, Approved=green, Waiting list=orange, Rejected=red)
+/// Matches sparrowsweb: only Neon-backed events (not `ics-…` placeholders) use in-app registration.
+private func isRegisterableDatabaseCalendarEvent(_ event: CalendarEvent) -> Bool {
+    !event.id.hasPrefix("ics-")
+}
+
+/// Same rules as sparrowsweb `approvedRegistrationHint`: only when registration is open.
+private func calendarApprovedRegistrationHintText(for event: CalendarEvent) -> String? {
+    guard event.registrationOpen == true else { return nil }
+    let approved = event.approvedCount ?? 0
+    if let cap = event.capacity {
+        return "\(approved) / \(cap)"
+    }
+    return approved == 1 ? "1 is joining" : "\(approved) are joining"
+}
+
 private enum RegistrationStatusStyle {
     static func color(_ status: String) -> Color {
         switch status.uppercased() {
@@ -1779,16 +1823,25 @@ private struct MyAccountContent: View {
     @Binding var authIsLogin: Bool
     var onForgotPassword: (() -> Void)? = nil
     @State private var showChangePasswordSheet = false
+    @State private var showEditPreferredNameSheet = false
 
     var body: some View {
         if memberStore.hasProfile {
             VStack(alignment: .leading, spacing: 10) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Name")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Text(memberStore.preferredName)
-                        .font(.body)
+                HStack(alignment: .center, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Name")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text(memberStore.preferredName)
+                            .font(.body)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    Button("Edit") {
+                        memberStore.clearSaveError()
+                        showEditPreferredNameSheet = true
+                    }
+                    .buttonStyle(.bordered)
                 }
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Email")
@@ -1817,6 +1870,9 @@ private struct MyAccountContent: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .sheet(isPresented: $showChangePasswordSheet) {
                 ChangePasswordSheet(memberStore: memberStore, onDismiss: { showChangePasswordSheet = false })
+            }
+            .sheet(isPresented: $showEditPreferredNameSheet) {
+                EditPreferredNameSheet(memberStore: memberStore, onDismiss: { showEditPreferredNameSheet = false })
             }
         } else {
             VStack(alignment: .leading, spacing: 12) {
@@ -1872,21 +1928,66 @@ private struct MyAccountContent: View {
                     .foregroundStyle(Color(red: 0.055, green: 0.267, blue: 0.239))
                     .padding(.top, 4)
                 }
-
-                HStack(spacing: 8) {
-                    Rectangle().fill(Color.gray.opacity(0.3)).frame(height: 1)
-                    Text("or")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Rectangle().fill(Color.gray.opacity(0.3)).frame(height: 1)
-                }
-                .padding(.vertical, 4)
-
-                SignInWithAppleButtonView(memberStore: memberStore)
-                    .frame(height: 44)
-                    .frame(maxWidth: .infinity)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+}
+
+private struct EditPreferredNameSheet: View {
+    @ObservedObject var memberStore: MemberProfileStore
+    var onDismiss: () -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var nameInput = ""
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Preferred name")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    TextField("Preferred name", text: $nameInput)
+                        .textFieldStyle(.roundedBorder)
+                        .textContentType(.name)
+                    if let err = memberStore.saveError {
+                        Text(err)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    }
+                    Button {
+                        Task {
+                            await memberStore.updatePreferredName(nameInput)
+                            if memberStore.saveError == nil {
+                                onDismiss()
+                                dismiss()
+                            }
+                        }
+                    } label: {
+                        Text(memberStore.isSaving ? "Saving…" : "Save")
+                            .frame(maxWidth: .infinity)
+                            .frame(minHeight: 44)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(memberStore.isSaving || nameInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+                .padding(16)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .navigationTitle("Edit name")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Cancel") {
+                        onDismiss()
+                        dismiss()
+                    }
+                }
+            }
+            .onAppear {
+                memberStore.clearSaveError()
+                nameInput = memberStore.preferredName
+            }
         }
     }
 }
@@ -1961,66 +2062,6 @@ private struct ChangePasswordSheet: View {
     }
 }
 
-private struct SignInWithAppleButtonView: UIViewRepresentable {
-    @ObservedObject var memberStore: MemberProfileStore
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator(memberStore: memberStore)
-    }
-
-    func makeUIView(context: Context) -> ASAuthorizationAppleIDButton {
-        let button = ASAuthorizationAppleIDButton(type: .signIn, style: .black)
-        button.addTarget(context.coordinator, action: #selector(Coordinator.performSignIn), for: .touchUpInside)
-        return button
-    }
-
-    func updateUIView(_ uiView: ASAuthorizationAppleIDButton, context: Context) {}
-
-    class Coordinator: NSObject, ASAuthorizationControllerDelegate, ASAuthorizationControllerPresentationContextProviding {
-        let memberStore: MemberProfileStore
-
-        init(memberStore: MemberProfileStore) {
-            self.memberStore = memberStore
-        }
-
-        @objc func performSignIn() {
-            let request = ASAuthorizationAppleIDProvider().createRequest()
-            request.requestedScopes = [.fullName, .email]
-            let controller = ASAuthorizationController(authorizationRequests: [request])
-            controller.delegate = self
-            controller.presentationContextProvider = self
-            controller.performRequests()
-        }
-
-        func authorizationController(controller: ASAuthorizationController, didCompleteWithAuthorization authorization: ASAuthorization) {
-            guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
-                  let tokenData = credential.identityToken,
-                  let token = String(data: tokenData, encoding: .utf8) else { return }
-            Task { @MainActor in
-                await memberStore.loginWithApple(identityToken: token)
-            }
-        }
-
-        func authorizationController(controller: ASAuthorizationController, didCompleteWithError error: Error) {
-            Task { @MainActor in
-                if (error as NSError).code != ASAuthorizationError.canceled.rawValue {
-                    memberStore.authError = "Apple sign-in was cancelled or failed."
-                }
-            }
-        }
-
-        func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
-            guard let window = UIApplication.shared.connectedScenes
-                .compactMap({ $0 as? UIWindowScene })
-                .flatMap(\.windows)
-                .first(where: { $0.isKeyWindow }) else {
-                return ASPresentationAnchor()
-            }
-            return window
-        }
-    }
-}
-
 private struct MyProfileView: View {
     let scrollToTopToken: Int
     let refreshToken: Int
@@ -2033,6 +2074,7 @@ private struct MyProfileView: View {
     let onScoreboardFullscreenChange: (Bool) -> Void
     let onScrollStateChange: (Bool, Bool) -> Void
     @Environment(\.openURL) private var openURL
+    @Environment(\.scenePhase) private var scenePhase
     @State private var selectedNewsItem: MyProfileNewsArticleItem?
     @State private var showMoreNews = false
     @State private var team1Name = ""
@@ -2264,6 +2306,18 @@ private struct MyProfileView: View {
                                 } catch {
                                     registrations = []
                                     registrationsLoaded = true
+                                }
+                            }
+                            .onReceive(Timer.publish(every: 15, tolerance: 3, on: .main, in: .common).autoconnect()) { _ in
+                                guard scenePhase == .active else { return }
+                                guard let id = memberStore.memberId else { return }
+                                Task {
+                                    guard let fresh = try? await MemberAPI.registrations(memberId: id) else { return }
+                                    await MainActor.run {
+                                        registrations = fresh
+                                        registrationsLoaded = true
+                                        registrationsSectionId = UUID()
+                                    }
                                 }
                             }
                             .sheet(item: $selectedNewsItem) { item in
@@ -3888,6 +3942,7 @@ private struct SportsCalendarView: View {
     @ObservedObject var memberStore: MemberProfileStore
     let scrollToTopToken: Int
     let onScrollStateChange: (Bool, Bool) -> Void
+    @Environment(\.scenePhase) private var scenePhase
 
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 6), count: 7)
     @State private var showMonthPicker = false
@@ -3899,6 +3954,8 @@ private struct SportsCalendarView: View {
     @State private var expandedUpcomingEventID: String?
     @State private var registerEvent: CalendarEvent?
     @State private var calendarRegistrations: [APIMemberRegistration] = []
+    /// Optimistic Pending pill right after successful register (until registrations refresh).
+    @State private var optimisticPendingEventIds: Set<String> = []
     private let todayHighlightColor = Color.orange
     private let selectedDateHighlightColor = Color(red: 0.0, green: 0.45, blue: 0.2)
     private let compactCalendarHeight: CGFloat = 296
@@ -3926,6 +3983,7 @@ private struct SportsCalendarView: View {
             .background(.background)
             .task {
                 await viewModel.loadEventsIfNeeded()
+                await memberStore.loadFromBackendIfNeeded()
             }
             .task(id: memberStore.memberId) {
                 guard let id = memberStore.memberId else {
@@ -3944,6 +4002,9 @@ private struct SportsCalendarView: View {
                     memberStore: memberStore,
                     dateTimeText: viewModel.eventDateTimeDetailText(for: event),
                     descriptionText: viewModel.firstDescriptionParagraph(for: event),
+                    onRegistered: { eventId in
+                        optimisticPendingEventIds.insert(eventId)
+                    },
                     onDismiss: {
                         Task {
                             await viewModel.refresh()
@@ -3953,6 +4014,24 @@ private struct SportsCalendarView: View {
                         }
                     }
                 )
+            }
+            .onReceive(Timer.publish(every: 15, tolerance: 3, on: .main, in: .common).autoconnect()) { _ in
+                guard scenePhase == .active else { return }
+                Task {
+                    if let id = memberStore.memberId {
+                        if let fresh = try? await MemberAPI.registrations(memberId: id) {
+                            await MainActor.run {
+                                calendarRegistrations = fresh
+                                let idsWithRegistration = Set(fresh.compactMap { $0.event?.id })
+                                optimisticPendingEventIds.subtract(idsWithRegistration)
+                            }
+                        }
+                    }
+                }
+            }
+            .onReceive(Timer.publish(every: 30, tolerance: 5, on: .main, in: .common).autoconnect()) { _ in
+                guard scenePhase == .active else { return }
+                Task { await viewModel.refresh() }
             }
         }
     }
@@ -4351,6 +4430,9 @@ private struct SportsCalendarView: View {
                         } else {
                             ForEach(viewModel.filteredEventsForSelectedDate) { event in
                                 let myRegistration = calendarRegistrations.first(where: { $0.event?.id == event.id })
+                                let optimisticPending = optimisticPendingEventIds.contains(event.id)
+                                let effectiveStatus: String? = myRegistration?.status ?? (optimisticPending ? "PENDING" : nil)
+                                let joinHint = calendarApprovedRegistrationHintText(for: event)
                                 HStack(alignment: .center, spacing: 10) {
                                     VStack(alignment: .leading, spacing: 3) {
                                         Text(event.title)
@@ -4364,30 +4446,53 @@ private struct SportsCalendarView: View {
                                             .lineLimit(1)
                                             .fixedSize(horizontal: false, vertical: true)
                                         if let sport = event.sportType, !sport.isEmpty {
-                                            Text("\(sport) · \((event.registrationOpen ?? false) ? "Registration open" : "Registration closed")")
+                                            Text("\(sport) · Registration \((event.registrationOpen ?? false) ? "Open" : "Closed")")
                                                 .font(.caption2)
                                                 .foregroundStyle(.secondary)
                                         }
                                     }
                                     .frame(maxWidth: .infinity, alignment: .leading)
 
-                                    if let reg = myRegistration {
-                                        Text(RegistrationStatusStyle.displayText(reg.status))
-                                            .font(.caption)
-                                            .fontWeight(.medium)
-                                            .foregroundStyle(.white)
-                                            .padding(.horizontal, 10)
-                                            .padding(.vertical, 4)
-                                            .background(Capsule().fill(RegistrationStatusStyle.color(reg.status)))
-                                            .frame(minWidth: 98, minHeight: 38)
-                                    } else {
-                                        Button("Register") {
-                                            registerEvent = event
+                                    Group {
+                                        if let status = effectiveStatus {
+                                            HStack(alignment: .center, spacing: 6) {
+                                                Text(RegistrationStatusStyle.displayText(status))
+                                                    .font(.caption)
+                                                    .fontWeight(.medium)
+                                                    .foregroundStyle(.white)
+                                                    .padding(.horizontal, 10)
+                                                    .padding(.vertical, 4)
+                                                    .background(Capsule().fill(RegistrationStatusStyle.color(status)))
+                                                    .frame(minWidth: 98, minHeight: 38)
+                                                if let joinHint {
+                                                    Text(joinHint)
+                                                        .font(.caption2)
+                                                        .fontWeight(.semibold)
+                                                        .foregroundStyle(.secondary)
+                                                        .fixedSize(horizontal: true, vertical: true)
+                                                }
+                                            }
+                                        } else if isRegisterableDatabaseCalendarEvent(event) {
+                                            HStack(alignment: .center, spacing: 6) {
+                                                Button("Register") {
+                                                    registerEvent = event
+                                                }
+                                                .buttonStyle(.borderedProminent)
+                                                .font(.subheadline.bold())
+                                                .frame(minWidth: 98, minHeight: 38)
+                                                .disabled((event.registrationOpen ?? false) == false)
+                                                if let joinHint {
+                                                    Text(joinHint)
+                                                        .font(.caption2)
+                                                        .fontWeight(.semibold)
+                                                        .foregroundStyle(.secondary)
+                                                        .fixedSize(horizontal: true, vertical: true)
+                                                }
+                                            }
+                                        } else {
+                                            Color.clear
+                                                .frame(minWidth: 96, minHeight: 38)
                                         }
-                                        .buttonStyle(.borderedProminent)
-                                        .font(.subheadline.bold())
-                                        .frame(minWidth: 98, minHeight: 38)
-                                        .disabled((event.registrationOpen ?? false) == false)
                                     }
                                 }
                                 .padding(8)
@@ -4453,6 +4558,9 @@ private struct SportsCalendarView: View {
                             let isExpanded = expandedUpcomingEventID == event.id
                             let showFullDetails = !shouldCompact || isExpanded
                             let myRegistration = calendarRegistrations.first(where: { $0.event?.id == event.id })
+                            let optimisticPending = optimisticPendingEventIds.contains(event.id)
+                            let effectiveStatus: String? = myRegistration?.status ?? (optimisticPending ? "PENDING" : nil)
+                            let joinHint = calendarApprovedRegistrationHintText(for: event)
 
                             HStack(alignment: .center, spacing: 10) {
                                 VStack(alignment: .leading, spacing: 3) {
@@ -4485,22 +4593,46 @@ private struct SportsCalendarView: View {
                                     }
                                 }
 
-                                if let reg = myRegistration {
-                                    Text(RegistrationStatusStyle.displayText(reg.status))
-                                        .font(.caption)
-                                        .fontWeight(.medium)
-                                        .foregroundStyle(.white)
-                                        .padding(.horizontal, 10)
-                                        .padding(.vertical, 4)
-                                        .background(Capsule().fill(RegistrationStatusStyle.color(reg.status)))
-                                        .frame(minWidth: 98, minHeight: 38)
-                                } else {
-                                    Button("Register") {
-                                        registerEvent = event
+                                Group {
+                                    if let status = effectiveStatus {
+                                        HStack(alignment: .center, spacing: 6) {
+                                            Text(RegistrationStatusStyle.displayText(status))
+                                                .font(.caption)
+                                                .fontWeight(.medium)
+                                                .foregroundStyle(.white)
+                                                .padding(.horizontal, 10)
+                                                .padding(.vertical, 4)
+                                                .background(Capsule().fill(RegistrationStatusStyle.color(status)))
+                                                .frame(minWidth: 98, minHeight: 38)
+                                            if let joinHint {
+                                                Text(joinHint)
+                                                    .font(.caption2)
+                                                    .fontWeight(.semibold)
+                                                    .foregroundStyle(Color.black.opacity(0.55))
+                                                    .fixedSize(horizontal: true, vertical: true)
+                                            }
+                                        }
+                                    } else if isRegisterableDatabaseCalendarEvent(event) {
+                                        HStack(alignment: .center, spacing: 6) {
+                                            Button("Register") {
+                                                registerEvent = event
+                                            }
+                                            .buttonStyle(.borderedProminent)
+                                            .font(.subheadline.bold())
+                                            .frame(minWidth: 98, minHeight: 38)
+                                            .disabled((event.registrationOpen ?? false) == false)
+                                            if let joinHint {
+                                                Text(joinHint)
+                                                    .font(.caption2)
+                                                    .fontWeight(.semibold)
+                                                    .foregroundStyle(Color.black.opacity(0.55))
+                                                    .fixedSize(horizontal: true, vertical: true)
+                                            }
+                                        }
+                                    } else {
+                                        Color.clear
+                                            .frame(minWidth: 96, minHeight: 38)
                                     }
-                                    .buttonStyle(.borderedProminent)
-                                    .font(.subheadline.bold())
-                                    .frame(minWidth: 98, minHeight: 38)
                                 }
                             }
                             .padding(8)
@@ -4592,6 +4724,7 @@ private struct RegisterEventSheet: View {
     @ObservedObject var memberStore: MemberProfileStore
     let dateTimeText: String
     let descriptionText: String?
+    var onRegistered: ((String) -> Void)?
     var onDismiss: (() -> Void)?
     @Environment(\.dismiss) private var dismiss
 
@@ -4600,9 +4733,12 @@ private struct RegisterEventSheet: View {
     }
     private var registrationOpen: Bool { event.registrationOpen ?? false }
 
+    @State private var preferredNameInput = ""
+    @State private var emailInput = ""
     @State private var teamName = ""
     @State private var registerError: String?
     @State private var isRegistering = false
+    @State private var registerSuccess = false
 
     var body: some View {
         NavigationStack {
@@ -4610,15 +4746,12 @@ private struct RegisterEventSheet: View {
                 VStack(alignment: .leading, spacing: 12) {
                     infoRow(title: "Title", value: event.title)
                     infoRow(title: "Date & Time", value: dateTimeText)
-                    infoRow(title: "Location", value: event.location?.isEmpty == false ? event.location! : "N/A")
-                    infoRow(title: "Description", value: descriptionText ?? "N/A")
+                    infoRow(title: "Location", value: event.location?.isEmpty == false ? event.location! : "—")
+                    infoRow(title: "Description", value: descriptionText ?? "—")
                     if let sport = event.sportType, !sport.isEmpty {
                         infoRow(title: "Sport", value: sport)
                     }
-                    if let type = event.eventType, !type.isEmpty {
-                        infoRow(title: "Event type", value: type)
-                    }
-                    infoRow(title: "Registration", value: registrationOpen ? "Open" : "Closed")
+                    registrationStatusBlock
 
                     if !registrationOpen {
                         Text("Registration is closed for this event.")
@@ -4626,36 +4759,61 @@ private struct RegisterEventSheet: View {
                             .foregroundStyle(.secondary)
                             .padding(.top, 8)
                     } else if !memberStore.hasProfile {
-                        Text("Complete your profile in My Profile first, then come back to register.")
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("You need to log in or create an account to register for this event.")
+                                .font(.subheadline)
+                            Text("Open My Profile, then use Log in or Register to continue.")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.top, 8)
+                    } else if registerSuccess {
+                        Text("You are registered. Status: Pending.")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                             .padding(.top, 8)
                     } else {
-                        if isSpecial {
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text("Team name")
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Register")
+                                .font(.headline)
+                                .padding(.top, 4)
+                            Text("Preferred name *")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            TextField("Preferred name", text: $preferredNameInput)
+                                .textFieldStyle(.roundedBorder)
+                                .textContentType(.name)
+                            Text("Email")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            TextField("Email", text: $emailInput)
+                                .textFieldStyle(.roundedBorder)
+                                .textContentType(.emailAddress)
+                                .keyboardType(.emailAddress)
+                                .autocapitalization(.none)
+                            if isSpecial {
+                                Text("Team name *")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                                 TextField("Team name", text: $teamName)
                                     .textFieldStyle(.roundedBorder)
                             }
-                            .padding(.top, 8)
+                            if let err = registerError {
+                                Text(err)
+                                    .font(.caption)
+                                    .foregroundStyle(.red)
+                            }
+                            Button {
+                                Task { await submitRegistration() }
+                            } label: {
+                                Text(isRegistering ? "Registering…" : "Register")
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 10)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(isRegistering || preferredNameInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || (isSpecial && teamName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty))
                         }
-                        if let err = registerError {
-                            Text(err)
-                                .font(.caption)
-                                .foregroundStyle(.red)
-                        }
-                        Button {
-                            Task { await submitRegistration() }
-                        } label: {
-                            Text("Register")
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 10)
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(isRegistering || (isSpecial && teamName.trimmingCharacters(in: .whitespaces).isEmpty))
-                        .padding(.top, 8)
+                        .padding(.top, 4)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -4670,14 +4828,47 @@ private struct RegisterEventSheet: View {
                     }
                 }
             }
+            .onAppear {
+                preferredNameInput = memberStore.preferredName
+                emailInput = memberStore.email
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var registrationStatusBlock: some View {
+        let openText = registrationOpen ? "Open" : "Closed"
+        let hint = calendarApprovedRegistrationHintText(for: event)
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Registration")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            HStack(alignment: .firstTextBaseline, spacing: 0) {
+                Text(openText)
+                    .font(.body)
+                if registrationOpen, let hint {
+                    Text(verbatim: " · ")
+                        .font(.body)
+                        .foregroundStyle(.secondary)
+                    Text(hint)
+                        .font(.body)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .fixedSize(horizontal: false, vertical: true)
         }
     }
 
     private func submitRegistration() async {
         guard registrationOpen, memberStore.hasProfile else { return }
-        let preferredName = memberStore.preferredName
-        let email = memberStore.email
-        if isSpecial && teamName.trimmingCharacters(in: .whitespaces).isEmpty {
+        let name = preferredNameInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        let em = emailInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        if name.isEmpty {
+            registerError = "Preferred name is required."
+            return
+        }
+        if isSpecial && teamName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             registerError = "Team name is required for this event."
             return
         }
@@ -4687,12 +4878,17 @@ private struct RegisterEventSheet: View {
         do {
             _ = try await CalendarEventsAPI.register(
                 eventId: event.id,
-                preferredName: preferredName,
-                email: email,
-                teamName: isSpecial ? teamName.trimmingCharacters(in: .whitespaces) : nil
+                preferredName: name,
+                email: em,
+                teamName: isSpecial ? teamName.trimmingCharacters(in: .whitespacesAndNewlines) : nil
             )
-            onDismiss?()
-            dismiss()
+            await MainActor.run {
+                registerSuccess = true
+                onRegistered?(event.id)
+                onDismiss?()
+            }
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            await MainActor.run { dismiss() }
         } catch let err as SparrowsAPIError {
             switch err {
             case .httpStatus(409, _):
@@ -4773,9 +4969,11 @@ private struct CalendarEvent: Identifiable {
     let endDate: Date
     let location: String?
     let notes: String?
-    var sportType: String?
-    var eventType: String?
-    var registrationOpen: Bool?
+    var sportType: String? = nil
+    var eventType: String? = nil
+    var registrationOpen: Bool? = nil
+    var capacity: Int? = nil
+    var approvedCount: Int? = nil
 }
 
 @MainActor
@@ -5038,6 +5236,18 @@ private final class SportsCalendarViewModel: ObservableObject {
         return calendar.date(from: components) ?? date
     }
 
+    /// Same rules as sparrowsweb / API classification (ICS-only rows).
+    private func inferSportType(from title: String) -> String {
+        let t = title.lowercased()
+        if t.contains("pickleball") { return "PICKLEBALL" }
+        if t.contains("tennis") { return "TENNIS" }
+        return "VOLLEYBALL"
+    }
+
+    private func inferEventType(from title: String) -> String {
+        title.lowercased().contains("cup") ? "SPECIAL_EVENT" : "NORMAL_EVENT"
+    }
+
     private func loadEvents(force: Bool = false) async {
         if !force, let lastLoadedAt, Date().timeIntervalSince(lastLoadedAt) < cacheLifetime {
             return
@@ -5055,20 +5265,15 @@ private final class SportsCalendarViewModel: ObservableObject {
         func parseISO(_ s: String) -> Date? {
             isoFormatter.date(from: s) ?? isoFallback.date(from: s)
         }
+        // Match sparrowsweb `eventKey`: JS `getMonth()` is 0–11, not 1–12.
         func eventKey(title: String, startDate: Date) -> String {
             let t = title.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
             let day = calendar.startOfDay(for: startDate)
             let comps = calendar.dateComponents([.year, .month, .day], from: day)
-            return "\(t)|\(comps.year ?? 0)-\(comps.month ?? 0)-\(comps.day ?? 0)"
-        }
-        func inferSportType(from title: String) -> String {
-            let t = title.lowercased()
-            if t.contains("pickleball") { return "PICKLEBALL" }
-            if t.contains("tennis") { return "TENNIS" }
-            return "VOLLEYBALL"
-        }
-        func inferEventType(from title: String) -> String {
-            title.lowercased().contains("cup") ? "SPECIAL_EVENT" : "NORMAL_EVENT"
+            let y = comps.year ?? 0
+            let m0 = max(0, (comps.month ?? 1) - 1)
+            let d = comps.day ?? 0
+            return "\(t)|\(y)-\(m0)-\(d)"
         }
 
         var apiEvents: [APICalendarEvent] = []
@@ -5077,7 +5282,25 @@ private final class SportsCalendarViewModel: ObservableObject {
         } catch { }
 
         var icsEvents: [CalendarEvent] = []
-        if let url = URL(string: "https://calendar.google.com/calendar/ical/\(calendarID)/public/basic.ics") {
+        if let fromWeb = try? await CalendarEventsAPI.listGoogleCalendarICS() {
+            icsEvents = fromWeb.compactMap { g -> CalendarEvent? in
+                guard let start = parseISO(g.startAt), let end = parseISO(g.endAt) else { return nil }
+                return CalendarEvent(
+                    id: g.id,
+                    title: g.title,
+                    startDate: start,
+                    endDate: end,
+                    location: g.location,
+                    notes: g.description,
+                    sportType: g.sportType,
+                    eventType: g.eventType,
+                    registrationOpen: false,
+                    capacity: nil,
+                    approvedCount: nil
+                )
+            }
+        }
+        if icsEvents.isEmpty, let url = URL(string: "https://calendar.google.com/calendar/ical/\(calendarID)/public/basic.ics") {
             do {
                 let (data, _) = try await URLSession.shared.data(from: url)
                 if let text = String(data: data, encoding: .utf8) {
@@ -5110,7 +5333,9 @@ private final class SportsCalendarViewModel: ObservableObject {
                     notes: ics.notes ?? api.description,
                     sportType: api.sportType,
                     eventType: api.eventType,
-                    registrationOpen: api.registrationOpen
+                    registrationOpen: api.registrationOpen,
+                    capacity: api.capacity,
+                    approvedCount: api.approvedCount
                 ))
             } else {
                 merged.append(CalendarEvent(
@@ -5122,7 +5347,9 @@ private final class SportsCalendarViewModel: ObservableObject {
                     notes: ics.notes,
                     sportType: inferSportType(from: ics.title),
                     eventType: inferEventType(from: ics.title),
-                    registrationOpen: false
+                    registrationOpen: false,
+                    capacity: nil,
+                    approvedCount: nil
                 ))
             }
         }
@@ -5141,7 +5368,9 @@ private final class SportsCalendarViewModel: ObservableObject {
                 notes: api.description,
                 sportType: api.sportType,
                 eventType: api.eventType,
-                registrationOpen: api.registrationOpen
+                registrationOpen: api.registrationOpen,
+                capacity: api.capacity,
+                approvedCount: api.approvedCount
             ))
         }
 
@@ -5170,14 +5399,20 @@ private final class SportsCalendarViewModel: ObservableObject {
                     let start = parseDate(key: startRaw.key, value: startRaw.value),
                     let end = parseDate(key: endRaw.key, value: endRaw.value)
                 {
+                    let icsIdMs = Int64((start.timeIntervalSince1970 * 1000.0).rounded())
                     parsedEvents.append(
                         CalendarEvent(
-                            id: "\(summary)-\(start.timeIntervalSince1970)",
+                            id: "ics-\(summary)-\(icsIdMs)",
                             title: summary,
                             startDate: start,
                             endDate: end,
                             location: current["LOCATION"],
-                            notes: current["DESCRIPTION"]
+                            notes: current["DESCRIPTION"],
+                            sportType: inferSportType(from: summary),
+                            eventType: inferEventType(from: summary),
+                            registrationOpen: false,
+                            capacity: nil,
+                            approvedCount: nil
                         )
                     )
                 }

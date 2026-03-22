@@ -113,6 +113,8 @@ CREATE TABLE admin_users (
   password_hash TEXT NOT NULL,
   role TEXT NOT NULL CHECK (role IN ('ADMIN', 'MANAGER')),
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  -- JSON array of Refine resource names this ADMIN hides from their own nav only (e.g. ["tournaments"]).
+  hidden_nav_resources JSONB NOT NULL DEFAULT '[]'::jsonb,
   created_at TIMESTAMP NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
@@ -126,3 +128,6 @@ CREATE TABLE admin_permissions (
   created_at TIMESTAMP NOT NULL DEFAULT NOW(),
   UNIQUE (admin_user_id, module)
 );
+
+-- If you already had admin_users before hidden_nav_resources existed, run once on Neon/Postgres:
+-- ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS hidden_nav_resources JSONB NOT NULL DEFAULT '[]'::jsonb;

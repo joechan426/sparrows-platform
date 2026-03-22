@@ -9,11 +9,48 @@ import Foundation
 
 // MARK: - Base URL
 // API is served by the Next.js "web" app (admin-panel/apps/web) on port 3000.
-// Run from admin-panel: pnpm dev (or pnpm --filter web dev for API only).
-// For simulator: http://127.0.0.1:3000. For physical device: your machine's LAN IP, e.g. http://192.168.1.100:3000
+// Set `SparrowsAPIBaseURL` in the app target’s Info (Custom iOS Target Properties), e.g. http://192.168.1.10:3000 for a physical device.
+// Simulator default: http://127.0.0.1:3000
 enum SparrowsAPI {
-    static var baseURL: String = "http://127.0.0.1:3000"
+    static var baseURL: String {
+        if let raw = Bundle.main.object(forInfoDictionaryKey: "SparrowsAPIBaseURL") as? String {
+            let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                return trimmed.replacingOccurrences(of: "/+$", with: "", options: .regularExpression)
+            }
+        }
+        #if targetEnvironment(simulator)
+        return "http://127.0.0.1:3000"
+        #else
+        // Device: you must set SparrowsAPIBaseURL to your Mac’s LAN IP + port (same host as sparrowsweb).
+        return "http://127.0.0.1:3000"
+        #endif
+    }
+
     static var apiBase: String { "\(baseURL)/api" }
+
+    /// Shared JSON POST/GET with clearer errors than a bare decode failure.
+    static func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await URLSession.shared.data(for: request)
+        } catch {
+            let msg: String
+            if let urlErr = error as? URLError {
+                msg = urlErr.localizedDescription
+            } else {
+                msg = error.localizedDescription
+            }
+            throw SparrowsAPIError.transport(
+                "Cannot reach \(baseURL). \(msg) On a real iPhone, set SparrowsAPIBaseURL to your computer’s IP (e.g. http://192.168.x.x:3000)."
+            )
+        }
+        guard let http = response as? HTTPURLResponse else {
+            throw SparrowsAPIError.transport("Invalid response from server.")
+        }
+        return (data, http)
+    }
 }
 
 // MARK: - DTOs
@@ -34,6 +71,55 @@ struct APICalendarEvent: Codable {
     let eventType: String
     let registrationOpen: Bool
     let capacity: Int?
+    /// Count of APPROVED registrations (from list/detail API).
+    let approvedCount: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case id, title, startAt, endAt, description, location, sportType, eventType, registrationOpen, capacity, approvedCount
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        title = try c.decode(String.self, forKey: .title)
+        startAt = try c.decode(String.self, forKey: .startAt)
+        endAt = try c.decode(String.self, forKey: .endAt)
+        description = try c.decodeIfPresent(String.self, forKey: .description)
+        location = try c.decodeIfPresent(String.self, forKey: .location)
+        sportType = try c.decodeIfPresent(String.self, forKey: .sportType) ?? "VOLLEYBALL"
+        eventType = try c.decodeIfPresent(String.self, forKey: .eventType) ?? "NORMAL_EVENT"
+        registrationOpen = try c.decodeIfPresent(Bool.self, forKey: .registrationOpen) ?? false
+        capacity = try c.decodeIfPresent(Int.self, forKey: .capacity)
+        approvedCount = try c.decodeIfPresent(Int.self, forKey: .approvedCount)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(title, forKey: .title)
+        try c.encode(startAt, forKey: .startAt)
+        try c.encode(endAt, forKey: .endAt)
+        try c.encodeIfPresent(description, forKey: .description)
+        try c.encodeIfPresent(location, forKey: .location)
+        try c.encode(sportType, forKey: .sportType)
+        try c.encode(eventType, forKey: .eventType)
+        try c.encode(registrationOpen, forKey: .registrationOpen)
+        try c.encodeIfPresent(capacity, forKey: .capacity)
+        try c.encodeIfPresent(approvedCount, forKey: .approvedCount)
+    }
+}
+
+/// Same JSON shape as GET /api/google-calendar-ics (sparrowsweb).
+struct GoogleICSEvent: Codable {
+    let id: String
+    let title: String
+    let startAt: String
+    let endAt: String
+    let location: String?
+    let description: String?
+    let sportType: String
+    let eventType: String
+    let registrationOpen: Bool
 }
 
 struct APIMemberRegistration: Codable {
@@ -45,10 +131,20 @@ struct APIMemberRegistration: Codable {
 }
 
 // MARK: - Errors
-enum SparrowsAPIError: Error {
+enum SparrowsAPIError: Error, LocalizedError {
     case invalidURL
     case httpStatus(Int, String?)
     case decode
+    case transport(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .transport(let msg): return msg
+        case .httpStatus(let code, let msg): return msg ?? "HTTP \(code)"
+        case .decode: return "Could not read server data."
+        case .invalidURL: return "Invalid URL."
+        }
+    }
 }
 
 // MARK: - Member API
@@ -60,8 +156,8 @@ enum MemberAPI {
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.httpBody = try JSONEncoder().encode(["preferredName": preferredName, "email": email])
 
-        let (data, res) = try await URLSession.shared.data(for: req)
-        let code = (res as? HTTPURLResponse)?.statusCode ?? 0
+        let (data, res) = try await SparrowsAPI.data(for: req)
+        let code = res.statusCode
 
         if code == 201 {
             return try JSONDecoder().decode(APIMember.self, from: data)
@@ -79,8 +175,9 @@ enum MemberAPI {
 
     static func get(id: String) async throws -> APIMember {
         let url = URL(string: "\(SparrowsAPI.apiBase)/members/\(id)")!
-        let (data, res) = try await URLSession.shared.data(from: url)
-        let code = (res as? HTTPURLResponse)?.statusCode ?? 0
+        var req = URLRequest(url: url)
+        let (data, res) = try await SparrowsAPI.data(for: req)
+        let code = res.statusCode
         if code != 200 { throw SparrowsAPIError.httpStatus(code, nil) }
         return try JSONDecoder().decode(APIMember.self, from: data)
     }
@@ -97,8 +194,8 @@ enum MemberAPI {
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.httpBody = try JSONEncoder().encode(body)
 
-        let (data, res) = try await URLSession.shared.data(for: req)
-        let code = (res as? HTTPURLResponse)?.statusCode ?? 0
+        let (data, res) = try await SparrowsAPI.data(for: req)
+        let code = res.statusCode
         if code != 200 {
             let msg = (try? JSONDecoder().decode([String: String].self, from: data))?["message"]
             throw SparrowsAPIError.httpStatus(code, msg)
@@ -108,8 +205,9 @@ enum MemberAPI {
 
     static func registrations(memberId: String) async throws -> [APIMemberRegistration] {
         let url = URL(string: "\(SparrowsAPI.apiBase)/members/\(memberId)/registrations")!
-        let (data, res) = try await URLSession.shared.data(from: url)
-        let code = (res as? HTTPURLResponse)?.statusCode ?? 0
+        var req = URLRequest(url: url)
+        let (data, res) = try await SparrowsAPI.data(for: req)
+        let code = res.statusCode
         if code != 200 { throw SparrowsAPIError.httpStatus(code, nil) }
         return try JSONDecoder().decode([APIMemberRegistration].self, from: data)
     }
@@ -127,9 +225,15 @@ enum AuthAPI {
             "email": email.lowercased(),
             "password": password,
         ])
-        let (data, res) = try await URLSession.shared.data(for: req)
-        let code = (res as? HTTPURLResponse)?.statusCode ?? 0
-        if code == 201 { return try JSONDecoder().decode(APIMember.self, from: data) }
+        let (data, res) = try await SparrowsAPI.data(for: req)
+        let code = res.statusCode
+        if code == 201 {
+            do {
+                return try JSONDecoder().decode(APIMember.self, from: data)
+            } catch {
+                throw SparrowsAPIError.decode
+            }
+        }
         let msg = (try? JSONDecoder().decode([String: String].self, from: data))?["message"]
         throw SparrowsAPIError.httpStatus(code, msg ?? "Register failed")
     }
@@ -143,24 +247,17 @@ enum AuthAPI {
             "email": email.lowercased(),
             "password": password,
         ])
-        let (data, res) = try await URLSession.shared.data(for: req)
-        let code = (res as? HTTPURLResponse)?.statusCode ?? 0
-        if code == 200 { return try JSONDecoder().decode(APIMember.self, from: data) }
+        let (data, res) = try await SparrowsAPI.data(for: req)
+        let code = res.statusCode
+        if code == 200 {
+            do {
+                return try JSONDecoder().decode(APIMember.self, from: data)
+            } catch {
+                throw SparrowsAPIError.decode
+            }
+        }
         let msg = (try? JSONDecoder().decode([String: String].self, from: data))?["message"]
         throw SparrowsAPIError.httpStatus(code, msg ?? "Login failed")
-    }
-
-    static func loginWithApple(identityToken: String) async throws -> APIMember {
-        let url = URL(string: "\(SparrowsAPI.apiBase)/auth/apple")!
-        var req = URLRequest(url: url)
-        req.httpMethod = "POST"
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.httpBody = try JSONEncoder().encode(["identityToken": identityToken])
-        let (data, res) = try await URLSession.shared.data(for: req)
-        let code = (res as? HTTPURLResponse)?.statusCode ?? 0
-        if code == 200 || code == 201 { return try JSONDecoder().decode(APIMember.self, from: data) }
-        let msg = (try? JSONDecoder().decode([String: String].self, from: data))?["message"]
-        throw SparrowsAPIError.httpStatus(code, msg ?? "Apple sign-in failed")
     }
 
     static func loginWithGoogle(idToken: String) async throws -> APIMember {
@@ -169,8 +266,8 @@ enum AuthAPI {
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.httpBody = try JSONEncoder().encode(["idToken": idToken])
-        let (data, res) = try await URLSession.shared.data(for: req)
-        let code = (res as? HTTPURLResponse)?.statusCode ?? 0
+        let (data, res) = try await SparrowsAPI.data(for: req)
+        let code = res.statusCode
         if code == 200 || code == 201 { return try JSONDecoder().decode(APIMember.self, from: data) }
         let msg = (try? JSONDecoder().decode([String: String].self, from: data))?["message"]
         throw SparrowsAPIError.httpStatus(code, msg ?? "Google sign-in failed")
@@ -186,8 +283,8 @@ enum AuthAPI {
             "currentPassword": currentPassword,
             "newPassword": newPassword,
         ])
-        let (data, res) = try await URLSession.shared.data(for: req)
-        let code = (res as? HTTPURLResponse)?.statusCode ?? 0
+        let (data, res) = try await SparrowsAPI.data(for: req)
+        let code = res.statusCode
         if code == 200 { return }
         let msg = (try? JSONDecoder().decode([String: String].self, from: data))?["message"]
         throw SparrowsAPIError.httpStatus(code, msg ?? "Change password failed")
@@ -196,18 +293,35 @@ enum AuthAPI {
 
 // MARK: - Calendar Events API
 enum CalendarEventsAPI {
+    /// Same events + ids as sparrowsweb `fetch("/api/google-calendar-ics")`.
+    static func listGoogleCalendarICS() async throws -> [GoogleICSEvent] {
+        let url = URL(string: "\(SparrowsAPI.apiBase)/google-calendar-ics")!
+        var req = URLRequest(url: url)
+        let (data, res) = try await SparrowsAPI.data(for: req)
+        guard res.statusCode == 200 else {
+            throw SparrowsAPIError.httpStatus(res.statusCode, nil)
+        }
+        return try JSONDecoder().decode([GoogleICSEvent].self, from: data)
+    }
+
     static func list() async throws -> [APICalendarEvent] {
         let url = URL(string: "\(SparrowsAPI.apiBase)/calendar-events?_start=0&_end=500")!
-        let (data, res) = try await URLSession.shared.data(from: url)
-        let code = (res as? HTTPURLResponse)?.statusCode ?? 0
+        var req = URLRequest(url: url)
+        let (data, res) = try await SparrowsAPI.data(for: req)
+        let code = res.statusCode
         if code != 200 { throw SparrowsAPIError.httpStatus(code, nil) }
-        return try JSONDecoder().decode([APICalendarEvent].self, from: data)
+        do {
+            return try JSONDecoder().decode([APICalendarEvent].self, from: data)
+        } catch {
+            throw SparrowsAPIError.decode
+        }
     }
 
     static func get(id: String) async throws -> APICalendarEvent {
         let url = URL(string: "\(SparrowsAPI.apiBase)/calendar-events/\(id)")!
-        let (data, res) = try await URLSession.shared.data(from: url)
-        let code = (res as? HTTPURLResponse)?.statusCode ?? 0
+        var req = URLRequest(url: url)
+        let (data, res) = try await SparrowsAPI.data(for: req)
+        let code = res.statusCode
         if code != 200 { throw SparrowsAPIError.httpStatus(code, nil) }
         return try JSONDecoder().decode(APICalendarEvent.self, from: data)
     }
@@ -222,8 +336,8 @@ enum CalendarEventsAPI {
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
 
-        let (data, res) = try await URLSession.shared.data(for: req)
-        let code = (res as? HTTPURLResponse)?.statusCode ?? 0
+        let (data, res) = try await SparrowsAPI.data(for: req)
+        let code = res.statusCode
         if code == 201 { return }
         if code == 409 { throw SparrowsAPIError.httpStatus(409, "You are already registered for this event.") }
         let message = (try? JSONSerialization.jsonObject(with: data) as? [String: String])?["message"]
