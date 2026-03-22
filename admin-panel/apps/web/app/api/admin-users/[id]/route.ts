@@ -4,7 +4,11 @@ import bcrypt from "bcryptjs";
 import { requireAdminAuth } from "../../../../lib/admin-auth";
 import { withCors, corsJson, corsOptions } from "../../../../lib/cors";
 import { normalizeAdminHiddenNavList } from "../../../../lib/admin-hidden-nav";
-import { adminUserPublicSelect, fetchHiddenNavResourcesSafe } from "../../../../lib/fetch-hidden-nav-safe";
+import {
+  adminUserPublicSelect,
+  fetchHiddenNavResourcesSafe,
+  persistHiddenNavResourcesSafe,
+} from "../../../../lib/fetch-hidden-nav-safe";
 
 const SALT_ROUNDS = 10;
 
@@ -60,7 +64,6 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       userName?: string;
       passwordHash?: string;
       permissions?: { deleteMany: {}; create: { module: string }[] };
-      hiddenNavResources?: unknown;
     } = {};
 
     if (typeof data.isActive === "boolean") updates.isActive = data.isActive;
@@ -98,23 +101,40 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     });
     if (!target) return corsJson(req, { message: "Admin user not found" }, { status: 404 });
 
-    // Only an ADMIN may update their own hidden-nav list, and only when editing their own record.
-    if (
+    // Self-only nav visibility: persisted via raw SQL so Prisma never sends SET hidden_nav_resources
+    // when the column is missing (avoids 500 on Netlify before migration).
+    const hiddenNavPayload =
       result.admin.id === id &&
       target.role === "ADMIN" &&
       data.hiddenNavResources !== undefined &&
       Array.isArray(data.hiddenNavResources)
-    ) {
-      updates.hiddenNavResources = normalizeAdminHiddenNavList(data.hiddenNavResources);
+        ? normalizeAdminHiddenNavList(data.hiddenNavResources)
+        : undefined;
+
+    const hasPrismaUpdates = Object.keys(updates).length > 0;
+
+    let admin;
+    if (hasPrismaUpdates) {
+      admin = await prisma.adminUser.update({
+        where: { id },
+        // TS: Prisma expects `AdminModule` enum; we store/validate module strings and cast
+        // to keep runtime behavior while avoiding enum export inconsistencies across prisma builds.
+        data: updates as any,
+        select: { ...adminUserPublicSelect },
+      });
+    } else if (hiddenNavPayload !== undefined) {
+      admin = await prisma.adminUser.findUnique({
+        where: { id },
+        select: { ...adminUserPublicSelect },
+      });
+      if (!admin) return corsJson(req, { message: "Admin user not found" }, { status: 404 });
+    } else {
+      return corsJson(req, { message: "No valid fields to update" }, { status: 400 });
     }
 
-    const admin = await prisma.adminUser.update({
-      where: { id },
-      // TS: Prisma expects `AdminModule` enum; we store/validate module strings and cast
-      // to keep runtime behavior while avoiding enum export inconsistencies across prisma builds.
-      data: updates as any,
-      select: { ...adminUserPublicSelect },
-    });
+    if (hiddenNavPayload !== undefined) {
+      await persistHiddenNavResourcesSafe(id, hiddenNavPayload);
+    }
 
     const responseBody: Record<string, unknown> = {
       id: admin.id,

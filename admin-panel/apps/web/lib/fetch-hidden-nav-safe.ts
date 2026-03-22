@@ -37,3 +37,24 @@ export const adminUserLoginSelect = {
   isActive: true,
   permissions: { select: { module: true } },
 } as const;
+
+/**
+ * Persists hidden nav preferences without Prisma's `hiddenNavResources` field (works if DB column exists).
+ * Returns false when the column is missing or update fails.
+ */
+export async function persistHiddenNavResourcesSafe(
+  adminUserId: string,
+  resources: string[],
+): Promise<boolean> {
+  const json = JSON.stringify(resources);
+  try {
+    await prisma.$executeRawUnsafe(
+      `UPDATE admin_users SET hidden_nav_resources = $1::jsonb, updated_at = NOW() WHERE id = $2`,
+      json,
+      adminUserId,
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}

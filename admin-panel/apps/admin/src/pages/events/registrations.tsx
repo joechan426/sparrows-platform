@@ -9,6 +9,7 @@ import { List } from "@refinedev/mui";
 import { DataGrid, type GridColDef, type GridRowSelectionModel } from "@mui/x-data-grid";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
+import useMediaQuery from "@mui/material/useMediaQuery";
 import Button from "@mui/material/Button";
 import Chip from "@mui/material/Chip";
 import Stack from "@mui/material/Stack";
@@ -44,6 +45,8 @@ type EventRegistrationRow = {
 };
 
 export const EventRegistrationsPage: React.FC = () => {
+  /** Match admin panel mobile / bottom-nav breakpoint */
+  const isMobileToolbar = useMediaQuery("(max-width:1024px)");
   const { id } = useParams<{ id: string }>();
   const { open } = useNotification();
   const [event, setEvent] = useState<CalendarEvent | null>(null);
@@ -427,12 +430,19 @@ export const EventRegistrationsPage: React.FC = () => {
     <List
       title="Event Registrations"
       headerButtons={
-        <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
+        <Stack
+          direction={isMobileToolbar ? "column" : "row"}
+          spacing={2}
+          alignItems={isMobileToolbar ? "stretch" : "center"}
+          flexWrap="wrap"
+          sx={{ width: isMobileToolbar ? "100%" : "auto" }}
+        >
           <Button
             component={RouterLink}
             to="/events"
             variant="outlined"
             color="primary"
+            fullWidth={isMobileToolbar}
           >
             Back to events
           </Button>
@@ -441,6 +451,7 @@ export const EventRegistrationsPage: React.FC = () => {
             size="small"
             onClick={() => setAddOpen(true)}
             disabled={registrationsLoading}
+            fullWidth={isMobileToolbar}
           >
             Add participant
           </Button>
@@ -491,7 +502,14 @@ export const EventRegistrationsPage: React.FC = () => {
             <Box
               component="form"
               onSubmit={handleCapacitySubmit}
-              sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}
+              sx={{
+                display: "flex",
+                flexDirection: isMobileToolbar ? "column" : "row",
+                alignItems: isMobileToolbar ? "stretch" : "center",
+                gap: 1,
+                flexWrap: "wrap",
+                width: isMobileToolbar ? "100%" : "auto",
+              }}
             >
               <Typography variant="body2" color="text.secondary">
                 Capacity:
@@ -502,7 +520,7 @@ export const EventRegistrationsPage: React.FC = () => {
                 inputProps={{ min: 0 }}
                 value={capacityInput}
                 onChange={(e) => setCapacityInput(e.target.value)}
-                sx={{ width: 80 }}
+                sx={{ width: isMobileToolbar ? "100%" : 80 }}
                 disabled={capacitySaving}
               />
               <Button
@@ -510,6 +528,7 @@ export const EventRegistrationsPage: React.FC = () => {
                 size="small"
                 variant="outlined"
                 disabled={capacitySaving}
+                fullWidth={isMobileToolbar}
               >
                 {capacitySaving ? "Saving…" : "Set capacity"}
               </Button>

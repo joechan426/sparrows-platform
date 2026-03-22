@@ -40,7 +40,7 @@ export const adminAuthProvider: AuthProvider = {
             : undefined,
       };
       setAuth(data.token, admin);
-      return { success: true, redirectTo: "/" };
+      return { success: true, redirectTo: getFirstAccessiblePath() };
     }
     return {
       success: false,
@@ -154,7 +154,9 @@ const DEFAULT_RESOURCE_PATHS: { resource: string; path: string }[] = [
 /** First list/show route the current user may open (dashboard is not used). */
 export function getFirstAccessiblePath(): string {
   const first = DEFAULT_RESOURCE_PATHS.find((r) => canAccessResource(r.resource));
-  return first?.path ?? "/no-access";
+  if (first) return first.path;
+  // Profile is always reachable for signed-in users (not gated by module/hidden-nav roots).
+  return "/profile";
 }
 
 function adminHiddenNavSet(): Set<string> {
