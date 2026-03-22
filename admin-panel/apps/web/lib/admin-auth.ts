@@ -102,3 +102,38 @@ export async function requireAdminAuth(
   if (!permissions.includes(module)) return { ok: false, response: forbidden("No access to this section") };
   return { ok: true, admin: adminPayload };
 }
+
+/**
+ * Same permission rules as requireAdminAuth, but returns null if there is no/invalid token.
+ * Use for routes that behave differently for public vs manager (e.g. paid event registration).
+ */
+export async function getOptionalAdminAuth(
+  req: NextRequest,
+  module: AdminModule
+): Promise<AdminPayload | null> {
+  const token = getBearerToken(req);
+  if (!token) return null;
+  const payload = verifyToken(token);
+  if (!payload) return null;
+
+  const admin = await prisma.adminUser.findUnique({
+    where: { id: payload.id },
+    select: {
+      id: true,
+      userName: true,
+      role: true,
+      isActive: true,
+      permissions: { select: { module: true } },
+    },
+  });
+  if (!admin || !admin.isActive) return null;
+
+  const permissions: AdminModule[] =
+    admin.role === "ADMIN"
+      ? ["TOURNAMENTS", "TEAMS", "CALENDAR_EVENTS", "MEMBERS"]
+      : admin.permissions.map((p: { module: AdminModule }) => p.module);
+  const adminPayload: AdminPayload = { id: admin.id, userName: admin.userName, role: admin.role, permissions };
+
+  if (!permissions.includes(module)) return null;
+  return adminPayload;
+}

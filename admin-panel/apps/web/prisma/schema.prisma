@@ -198,10 +198,32 @@ model Member {
   passwordHash  String?  // for email/password login
   appleId       String?  @unique // Sign in with Apple unique user id
   googleId      String?  @unique // Google Sign-In unique user id
+  /// Stripe Customer id for saved cards / Checkout (platform account).
+  stripeCustomerId String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  registrations EventRegistration[]
+  registrations   EventRegistration[]
+  paymentMethods  MemberPaymentMethod[]
+}
+
+/// Saved card metadata only (Stripe PaymentMethod ids). No PAN/CVC stored.
+model MemberPaymentMethod {
+  id                    String   @id @default(cuid())
+  memberId              String
+  stripePaymentMethodId String
+  brand                 String?
+  last4                 String?
+  expMonth              Int?
+  expYear               Int?
+  isDefault             Boolean  @default(false)
+  createdAt             DateTime @default(now())
+
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([memberId, stripePaymentMethodId])
+  @@index([memberId])
+  @@map("member_payment_methods")
 }
 
 enum CalendarEventSourceType {
@@ -233,6 +255,11 @@ model CalendarEvent {
   eventType         CalendarEventType
   registrationOpen  Boolean             @default(false)
   capacity          Int?
+  /// Paid events require Stripe/PayPal checkout before registration is eligible for manager approval.
+  isPaid            Boolean             @default(false)
+  /// Price in minor units (e.g. AUD cents).
+  priceCents        Int?
+  currency          String              @default("AUD")
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
 
@@ -248,12 +275,36 @@ enum EventRegistrationStatus {
   REJECTED
 }
 
+enum EventPaymentStatus {
+  NONE
+  AWAITING_PAYMENT
+  PAID
+  FAILED
+  WAIVED
+}
+
+enum EventPaymentProvider {
+  STRIPE
+  PAYPAL
+  MANUAL
+}
+
 model EventRegistration {
   id              String                  @id @default(cuid())
   memberId        String
   calendarEventId String
   teamName        String?
   status          EventRegistrationStatus @default(PENDING)
+  paymentStatus   EventPaymentStatus      @default(NONE)
+  amountDueCents  Int?
+  amountPaidCents Int?
+  paymentProvider EventPaymentProvider?
+  stripeSessionId String?
+  stripePaymentIntentId String?
+  paypalOrderId   String?
+  paidAt          DateTime?
+  /// Manager adjustments to recorded amount (refunds handled outside the app).
+  managerPaymentNote String?
   createdAt       DateTime                @default(now())
   updatedAt       DateTime                @updatedAt
 
@@ -261,6 +312,17 @@ model EventRegistration {
   event           CalendarEvent @relation(fields: [calendarEventId], references: [id])
 
   @@unique([memberId, calendarEventId])
+}
+
+/// Singleton row id = "default". Manager toggles which checkout methods are offered (keys live in env).
+model PaymentPlatformSettings {
+  id             String   @id // always use "default" in application code
+  stripeEnabled  Boolean  @default(false)
+  paypalEnabled  Boolean  @default(false)
+  squareEnabled  Boolean  @default(false)
+  updatedAt      DateTime @updatedAt
+
+  @@map("payment_platform_settings")
 }
 
 // Admin panel users (separate from Member). Used for admin-panel login only.

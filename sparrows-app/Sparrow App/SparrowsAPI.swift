@@ -8,9 +8,13 @@
 import Foundation
 
 // MARK: - Base URL
-// API is served by the Next.js "web" app (admin-panel/apps/web) on port 3000.
-// Set `SparrowsAPIBaseURL` in the app target’s Info (Custom iOS Target Properties), e.g. http://192.168.1.10:3000 for a physical device.
-// Simulator default: http://127.0.0.1:3000
+// API base URL is injected per build configuration (see `Sparrow App` target → Build Settings →
+// `INFOPLIST_KEY_SparrowsAPIBaseURL` → appears as `SparrowsAPIBaseURL` in the generated Info.plist):
+//   • Debug   → http://127.0.0.1:3000  (run `pnpm dev` in admin-panel/apps/web)
+//   • Release → https://sparrowsweb.netlify.app
+//
+// Override anytime: Target → Info → Custom iOS Target Properties → SparrowsAPIBaseURL
+// (e.g. http://192.168.x.x:3000 on a physical device hitting your Mac over Wi‑Fi).
 enum SparrowsAPI {
     static var baseURL: String {
         if let raw = Bundle.main.object(forInfoDictionaryKey: "SparrowsAPIBaseURL") as? String {
@@ -19,11 +23,10 @@ enum SparrowsAPI {
                 return trimmed.replacingOccurrences(of: "/+$", with: "", options: .regularExpression)
             }
         }
-        #if targetEnvironment(simulator)
+        #if DEBUG
         return "http://127.0.0.1:3000"
         #else
-        // Device: you must set SparrowsAPIBaseURL to your Mac’s LAN IP + port (same host as sparrowsweb).
-        return "http://127.0.0.1:3000"
+        return "https://sparrowsweb.netlify.app"
         #endif
     }
 

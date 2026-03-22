@@ -22,40 +22,110 @@ export async function PATCH(req: NextRequest, context: any) {
     const body = await req.json().catch(() => ({}));
     const statusRaw = typeof body.status === "string" ? body.status.toUpperCase().trim() : "";
 
-    if (!statusRaw) {
-      return withCors(
-        req,
-        NextResponse.json({ message: "status is required" }, { status: 400 })
-      );
-    }
-
     type AllowedStatus = "PENDING" | "APPROVED" | "WAITING_LIST" | "REJECTED";
     const allowed: AllowedStatus[] = ["PENDING", "APPROVED", "WAITING_LIST", "REJECTED"];
 
-    const nextStatus = allowed.find((s) => s === statusRaw) ?? null;
-    if (!nextStatus) {
+    let nextStatus: AllowedStatus | null = null;
+    if (statusRaw) {
+      nextStatus = allowed.find((s) => s === statusRaw) ?? null;
+      if (!nextStatus) {
+        return withCors(
+          req,
+          NextResponse.json(
+            {
+              message:
+                "Invalid status. Allowed values are PENDING, APPROVED, WAITING_LIST, REJECTED",
+            },
+            { status: 400 }
+          )
+        );
+      }
+    }
+
+    const paymentPatch: Record<string, unknown> = {};
+    if (body.amountPaidCents !== undefined) {
+      if (body.amountPaidCents === null || body.amountPaidCents === "") {
+        paymentPatch.amountPaidCents = null;
+      } else {
+        const cents = Number(body.amountPaidCents);
+        if (!Number.isInteger(cents) || cents < 0) {
+          return withCors(
+            req,
+            NextResponse.json(
+              { message: "amountPaidCents must be a non-negative integer or null" },
+              { status: 400 }
+            )
+          );
+        }
+        paymentPatch.amountPaidCents = cents;
+      }
+    }
+    if (typeof body.managerPaymentNote === "string") {
+      paymentPatch.managerPaymentNote = body.managerPaymentNote;
+    }
+    if (typeof body.paymentStatus === "string") {
+      const ps = body.paymentStatus.toUpperCase().trim();
+      const payAllowed = ["NONE", "AWAITING_PAYMENT", "PAID", "FAILED", "WAIVED"] as const;
+      if (!payAllowed.includes(ps as (typeof payAllowed)[number])) {
+        return withCors(
+          req,
+          NextResponse.json(
+            { message: "Invalid paymentStatus for manual adjustment" },
+            { status: 400 }
+          )
+        );
+      }
+      paymentPatch.paymentStatus = ps;
+      if (ps === "PAID" && body.paidAt !== undefined) {
+        const d = body.paidAt === null ? null : new Date(body.paidAt);
+        if (d && Number.isNaN(d.getTime())) {
+          return withCors(req, NextResponse.json({ message: "paidAt must be a valid date" }, { status: 400 }));
+        }
+        paymentPatch.paidAt = d;
+      } else if (ps === "PAID" && !body.paidAt) {
+        paymentPatch.paidAt = new Date();
+      }
+      if (ps === "WAIVED" || ps === "NONE" || ps === "AWAITING_PAYMENT" || ps === "FAILED") {
+        if (body.paidAt === null) paymentPatch.paidAt = null;
+      }
+    }
+
+    if (!nextStatus && Object.keys(paymentPatch).length === 0) {
       return withCors(
         req,
         NextResponse.json(
-          {
-            message:
-              "Invalid status. Allowed values are PENDING, APPROVED, WAITING_LIST, REJECTED",
-          },
+          { message: "Provide status and/or payment fields (amountPaidCents, managerPaymentNote, paymentStatus)" },
           { status: 400 }
         )
       );
     }
 
+    const reg = await prisma.eventRegistration.findUnique({
+      where: { id },
+      include: { event: true },
+    });
+    if (!reg) {
+      return withCors(req, NextResponse.json({ message: "Registration not found" }, { status: 404 }));
+    }
+
+    const effectivePaymentStatus =
+      (paymentPatch.paymentStatus as string | undefined) ?? reg.paymentStatus;
+
     if (nextStatus === "APPROVED") {
-      const reg = await prisma.eventRegistration.findUnique({
-        where: { id },
-        include: { event: true },
-      });
-      if (!reg)
+      const paidEvent =
+        reg.event.isPaid && reg.event.priceCents != null && reg.event.priceCents > 0;
+      if (paidEvent && !["PAID", "WAIVED"].includes(effectivePaymentStatus)) {
         return withCors(
           req,
-          NextResponse.json({ message: "Registration not found" }, { status: 404 })
+          NextResponse.json(
+            {
+              message:
+                "Cannot approve: payment is not recorded as PAID or WAIVED for this paid event.",
+            },
+            { status: 400 }
+          )
         );
+      }
       if (reg.event.capacity != null) {
         const currentApproved = await prisma.eventRegistration.count({
           where: {
@@ -77,11 +147,14 @@ export async function PATCH(req: NextRequest, context: any) {
       }
     }
 
+    const data: Record<string, unknown> = { ...paymentPatch };
+    if (nextStatus) {
+      data.status = nextStatus;
+    }
+
     const updated = await prisma.eventRegistration.update({
       where: { id },
-      data: {
-        status: nextStatus as any,
-      },
+      data: data as any,
     });
 
     return withCors(req, NextResponse.json(updated, { status: 200 }));

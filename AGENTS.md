@@ -492,3 +492,16 @@ This system is expected to support other leagues later.
 
 Avoid hard-coding Sparrows-specific assumptions unless explicitly requested.
 Where possible, structure data and permissions so multi-organization support can be added later without a major rewrite.
+
+⸻
+
+Calendar event payments (AUD, Stripe + PayPal)
+
+- **Currency**: default `AUD` on `calendar_events.currency`; prices are **minor units** (`priceCents`).
+- **Platform keys**: Stripe and PayPal credentials live in **environment variables** on the Next API host (`admin-panel/apps/web`). Managers only **toggle** which methods are offered via `payment_platform_settings` and `GET/PATCH /api/payment-settings`.
+- **Checkout**: `POST /api/calendar-events/:id/checkout` with `{ provider, preferredName, email, teamName? }` returns a **Stripe Checkout** or **PayPal approve URL**. Registration is `PENDING` with `paymentStatus` → **`PAID`** after webhook/capture; **manager approval** is still required (`status` stays `PENDING` until approved).
+- **Webhooks / return URLs**: Stripe `POST /api/webhooks/stripe` (`checkout.session.completed`). Return pages: `/calendar/checkout-return` (calls `POST /api/stripe/verify-checkout`) and `/calendar/paypal-return` (calls `POST /api/paypal/capture`). Set `NEXT_PUBLIC_WEB_APP_URL` (or `NEXT_PUBLIC_CHECKOUT_PUBLIC_BASE_URL`) to the host that serves those paths.
+- **Direct registration API**: For **paid** events, anonymous `POST /api/calendar-events/:id/registrations` returns **402** `PAYMENT_REQUIRED`. Managers with `CALENDAR_EVENTS` may create rows using `paymentWaived: true` or `recordedPaidCents` (manual / external payment).
+- **Manager payment edits**: `PATCH /api/event-registrations/:id` accepts `amountPaidCents`, `managerPaymentNote`, and `paymentStatus` (manual adjustments). **Approving** a registration for a paid event requires `paymentStatus` **`PAID`** or **`WAIVED`** (same request or already saved).
+- **Refunds**: not automated in admin; managers handle refunds outside the app and adjust recorded amounts / notes as needed.
+- **Env reference**: see `admin-panel/apps/web/.env.example`.

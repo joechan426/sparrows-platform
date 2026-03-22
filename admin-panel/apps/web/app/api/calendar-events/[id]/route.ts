@@ -142,6 +142,39 @@ export async function PATCH(req: NextRequest, context: any) {
       data.endAt = endAt;
     }
 
+    if (typeof body.isPaid === "boolean") {
+      data.isPaid = body.isPaid;
+    }
+
+    if (body.priceCents !== undefined) {
+      if (body.priceCents === null || body.priceCents === "") {
+        data.priceCents = null;
+      } else {
+        const cents = Number(body.priceCents);
+        if (!Number.isInteger(cents) || cents < 0) {
+          return withCors(
+            req,
+            NextResponse.json(
+              { message: "priceCents must be a non-negative integer or null" },
+              { status: 400 }
+            )
+          );
+        }
+        data.priceCents = cents;
+      }
+    }
+
+    if (typeof body.currency === "string") {
+      const cur = body.currency.trim().toUpperCase();
+      if (cur.length !== 3) {
+        return withCors(
+          req,
+          NextResponse.json({ message: "currency must be a 3-letter ISO code" }, { status: 400 })
+        );
+      }
+      data.currency = cur;
+    }
+
     if (Object.keys(data).length === 0) {
       return withCors(
         req,

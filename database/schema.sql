@@ -66,6 +66,7 @@ CREATE TABLE members (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   preferred_name TEXT NOT NULL,
   email TEXT NOT NULL UNIQUE,
+  stripe_customer_id TEXT,
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW()
 );
@@ -87,21 +88,56 @@ CREATE TABLE calendar_events (
   event_type TEXT NOT NULL,
   registration_open BOOLEAN NOT NULL DEFAULT FALSE,
   capacity INT,
+  is_paid BOOLEAN NOT NULL DEFAULT FALSE,
+  price_cents INT,
+  currency TEXT NOT NULL DEFAULT 'AUD',
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW()
 );
 
 -- Event registrations link members to calendar events.
 -- One member may register only once per event.
+-- payment_status: NONE | AWAITING_PAYMENT | PAID | FAILED | WAIVED
+-- payment_provider: STRIPE | PAYPAL | MANUAL
 CREATE TABLE event_registrations (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   member_id UUID NOT NULL REFERENCES members(id),
   calendar_event_id UUID NOT NULL REFERENCES calendar_events(id),
   team_name TEXT,
   status TEXT NOT NULL,
+  payment_status TEXT NOT NULL DEFAULT 'NONE',
+  amount_due_cents INT,
+  amount_paid_cents INT,
+  payment_provider TEXT,
+  stripe_session_id TEXT,
+  stripe_payment_intent_id TEXT,
+  paypal_order_id TEXT,
+  paid_at TIMESTAMP,
+  manager_payment_note TEXT,
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW(),
   UNIQUE (member_id, calendar_event_id)
+);
+
+CREATE TABLE payment_platform_settings (
+  id TEXT PRIMARY KEY,
+  stripe_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+  paypal_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+  square_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE member_payment_methods (
+  id TEXT PRIMARY KEY,
+  member_id UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+  stripe_payment_method_id TEXT NOT NULL,
+  brand TEXT,
+  last4 TEXT,
+  exp_month INT,
+  exp_year INT,
+  is_default BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  UNIQUE (member_id, stripe_payment_method_id)
 );
 
 -- Admin panel users (separate from members/app users).
