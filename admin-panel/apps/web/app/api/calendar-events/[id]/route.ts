@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "../../../../lib/prisma";
 import { requireAdminAuth } from "../../../../lib/admin-auth";
 import { withCors, corsOptions } from "../../../../lib/cors";
+import { getPaymentPlatformSettings } from "../../../../lib/payment-platform";
 
 async function getIdFromContext(context: any): Promise<string | undefined> {
   const params = await Promise.resolve(context?.params);
@@ -34,15 +35,37 @@ export async function GET(req: NextRequest, context: any) {
           where: { status: "APPROVED" },
           select: { id: true },
         },
+        paymentAccountAdmin: {
+          select: {
+            stripeConnectedAccountId: true,
+            stripeConnectChargesEnabled: true,
+            paypalMerchantId: true,
+          },
+        },
       },
     });
     if (!raw) return withCors(req, NextResponse.json({ message: "Not found" }, { status: 404 }));
 
-    const { registrations, ...event } = raw;
+    const { registrations, paymentAccountAdmin, ...event } = raw;
+    const settings = await getPaymentPlatformSettings();
+    const stripeCheckoutAvailable = Boolean(
+      settings.stripeEnabled &&
+        paymentAccountAdmin?.stripeConnectedAccountId &&
+        paymentAccountAdmin.stripeConnectChargesEnabled,
+    );
+    const paypalCheckoutAvailable = Boolean(
+      settings.paypalEnabled && paymentAccountAdmin?.paypalMerchantId,
+    );
+
     return withCors(
       req,
       NextResponse.json(
-        { ...event, approvedCount: registrations.length },
+        {
+          ...event,
+          approvedCount: registrations.length,
+          stripeCheckoutAvailable,
+          paypalCheckoutAvailable,
+        },
         { status: 200 }
       )
     );
@@ -66,9 +89,14 @@ export async function PATCH(req: NextRequest, context: any) {
     const id = await getIdFromContext(context);
     if (!id) return withCors(req, NextResponse.json({ message: "Missing id" }, { status: 400 }));
 
+    const existing = await prisma.calendarEvent.findUnique({ where: { id } });
+    if (!existing) {
+      return withCors(req, NextResponse.json({ message: "Event not found" }, { status: 404 }));
+    }
+
     const body = await req.json().catch(() => ({}));
 
-    const data: any = {};
+    const data: Record<string, unknown> = {};
 
     if (typeof body.title === "string") {
       const title = body.title.trim();
@@ -175,7 +203,51 @@ export async function PATCH(req: NextRequest, context: any) {
       data.currency = cur;
     }
 
+    if (body.paymentAccountAdminId !== undefined) {
+      if (body.paymentAccountAdminId === null || body.paymentAccountAdminId === "") {
+        data.paymentAccountAdminId = null;
+      } else {
+        const pid = String(body.paymentAccountAdminId);
+        const adm = await prisma.adminUser.findUnique({ where: { id: pid }, select: { id: true } });
+        if (!adm) {
+          return withCors(req, NextResponse.json({ message: "paymentAccountAdminId admin not found" }, { status: 400 }));
+        }
+        data.paymentAccountAdminId = pid;
+      }
+    }
+
+    const mergedIsPaid = typeof data.isPaid === "boolean" ? (data.isPaid as boolean) : existing.isPaid;
+    const mergedPrice =
+      data.priceCents !== undefined ? (data.priceCents as number | null) : existing.priceCents;
+    let mergedRecipient =
+      data.paymentAccountAdminId !== undefined
+        ? (data.paymentAccountAdminId as string | null)
+        : existing.paymentAccountAdminId;
+
+    if (mergedIsPaid && mergedPrice != null && mergedPrice > 0) {
+      if (body.paymentAccountAdminId === null || body.paymentAccountAdminId === "") {
+        return withCors(
+          req,
+          NextResponse.json(
+            { message: "Cannot clear payment recipient while the event is paid with a price." },
+            { status: 400 }
+          )
+        );
+      }
+      if (!mergedRecipient) {
+        data.paymentAccountAdminId = auth.admin.id;
+        mergedRecipient = auth.admin.id;
+      }
+    }
+
     if (Object.keys(data).length === 0) {
+      if (existing.isPaid && existing.priceCents != null && existing.priceCents > 0 && !existing.paymentAccountAdminId) {
+        const fixed = await prisma.calendarEvent.update({
+          where: { id },
+          data: { paymentAccountAdminId: auth.admin.id },
+        });
+        return withCors(req, NextResponse.json(fixed, { status: 200 }));
+      }
       return withCors(
         req,
         NextResponse.json(
@@ -187,10 +259,23 @@ export async function PATCH(req: NextRequest, context: any) {
 
     const updated = await prisma.calendarEvent.update({
       where: { id },
-      data,
+      data: data as any,
     });
 
-    return withCors(req, NextResponse.json(updated, { status: 200 }));
+    let out = updated;
+    if (
+      updated.isPaid &&
+      updated.priceCents != null &&
+      updated.priceCents > 0 &&
+      !updated.paymentAccountAdminId
+    ) {
+      out = await prisma.calendarEvent.update({
+        where: { id },
+        data: { paymentAccountAdminId: auth.admin.id },
+      });
+    }
+
+    return withCors(req, NextResponse.json(out, { status: 200 }));
   } catch (e: any) {
     return withCors(
       req,

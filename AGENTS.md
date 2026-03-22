@@ -495,13 +495,14 @@ Where possible, structure data and permissions so multi-organization support can
 
 ⸻
 
-Calendar event payments (AUD, Stripe + PayPal)
+Calendar event payments (AUD, Stripe Connect + PayPal seller)
 
 - **Currency**: default `AUD` on `calendar_events.currency`; prices are **minor units** (`priceCents`).
-- **Platform keys**: Stripe and PayPal credentials live in **environment variables** on the Next API host (`admin-panel/apps/web`). Managers only **toggle** which methods are offered via `payment_platform_settings` and `GET/PATCH /api/payment-settings`.
-- **Checkout**: `POST /api/calendar-events/:id/checkout` with `{ provider, preferredName, email, teamName? }` returns a **Stripe Checkout** or **PayPal approve URL**. Registration is `PENDING` with `paymentStatus` → **`PAID`** after webhook/capture; **manager approval** is still required (`status` stays `PENDING` until approved).
-- **Webhooks / return URLs**: Stripe `POST /api/webhooks/stripe` (`checkout.session.completed`). Return pages: `/calendar/checkout-return` (calls `POST /api/stripe/verify-checkout`) and `/calendar/paypal-return` (calls `POST /api/paypal/capture`). Set `NEXT_PUBLIC_WEB_APP_URL` (or `NEXT_PUBLIC_CHECKOUT_PUBLIC_BASE_URL`) to the host that serves those paths.
-- **Direct registration API**: For **paid** events, anonymous `POST /api/calendar-events/:id/registrations` returns **402** `PAYMENT_REQUIRED`. Managers with `CALENDAR_EVENTS` may create rows using `paymentWaived: true` or `recordedPaidCents` (manual / external payment).
-- **Manager payment edits**: `PATCH /api/event-registrations/:id` accepts `amountPaidCents`, `managerPaymentNote`, and `paymentStatus` (manual adjustments). **Approving** a registration for a paid event requires `paymentStatus` **`PAID`** or **`WAIVED`** (same request or already saved).
-- **Refunds**: not automated in admin; managers handle refunds outside the app and adjust recorded amounts / notes as needed.
-- **Env reference**: see `admin-panel/apps/web/.env.example`.
+- **Who receives money**: Each **paid** `CalendarEvent` has `paymentAccountAdminId` — the **AdminUser** whose **Stripe Connect** account and/or **PayPal merchant id** receives checkout. If unset when an event is saved as paid, it defaults to the **current manager**. You never store a manager’s Stripe **login password** or **merchant secret key**; only public ids (`acct_…`, PayPal merchant id) are stored in Postgres.
+- **Platform credentials (unavoidable)**: The API host still needs **your** Stripe **platform** `STRIPE_SECRET_KEY` (Connect) and PayPal **partner/app** `PAYPAL_CLIENT_ID` / `PAYPAL_CLIENT_SECRET` so the server can create sessions/orders **on behalf of** linked sellers. Those are **app** credentials, not end‑merchant secrets. Toggle global methods via `payment_platform_settings` + `GET/PATCH /api/payment-settings`.
+- **Manager onboarding**: `POST /api/payment-connect/stripe/onboarding` → Stripe hosted Connect onboarding; `GET /api/payment-connect/stripe/status`; `POST /api/payment-connect/stripe/disconnect` (clears local link only). PayPal: `POST /api/payment-connect/paypal/onboarding` (Partner Referral link) and/or `PATCH /api/admin-auth/me/payment-connections` with `{ paypalMerchantId }` (manual). `GET /api/admin-auth/me` includes `paymentConnections` summary.
+- **Checkout**: `POST /api/calendar-events/:id/checkout` uses the event recipient’s **connected Stripe account** (`stripe.checkout.sessions.create(..., { stripeAccount })`) or PayPal order with `payee.merchant_id`. Public `GET /api/calendar-events/:id` adds `stripeCheckoutAvailable` / `paypalCheckoutAvailable`.
+- **Webhooks / return URLs**: Stripe `POST /api/webhooks/stripe` — `checkout.session.completed` and **`account.updated`** (sync `stripeConnectChargesEnabled`). Return pages: `/calendar/checkout-return`, `/calendar/paypal-return`, plus `/admin/connect/stripe/return|refresh` and `/admin/connect/paypal/return`. Set `NEXT_PUBLIC_WEB_APP_URL` (or `NEXT_PUBLIC_CHECKOUT_PUBLIC_BASE_URL`).
+- **Direct registration API**: For **paid** events, anonymous `POST /api/calendar-events/:id/registrations` returns **402** `PAYMENT_REQUIRED`. Managers may create rows with `paymentWaived` or `recordedPaidCents`.
+- **Manager payment edits / refunds**: same as before (`PATCH /api/event-registrations/:id`); no automated refunds in-app.
+- **Env reference**: `admin-panel/apps/web/.env.example` (includes `STRIPE_CONNECT_DEFAULT_COUNTRY`, default `AU`).

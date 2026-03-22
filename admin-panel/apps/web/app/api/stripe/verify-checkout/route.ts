@@ -23,7 +23,22 @@ export async function POST(req: NextRequest) {
       return corsJson(req, { message: "Stripe is not configured" }, { status: 503 });
     }
 
-    const session = await stripe.checkout.sessions.retrieve(sessionId);
+    const reg = await prisma.eventRegistration.findFirst({
+      where: { stripeSessionId: sessionId },
+      include: {
+        event: { include: { paymentAccountAdmin: true } },
+      },
+    });
+
+    const connectedAccountId = reg?.event.paymentAccountAdmin?.stripeConnectedAccountId ?? undefined;
+    let session: import("stripe").Stripe.Checkout.Session;
+    try {
+      session = connectedAccountId
+        ? await stripe.checkout.sessions.retrieve(sessionId, { stripeAccount: connectedAccountId })
+        : await stripe.checkout.sessions.retrieve(sessionId);
+    } catch {
+      session = await stripe.checkout.sessions.retrieve(sessionId);
+    }
     if (session.payment_status !== "paid") {
       return corsJson(req, { message: "Payment not completed yet" }, { status: 400 });
     }

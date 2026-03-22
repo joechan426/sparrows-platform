@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { prisma } from "../../../../lib/prisma";
 import { requireAdminAuth } from "../../../../lib/admin-auth";
 import { fetchHiddenNavResourcesSafe } from "../../../../lib/fetch-hidden-nav-safe";
 
@@ -16,6 +17,14 @@ export async function GET(req: NextRequest) {
   if (!result.ok) return withCors(req, result.response);
   const hiddenNavResources =
     result.admin.role === "ADMIN" ? await fetchHiddenNavResourcesSafe(result.admin.id) : [];
+  const paymentRow = await prisma.adminUser.findUnique({
+    where: { id: result.admin.id },
+    select: {
+      stripeConnectedAccountId: true,
+      stripeConnectChargesEnabled: true,
+      paypalMerchantId: true,
+    },
+  });
   return withCors(
     req,
     NextResponse.json({
@@ -24,6 +33,15 @@ export async function GET(req: NextRequest) {
       role: result.admin.role,
       permissions: result.admin.permissions,
       hiddenNavResources,
+      paymentConnections: {
+        stripe: {
+          connectedAccountId: paymentRow?.stripeConnectedAccountId ?? null,
+          chargesEnabled: paymentRow?.stripeConnectChargesEnabled ?? false,
+        },
+        paypal: {
+          merchantId: paymentRow?.paypalMerchantId ?? null,
+        },
+      },
     })
   );
 }

@@ -1,6 +1,6 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { type NextRequest } from "next/server";
 import { prisma } from "../../../../../lib/prisma";
-import { withCors, corsJson, corsOptions } from "../../../../../lib/cors";
+import { corsJson, corsOptions } from "../../../../../lib/cors";
 import { getPaymentPlatformSettings, getCheckoutPublicBaseUrl } from "../../../../../lib/payment-platform";
 import { getStripe } from "../../../../../lib/stripe-server";
 import { createPayPalOrder, getPayPalAccessToken } from "../../../../../lib/paypal-server";
@@ -17,7 +17,7 @@ function formatMoney(cents: number, currency: string): string {
 /**
  * POST /api/calendar-events/:id/checkout
  * Body: { provider: "stripe" | "paypal", preferredName, email?, teamName? }
- * Creates/updates registration as AWAITING_PAYMENT and returns checkout URL.
+ * Funds go to the event's payment recipient admin (Stripe Connect / PayPal seller).
  */
 export async function POST(req: NextRequest, context: { params?: Promise<{ id: string }> }) {
   try {
@@ -43,7 +43,19 @@ export async function POST(req: NextRequest, context: { params?: Promise<{ id: s
       return corsJson(req, { message: "provider must be stripe or paypal" }, { status: 400 });
     }
 
-    const event = await prisma.calendarEvent.findUnique({ where: { id: calendarEventId } });
+    const event = await prisma.calendarEvent.findUnique({
+      where: { id: calendarEventId },
+      include: {
+        paymentAccountAdmin: {
+          select: {
+            id: true,
+            stripeConnectedAccountId: true,
+            stripeConnectChargesEnabled: true,
+            paypalMerchantId: true,
+          },
+        },
+      },
+    });
     if (!event) return corsJson(req, { message: "Event not found" }, { status: 404 });
     if (!event.registrationOpen) {
       return corsJson(req, { message: "Registration is closed for this event" }, { status: 400 });
@@ -51,6 +63,19 @@ export async function POST(req: NextRequest, context: { params?: Promise<{ id: s
     if (!event.isPaid || !event.priceCents || event.priceCents <= 0) {
       return corsJson(req, { message: "This event does not require payment" }, { status: 400 });
     }
+
+    if (!event.paymentAccountAdminId || !event.paymentAccountAdmin) {
+      return corsJson(
+        req,
+        {
+          message:
+            "This paid event has no payment recipient. A manager must assign a recipient admin in the event settings.",
+        },
+        { status: 400 },
+      );
+    }
+
+    const recipient = event.paymentAccountAdmin;
 
     const isSpecial = event.eventType === "SPECIAL";
     if (isSpecial && !teamName) {
@@ -63,6 +88,32 @@ export async function POST(req: NextRequest, context: { params?: Promise<{ id: s
     }
     if (provider === "paypal" && !settings.paypalEnabled) {
       return corsJson(req, { message: "PayPal checkout is disabled" }, { status: 400 });
+    }
+
+    if (provider === "stripe") {
+      if (!recipient.stripeConnectedAccountId || !recipient.stripeConnectChargesEnabled) {
+        return corsJson(
+          req,
+          {
+            message:
+              "The event payment recipient has not finished Stripe Connect onboarding (charges not enabled).",
+          },
+          { status: 400 },
+        );
+      }
+    }
+
+    if (provider === "paypal") {
+      if (!recipient.paypalMerchantId) {
+        return corsJson(
+          req,
+          {
+            message:
+              "The event payment recipient has no PayPal merchant id. Complete PayPal onboarding or paste merchant id in admin settings.",
+          },
+          { status: 400 },
+        );
+      }
     }
 
     let member;
@@ -126,27 +177,31 @@ export async function POST(req: NextRequest, context: { params?: Promise<{ id: s
     if (provider === "stripe") {
       const stripe = getStripe();
       if (!stripe) {
-        return corsJson(req, { message: "Stripe is not configured (STRIPE_SECRET_KEY)" }, { status: 503 });
+        return corsJson(req, { message: "Stripe platform is not configured (STRIPE_SECRET_KEY)" }, { status: 503 });
       }
-      const session = await stripe.checkout.sessions.create({
-        mode: "payment",
-        metadata: {
-          registrationId: registration.id,
-          calendarEventId: event.id,
-        },
-        line_items: [
-          {
-            price_data: {
-              currency: event.currency.toLowerCase(),
-              unit_amount: event.priceCents,
-              product_data: { name: event.title },
-            },
-            quantity: 1,
+      const stripeAccount = recipient.stripeConnectedAccountId!;
+      const session = await stripe.checkout.sessions.create(
+        {
+          mode: "payment",
+          metadata: {
+            registrationId: registration.id,
+            calendarEventId: event.id,
           },
-        ],
-        success_url: `${successStripe}&session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: cancelStripe,
-      });
+          line_items: [
+            {
+              price_data: {
+                currency: event.currency.toLowerCase(),
+                unit_amount: event.priceCents,
+                product_data: { name: event.title },
+              },
+              quantity: 1,
+            },
+          ],
+          success_url: `${successStripe}&session_id={CHECKOUT_SESSION_ID}`,
+          cancel_url: cancelStripe,
+        },
+        { stripeAccount },
+      );
       await prisma.eventRegistration.update({
         where: { id: registration.id },
         data: { stripeSessionId: session.id, paymentProvider: "STRIPE" },
@@ -159,7 +214,7 @@ export async function POST(req: NextRequest, context: { params?: Promise<{ id: s
 
     const token = await getPayPalAccessToken();
     if (!token) {
-      return corsJson(req, { message: "PayPal is not configured" }, { status: 503 });
+      return corsJson(req, { message: "PayPal platform is not configured" }, { status: 503 });
     }
     const order = await createPayPalOrder({
       accessToken: token,
@@ -168,6 +223,7 @@ export async function POST(req: NextRequest, context: { params?: Promise<{ id: s
       customId: registration.id,
       returnUrl: successPaypal,
       cancelUrl: cancelPaypal,
+      payeeMerchantId: recipient.paypalMerchantId!,
     });
     if (!order) {
       return corsJson(req, { message: "Failed to create PayPal order" }, { status: 502 });

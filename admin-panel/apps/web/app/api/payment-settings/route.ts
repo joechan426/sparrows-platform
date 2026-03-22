@@ -4,7 +4,7 @@ import { withCors, corsJson, corsOptions } from "../../../lib/cors";
 import { getPaymentPlatformSettings, updatePaymentPlatformSettings } from "../../../lib/payment-platform";
 import { stripePublishableKey } from "../../../lib/stripe-server";
 
-// GET /api/payment-settings — public: which methods are on + Stripe publishable key (no secrets).
+// GET /api/payment-settings — public: which methods are on + Stripe publishable key (platform Connect; no merchant secrets).
 export async function GET(req: NextRequest) {
   try {
     const s = await getPaymentPlatformSettings();

@@ -91,6 +91,8 @@ CREATE TABLE calendar_events (
   is_paid BOOLEAN NOT NULL DEFAULT FALSE,
   price_cents INT,
   currency TEXT NOT NULL DEFAULT 'AUD',
+  -- Admin whose connected Stripe/PayPal receives checkout for this paid event (FK to admin_users in Prisma/Neon).
+  payment_account_admin_id TEXT,
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW()
 );
@@ -151,6 +153,10 @@ CREATE TABLE admin_users (
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
   -- JSON array of Refine resource names this ADMIN hides from their own nav only (e.g. ["tournaments"]).
   hidden_nav_resources JSONB NOT NULL DEFAULT '[]'::jsonb,
+  -- Stripe Connect: merchant account id; PayPal: seller merchant id (no merchant secret keys stored here).
+  stripe_connected_account_id TEXT UNIQUE,
+  stripe_connect_charges_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+  paypal_merchant_id TEXT,
   created_at TIMESTAMP NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMP NOT NULL DEFAULT NOW()
 );

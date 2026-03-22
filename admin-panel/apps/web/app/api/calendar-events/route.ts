@@ -139,6 +139,77 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const existing = await prisma.calendarEvent.findUnique({
+      where: {
+        sourceEventId_sourceType: { sourceEventId, sourceType },
+      },
+    });
+
+    const isPaid = typeof body.isPaid === "boolean" ? body.isPaid : undefined;
+    let priceCents: number | null | undefined;
+    if (body.priceCents !== undefined) {
+      if (body.priceCents === null || body.priceCents === "") {
+        priceCents = null;
+      } else {
+        const cents = Number(body.priceCents);
+        if (!Number.isInteger(cents) || cents < 0) {
+          return withCors(
+            req,
+            NextResponse.json({ message: "priceCents must be a non-negative integer or null" }, { status: 400 })
+          );
+        }
+        priceCents = cents;
+      }
+    }
+
+    let currency: string | undefined;
+    if (typeof body.currency === "string") {
+      const cur = body.currency.trim().toUpperCase();
+      if (cur.length !== 3) {
+        return withCors(
+          req,
+          NextResponse.json({ message: "currency must be a 3-letter ISO code" }, { status: 400 })
+        );
+      }
+      currency = cur;
+    }
+
+    let paymentAccountAdminId: string | null | undefined;
+    if (body.paymentAccountAdminId !== undefined) {
+      if (body.paymentAccountAdminId === null || body.paymentAccountAdminId === "") {
+        paymentAccountAdminId = null;
+      } else {
+        const pid = String(body.paymentAccountAdminId);
+        const adm = await prisma.adminUser.findUnique({ where: { id: pid }, select: { id: true } });
+        if (!adm) {
+          return withCors(
+            req,
+            NextResponse.json({ message: "paymentAccountAdminId admin not found" }, { status: 400 })
+          );
+        }
+        paymentAccountAdminId = pid;
+      }
+    }
+
+    const nextIsPaid = isPaid !== undefined ? isPaid : existing?.isPaid ?? false;
+    const nextPrice = priceCents !== undefined ? priceCents : existing?.priceCents ?? null;
+
+    if (nextIsPaid && nextPrice != null && nextPrice > 0 && paymentAccountAdminId === null) {
+      return withCors(
+        req,
+        NextResponse.json(
+          { message: "Cannot clear payment recipient while the event is paid with a price." },
+          { status: 400 }
+        )
+      );
+    }
+
+    const paymentPatch: Record<string, unknown> = {};
+    if (isPaid !== undefined) paymentPatch.isPaid = isPaid;
+    if (priceCents !== undefined) paymentPatch.priceCents = priceCents;
+    if (currency !== undefined) paymentPatch.currency = currency;
+    if (paymentAccountAdminId !== undefined) paymentPatch.paymentAccountAdminId = paymentAccountAdminId;
+
     const created = await prisma.calendarEvent.upsert({
       where: {
         sourceEventId_sourceType: {
@@ -157,6 +228,7 @@ export async function POST(req: NextRequest) {
         sportType: sportType as any,
         eventType: eventType as any,
         capacity: capacity ?? undefined,
+        ...paymentPatch,
       },
       update: {
         title,
@@ -167,10 +239,19 @@ export async function POST(req: NextRequest) {
         sportType: sportType as any,
         eventType: eventType as any,
         capacity: capacity ?? undefined,
+        ...paymentPatch,
       },
     });
 
-    return withCors(req, NextResponse.json(created, { status: 201 }));
+    let out = created;
+    if (created.isPaid && created.priceCents != null && created.priceCents > 0 && !created.paymentAccountAdminId) {
+      out = await prisma.calendarEvent.update({
+        where: { id: created.id },
+        data: { paymentAccountAdminId: auth.admin.id },
+      });
+    }
+
+    return withCors(req, NextResponse.json(out, { status: 201 }));
   } catch (e: any) {
     return withCors(
       req,

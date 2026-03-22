@@ -33,7 +33,17 @@ export async function createPayPalOrder(params: {
   customId: string;
   returnUrl: string;
   cancelUrl: string;
+  /** Seller merchant id (PayPal Commerce / third-party). Funds go to this account. */
+  payeeMerchantId?: string;
 }): Promise<{ id: string; approveUrl: string } | null> {
+  const unit: Record<string, unknown> = {
+    amount: { currency_code: params.currencyCode, value: params.value },
+    custom_id: params.customId,
+  };
+  if (params.payeeMerchantId) {
+    unit.payee = { merchant_id: params.payeeMerchantId };
+  }
+
   const res = await fetch(`${paypalApiBase()}/v2/checkout/orders`, {
     method: "POST",
     headers: {
@@ -42,12 +52,7 @@ export async function createPayPalOrder(params: {
     },
     body: JSON.stringify({
       intent: "CAPTURE",
-      purchase_units: [
-        {
-          amount: { currency_code: params.currencyCode, value: params.value },
-          custom_id: params.customId,
-        },
-      ],
+      purchase_units: [unit],
       application_context: {
         return_url: params.returnUrl,
         cancel_url: params.cancelUrl,
