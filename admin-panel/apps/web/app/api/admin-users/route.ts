@@ -3,6 +3,7 @@ import { prisma } from "../../../lib/prisma";
 import bcrypt from "bcryptjs";
 import { requireAdminAuth } from "../../../lib/admin-auth";
 import { withCors, corsJson, corsOptions } from "../../../lib/cors";
+import { adminUserPublicSelect } from "../../../lib/fetch-hidden-nav-safe";
 
 const SALT_ROUNDS = 10;
 
@@ -13,7 +14,7 @@ export async function GET(req: NextRequest) {
   try {
     const users = await prisma.adminUser.findMany({
       orderBy: { createdAt: "desc" },
-      include: { permissions: { select: { module: true } } },
+      select: { ...adminUserPublicSelect },
     });
     const list = users.map(
       (u: {
@@ -70,7 +71,10 @@ export async function POST(req: NextRequest) {
     const valid = validateAdminPassword(password);
     if (!valid.ok) return corsJson(req, { message: valid.message }, { status: 400 });
 
-    const existing = await prisma.adminUser.findUnique({ where: { userName } });
+    const existing = await prisma.adminUser.findUnique({
+      where: { userName },
+      select: { id: true },
+    });
     if (existing) {
       return corsJson(
         req,
@@ -89,7 +93,7 @@ export async function POST(req: NextRequest) {
           create: permissions.map((module) => ({ module })),
         },
       },
-      include: { permissions: { select: { module: true } } },
+      select: { ...adminUserPublicSelect },
     });
 
     return corsJson(

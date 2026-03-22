@@ -78,7 +78,13 @@ export async function requireAdminAuth(
 
   const admin = await prisma.adminUser.findUnique({
     where: { id: payload.id },
-    include: { permissions: { select: { module: true } } },
+    select: {
+      id: true,
+      userName: true,
+      role: true,
+      isActive: true,
+      permissions: { select: { module: true } },
+    },
   });
   if (!admin || !admin.isActive) return { ok: false, response: unauthorized("Account inactive or not found") };
 

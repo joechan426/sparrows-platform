@@ -3,7 +3,7 @@ import { prisma } from "../../../../lib/prisma";
 import bcrypt from "bcryptjs";
 import { signToken } from "../../../../lib/admin-auth";
 import type { AdminPayload } from "../../../../lib/admin-auth";
-import { parseHiddenNavFromDb } from "../../../../lib/admin-hidden-nav";
+import { adminUserLoginSelect, fetchHiddenNavResourcesSafe } from "../../../../lib/fetch-hidden-nav-safe";
 
 function withCors(req: NextRequest, res: NextResponse) {
   res.headers.set("Access-Control-Allow-Origin", "*");
@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
 
     const admin = await prisma.adminUser.findUnique({
       where: { userName },
-      include: { permissions: { select: { module: true } } },
+      select: { ...adminUserLoginSelect },
     });
 
     if (!admin || !admin.isActive) {
@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
     const token = signToken(payload, rememberMe ? LONG_EXPIRY : SHORT_EXPIRY);
 
     const hiddenNavResources =
-      admin.role === "ADMIN" ? parseHiddenNavFromDb(admin.hiddenNavResources) : [];
+      admin.role === "ADMIN" ? await fetchHiddenNavResourcesSafe(admin.id) : [];
 
     return withCors(
       req,

@@ -3,7 +3,8 @@ import { prisma } from "../../../../lib/prisma";
 import bcrypt from "bcryptjs";
 import { requireAdminAuth } from "../../../../lib/admin-auth";
 import { withCors, corsJson, corsOptions } from "../../../../lib/cors";
-import { normalizeAdminHiddenNavList, parseHiddenNavFromDb } from "../../../../lib/admin-hidden-nav";
+import { normalizeAdminHiddenNavList } from "../../../../lib/admin-hidden-nav";
+import { adminUserPublicSelect, fetchHiddenNavResourcesSafe } from "../../../../lib/fetch-hidden-nav-safe";
 
 const SALT_ROUNDS = 10;
 
@@ -15,7 +16,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   try {
     const admin = await prisma.adminUser.findUnique({
       where: { id },
-      include: { permissions: { select: { module: true } } },
+      select: { ...adminUserPublicSelect },
     });
     if (!admin)
       return corsJson(req, { message: "Admin user not found" }, { status: 404 });
@@ -31,7 +32,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       updatedAt: admin.updatedAt,
       permissions: admin.permissions.map((p: { module: string }) => p.module),
       ...(includeHiddenNav
-        ? { hiddenNavResources: parseHiddenNavFromDb(admin.hiddenNavResources) }
+        ? { hiddenNavResources: await fetchHiddenNavResourcesSafe(admin.id) }
         : {}),
     });
   } catch (e: unknown) {
@@ -65,7 +66,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (typeof data.isActive === "boolean") updates.isActive = data.isActive;
     const newUserName = typeof data.userName === "string" ? data.userName.trim() : "";
     if (newUserName.length > 0) {
-      const existing = await prisma.adminUser.findFirst({ where: { userName: newUserName } });
+      const existing = await prisma.adminUser.findFirst({
+        where: { userName: newUserName },
+        select: { id: true },
+      });
       if (existing && existing.id !== id) {
         return corsJson(req, { message: "This user name is already in use" }, { status: 409 });
       }
@@ -88,7 +92,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       };
     }
 
-    const target = await prisma.adminUser.findUnique({ where: { id } });
+    const target = await prisma.adminUser.findUnique({
+      where: { id },
+      select: { id: true, role: true },
+    });
     if (!target) return corsJson(req, { message: "Admin user not found" }, { status: 404 });
 
     // Only an ADMIN may update their own hidden-nav list, and only when editing their own record.
@@ -106,7 +113,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       // TS: Prisma expects `AdminModule` enum; we store/validate module strings and cast
       // to keep runtime behavior while avoiding enum export inconsistencies across prisma builds.
       data: updates as any,
-      include: { permissions: { select: { module: true } } },
+      select: { ...adminUserPublicSelect },
     });
 
     const responseBody: Record<string, unknown> = {
@@ -119,7 +126,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       permissions: admin.permissions.map((p: { module: string }) => p.module),
     };
     if (admin.role === "ADMIN" && result.admin.id === id) {
-      responseBody.hiddenNavResources = parseHiddenNavFromDb(admin.hiddenNavResources);
+      responseBody.hiddenNavResources = await fetchHiddenNavResourcesSafe(admin.id);
     }
 
     return corsJson(req, responseBody);
