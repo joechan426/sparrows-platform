@@ -8,6 +8,7 @@ import {
   type AdminUser,
 } from "./admin-auth";
 import { getApiBase } from "./api-base";
+import { navRootResourceName } from "./navResourceRoots";
 
 export const adminAuthProvider: AuthProvider = {
   login: async ({ userName, password, rememberMe }) => {
@@ -33,6 +34,10 @@ export const adminAuthProvider: AuthProvider = {
         userName: data.admin.userName,
         role: data.admin.role,
         permissions: Array.isArray(data.admin.permissions) ? data.admin.permissions : [],
+        hiddenNavResources:
+          data.admin.role === "ADMIN" && Array.isArray(data.admin.hiddenNavResources)
+            ? data.admin.hiddenNavResources
+            : undefined,
       };
       setAuth(data.token, admin);
       return { success: true, redirectTo: "/" };
@@ -86,6 +91,10 @@ export const adminAuthProvider: AuthProvider = {
           userName: data.userName,
           role: data.role ?? "MANAGER",
           permissions: Array.isArray(data.permissions) ? data.permissions : [],
+          hiddenNavResources:
+            data.role === "ADMIN" && Array.isArray(data.hiddenNavResources)
+              ? data.hiddenNavResources
+              : undefined,
         };
         setAuth(token, admin);
         return { authenticated: true };
@@ -113,7 +122,7 @@ export const adminAuthProvider: AuthProvider = {
       return { logout: true, redirectTo: "/login" };
     }
     if (status === 403) {
-      return { redirectTo: "/", error: normalizedError };
+      return { redirectTo: getFirstAccessiblePath(), error: normalizedError };
     }
     return { error: normalizedError };
   },
@@ -134,19 +143,48 @@ export const adminAuthProvider: AuthProvider = {
   },
 };
 
+const DEFAULT_RESOURCE_PATHS: { resource: string; path: string }[] = [
+  { resource: "tournaments", path: "/tournaments" },
+  { resource: "teams", path: "/teams" },
+  { resource: "calendar-events", path: "/events" },
+  { resource: "members", path: "/members" },
+  { resource: "admin-users", path: "/admin-users" },
+];
+
+/** First list/show route the current user may open (dashboard is not used). */
+export function getFirstAccessiblePath(): string {
+  const first = DEFAULT_RESOURCE_PATHS.find((r) => canAccessResource(r.resource));
+  return first?.path ?? "/no-access";
+}
+
+function adminHiddenNavSet(): Set<string> {
+  const admin = getStoredAdmin();
+  if (!admin || admin.role !== "ADMIN" || !Array.isArray(admin.hiddenNavResources)) return new Set();
+  return new Set(admin.hiddenNavResources.filter((x): x is string => typeof x === "string"));
+}
+
 /** Whether the current user can access a Refine resource (by name). */
 export function canAccessResource(resourceName: string): boolean {
-  if (resourceName === "dashboard") {
-    return !!getStoredAdmin();
-  }
-  if (resourceName === "admin-users") {
-    const admin = getStoredAdmin();
-    return admin?.role === "ADMIN";
-  }
-  const module = RESOURCE_TO_MODULE[resourceName];
-  if (!module) return false;
+  if (resourceName === "dashboard") return false;
+
   const admin = getStoredAdmin();
   if (!admin) return false;
-  if (admin.role === "ADMIN") return true;
+
+  const hidden = adminHiddenNavSet();
+
+  if (resourceName === "admin-users") {
+    if (admin.role !== "ADMIN") return false;
+    if (hidden.has("admin-users")) return false;
+    return true;
+  }
+
+  const module = RESOURCE_TO_MODULE[resourceName];
+  if (!module) return false;
+
+  if (admin.role === "ADMIN") {
+    const root = navRootResourceName(resourceName);
+    if (root && hidden.has(root)) return false;
+    return true;
+  }
   return admin.permissions.includes(module);
 }

@@ -41,10 +41,7 @@ export const AdminMobileBottomNav: React.FC = () => {
       label: item.label ?? item.name ?? item.route,
       route: item.route as string,
     }));
-    const dashboardTab = canAccessResource("dashboard")
-      ? [{ key: "dashboard", label: "Dashboard", route: "/" }]
-      : [];
-    return [...dashboardTab, ...fromMenu, { key: "profile", label: "Profile", route: "/profile" }];
+    return [...fromMenu, { key: "profile", label: "Profile", route: "/profile" }];
   }, [menuItems]);
 
   useEffect(() => {
@@ -71,9 +68,9 @@ export const AdminMobileBottomNav: React.FC = () => {
         bottom: 0,
         zIndex: theme.zIndex.drawer + 2,
         borderTop: (t) => `1px solid ${t.palette.divider}`,
-        pt: "12px",
-        px: "6px",
-        pb: "calc(12px + env(safe-area-inset-bottom, 0px))",
+        pt: "24px",
+        px: "12px",
+        pb: "calc(24px + env(safe-area-inset-bottom, 0px))",
         bgcolor: "background.paper",
         boxShadow: "0 -2px 12px rgba(0, 0, 0, 0.06)",
       }}
@@ -81,86 +78,100 @@ export const AdminMobileBottomNav: React.FC = () => {
       <Box
         sx={{
           display: "flex",
-          flexDirection: "row",
-          flexWrap: "nowrap",
-          gap: 0.5,
+          justifyContent: "center",
+          width: "100%",
           overflowX: "auto",
           overflowY: "hidden",
           WebkitOverflowScrolling: "touch",
-          pb: 0.5,
+          pb: 1,
           scrollbarWidth: "thin",
-          "&::-webkit-scrollbar": { height: 4 },
+          "&::-webkit-scrollbar": { height: 6 },
         }}
       >
-        {tabs.map((tab) => {
-          const active = isTabActive(tab.route, location.pathname);
-          return (
-            <Box
-              key={tab.key}
-              component={RouterLink}
-              to={tab.route}
-              ref={active ? activeLinkRef : undefined}
-              sx={{
-                flex: "0 0 auto",
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                px: 1.25,
-                py: 0.75,
-                minHeight: 44,
-                borderRadius: 2,
-                fontSize: "0.75rem",
-                lineHeight: 1.15,
-                fontWeight: active ? 600 : 500,
-                color: active ? "text.primary" : "text.secondary",
-                bgcolor: active ? "action.selected" : "transparent",
-                textDecoration: "none",
-                whiteSpace: "nowrap",
-                WebkitTapHighlightColor: "transparent",
-                "&:active": {
-                  opacity: 0.85,
-                },
-              }}
-            >
-              {tab.label}
-            </Box>
-          );
-        })}
         <Box
-          component="button"
-          type="button"
-          aria-label="Log out"
-          disabled={logoutPending}
-          onClick={() => logout()}
           sx={{
-            flex: "0 0 auto",
             display: "inline-flex",
+            flexDirection: "row",
+            flexWrap: "nowrap",
             alignItems: "center",
             justifyContent: "center",
-            px: 1.25,
-            py: 0.75,
-            minHeight: 44,
-            borderRadius: 2,
-            border: "none",
-            margin: 0,
-            cursor: logoutPending ? "default" : "pointer",
-            fontFamily: "inherit",
-            fontSize: "0.75rem",
-            lineHeight: 1.15,
-            fontWeight: 500,
-            color: "error.main",
-            bgcolor: "transparent",
-            whiteSpace: "nowrap",
-            WebkitTapHighlightColor: "transparent",
-            "&:active": {
-              opacity: logoutPending ? 1 : 0.85,
-            },
-            "&:disabled": {
-              opacity: 0.6,
-            },
+            gap: 1,
+            mx: "auto",
+            minHeight: 88,
           }}
         >
-          {logoutPending ? "…" : "Logout"}
+          {tabs.map((tab) => {
+            const active = isTabActive(tab.route, location.pathname);
+            return (
+              <Box
+                key={tab.key}
+                component={RouterLink}
+                to={tab.route}
+                ref={active ? activeLinkRef : undefined}
+                sx={{
+                  flex: "0 0 auto",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  px: 2.5,
+                  py: 1.5,
+                  minWidth: 88,
+                  minHeight: 88,
+                  borderRadius: 2,
+                  fontSize: "1.5rem",
+                  lineHeight: 1.15,
+                  fontWeight: active ? 600 : 500,
+                  color: active ? "text.primary" : "text.secondary",
+                  bgcolor: active ? "action.selected" : "transparent",
+                  textDecoration: "none",
+                  whiteSpace: "nowrap",
+                  WebkitTapHighlightColor: "transparent",
+                  "&:active": {
+                    opacity: 0.85,
+                  },
+                }}
+              >
+                {tab.label}
+              </Box>
+            );
+          })}
+          <Box
+            component="button"
+            type="button"
+            aria-label="Log out"
+            disabled={logoutPending}
+            onClick={() => logout()}
+            sx={{
+              flex: "0 0 auto",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              px: 2.5,
+              py: 1.5,
+              minWidth: 88,
+              minHeight: 88,
+              borderRadius: 2,
+              border: "none",
+              margin: 0,
+              cursor: logoutPending ? "default" : "pointer",
+              fontFamily: "inherit",
+              fontSize: "1.5rem",
+              lineHeight: 1.15,
+              fontWeight: 500,
+              color: "error.main",
+              bgcolor: "transparent",
+              whiteSpace: "nowrap",
+              WebkitTapHighlightColor: "transparent",
+              "&:active": {
+                opacity: logoutPending ? 1 : 0.85,
+              },
+              "&:disabled": {
+                opacity: 0.6,
+              },
+            }}
+          >
+            {logoutPending ? "…" : "Logout"}
+          </Box>
         </Box>
       </Box>
     </Paper>

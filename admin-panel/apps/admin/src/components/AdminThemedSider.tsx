@@ -20,7 +20,6 @@ import Logout from "@mui/icons-material/Logout";
 import ExpandLess from "@mui/icons-material/ExpandLess";
 import ExpandMore from "@mui/icons-material/ExpandMore";
 import ChevronLeft from "@mui/icons-material/ChevronLeft";
-import Dashboard from "@mui/icons-material/Dashboard";
 
 import {
   CanAccess,
@@ -54,7 +53,6 @@ export const AdminThemedSider: React.FC<AdminThemedSiderProps> = ({
 
   const t = useTranslate();
   const Link = useLink();
-  const translate = useTranslate();
 
   const { menuItems: rawMenuItems, selectedKey, defaultOpenKeys } = useMenu({ meta });
   const menuItems = useMemo(() => filterMenuItemsByModuleAccess(rawMenuItems), [rawMenuItems]);
@@ -203,50 +201,6 @@ export const AdminThemedSider: React.FC<AdminThemedSiderProps> = ({
     });
   };
 
-  const dashboard = (
-    <CanAccess resource="dashboard" action="list">
-      <Tooltip title={translate("dashboard.title", "Dashboard")} placement="right" disableHoverListener={!siderCollapsed} arrow>
-        <Link
-          to="/"
-          style={{ textDecoration: "none" }}
-          onClick={() => {
-            setMobileSiderOpen(false);
-          }}
-        >
-          <ListItemButton
-            selected={selectedKey === "/"}
-            sx={{
-              pl: 2,
-              py: 1,
-              justifyContent: "center",
-              color: selectedKey === "/" ? "primary.main" : "text.primary",
-            }}
-          >
-            <ListItemIcon
-              sx={{
-                justifyContent: "center",
-                minWidth: "24px",
-                transition: "margin-right 0.3s",
-                marginRight: siderCollapsed ? "0px" : "12px",
-                color: "currentColor",
-                fontSize: "14px",
-              }}
-            >
-              <Dashboard />
-            </ListItemIcon>
-            <ListItemText
-              primary={translate("dashboard.title", "Dashboard")}
-              primaryTypographyProps={{
-                noWrap: true,
-                fontSize: "14px",
-              }}
-            />
-          </ListItemButton>
-        </Link>
-      </Tooltip>
-    </CanAccess>
-  );
-
   const handleLogout = () => {
     if (warnWhen) {
       const ok = window.confirm(
@@ -304,7 +258,6 @@ export const AdminThemedSider: React.FC<AdminThemedSiderProps> = ({
     }
     return (
       <>
-        {dashboard}
         {items}
         {logout}
       </>

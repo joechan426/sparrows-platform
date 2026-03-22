@@ -23,7 +23,7 @@ import routerProvider, {
   UnsavedChangesNotifier,
   DocumentTitleHandler,
 } from "@refinedev/react-router";
-import { BrowserRouter, Routes, Route, Outlet, Link } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Outlet } from "react-router-dom";
 import Typography from "@mui/material/Typography";
 
 // ✅ your pages
@@ -64,6 +64,7 @@ import { AdminDefaultRedirect } from "./components/AdminDefaultRedirect";
 import { RequireResourceAccess } from "./components/RequireResourceAccess";
 import { AdminResponsiveSider } from "./components/AdminResponsiveSider";
 import { AdminMobileBottomNav } from "./components/AdminMobileBottomNav";
+import { AdminHomeLink } from "./components/AdminHomeLink";
 import { PullToRefresh } from "./components/PullToRefresh";
 
 const accessControlProvider: AccessControlProvider = {
@@ -248,39 +249,12 @@ const App: React.FC = () => {
                       childrenBoxProps={{
                         sx: {
                           "@media (max-width: 1024px)": {
-                            /* Space for fixed bottom tab bar (same as sparrowsweb) */
-                            paddingBottom: "calc(72px + env(safe-area-inset-bottom, 0px))",
+                            /* Taller bottom tab bar (2× control size) + safe area */
+                            paddingBottom: "calc(144px + env(safe-area-inset-bottom, 0px))",
                           },
                         },
                       }}
-                      Title={() => (
-                        <Link to="/" style={{ textDecoration: "none" }}>
-                          <div
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: "8px",
-                              minHeight: 64,
-                            }}
-                          >
-                            <img
-                              src="/asset/img/Sparrow_FullLogo.png"
-                              alt="Sparrows Platform"
-                              style={{ height: 32, objectFit: "contain" }}
-                            />
-                            <div style={{ display: "flex", flexDirection: "column" }}>
-                              <Typography
-                                variant="subtitle1"
-                                component="span"
-                                color="primary"
-                                sx={{ lineHeight: 1.2 }}
-                              >
-                                Sparrows Admin Panel
-                              </Typography>
-                            </div>
-                          </div>
-                        </Link>
-                      )}
+                      Title={() => <AdminHomeLink />}
                     >
                       <RequireResourceAccess>
                         <Outlet />

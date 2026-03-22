@@ -277,14 +277,16 @@ enum AdminModule {
 }
 
 model AdminUser {
-  id           String   @id @default(cuid())
-  userName     String   @unique @map("user_name")
-  email        String?  @unique
-  passwordHash String   @map("password_hash")
-  role         AdminRole
-  isActive     Boolean  @default(true) @map("is_active")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  id                   String   @id @default(cuid())
+  userName             String   @unique @map("user_name")
+  email                String?  @unique
+  passwordHash         String   @map("password_hash")
+  role                 AdminRole
+  isActive             Boolean  @default(true) @map("is_active")
+  /// JSON array of resource names (e.g. "tournaments") this ADMIN hides from their own navigation only.
+  hiddenNavResources   Json     @default("[]") @map("hidden_nav_resources")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
 
   permissions AdminPermission[]
 

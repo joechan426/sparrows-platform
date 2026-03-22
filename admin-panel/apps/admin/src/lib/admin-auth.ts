@@ -11,6 +11,8 @@ export type AdminUser = {
   userName: string;
   role: "ADMIN" | "MANAGER";
   permissions: string[];
+  /** ADMIN only: Refine resource roots hidden from this user's navigation (sidebar + mobile). */
+  hiddenNavResources?: string[];
 };
 
 export function getToken(): string | null {

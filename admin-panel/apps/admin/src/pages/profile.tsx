@@ -1,15 +1,17 @@
 import React, { useState } from "react";
 import { useForm } from "react-hook-form";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link as RouterLink } from "react-router-dom";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
+import MuiLink from "@mui/material/Link";
 import { getStoredAdmin, setAuth, getToken } from "../lib/admin-auth";
 import { validateAdminPassword } from "../lib/password-rules";
 import { axiosWithAuth } from "../lib/axiosWithAuth";
+import { getFirstAccessiblePath } from "../lib/authProvider";
 
 type FormValues = { userName: string; newPassword: string };
 
@@ -67,7 +69,7 @@ export const ProfilePage: React.FC = () => {
           userName,
         });
       }
-      navigate("/", { replace: true });
+      navigate(getFirstAccessiblePath(), { replace: true });
     } catch (err: unknown) {
       const message =
         (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
@@ -86,6 +88,13 @@ export const ProfilePage: React.FC = () => {
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
             Change your user name and/or password. Leave password blank to keep the current one.
           </Typography>
+          {current.role === "ADMIN" && (
+            <Typography variant="body2" sx={{ mb: 2 }}>
+              <MuiLink component={RouterLink} to={`/admin-users/${current.id}/edit`}>
+                Customize which pages appear in your menu
+              </MuiLink>
+            </Typography>
+          )}
           <Box
             component="form"
             onSubmit={handleSubmit(onSubmit)}
