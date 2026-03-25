@@ -216,8 +216,13 @@ export async function POST(req: NextRequest, context: { params?: Promise<{ id: s
     if (!token) {
       return corsJson(req, { message: "PayPal platform is not configured" }, { status: 503 });
     }
-    const order = await createPayPalOrder({
+    const paypalClientId = process.env.PAYPAL_CLIENT_ID;
+    if (!paypalClientId) {
+      return corsJson(req, { message: "PAYPAL_CLIENT_ID is not configured" }, { status: 503 });
+    }
+    const orderResult = await createPayPalOrder({
       accessToken: token,
+      clientId: paypalClientId,
       currencyCode: event.currency,
       value: formatMoney(event.priceCents, event.currency),
       customId: registration.id,
@@ -225,14 +230,28 @@ export async function POST(req: NextRequest, context: { params?: Promise<{ id: s
       cancelUrl: cancelPaypal,
       payeeMerchantId: recipient.paypalMerchantId!,
     });
-    if (!order) {
-      return corsJson(req, { message: "Failed to create PayPal order" }, { status: 502 });
+    if (!orderResult.ok) {
+      return corsJson(
+        req,
+        {
+          message: "Failed to create PayPal order",
+          paypalHttpStatus: orderResult.httpStatus,
+          paypalDetails: orderResult.paypalError,
+          registrationId: registration.id,
+          hint: "Registrations may show AWAITING_PAYMENT after a failed PayPal call; delete or retry checkout for that member.",
+        },
+        { status: 502 },
+      );
     }
     await prisma.eventRegistration.update({
       where: { id: registration.id },
-      data: { paypalOrderId: order.id, paymentProvider: "PAYPAL" },
+      data: { paypalOrderId: orderResult.id, paymentProvider: "PAYPAL" },
     });
-    return corsJson(req, { url: order.approveUrl, orderId: order.id, registrationId: registration.id });
+    return corsJson(req, {
+      url: orderResult.approveUrl,
+      orderId: orderResult.id,
+      registrationId: registration.id,
+    });
   } catch (e: unknown) {
     return corsJson(
       req,
