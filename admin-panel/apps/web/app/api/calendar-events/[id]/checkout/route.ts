@@ -3,7 +3,8 @@ import { prisma } from "../../../../../lib/prisma";
 import { corsJson, corsOptions } from "../../../../../lib/cors";
 import { getPaymentPlatformSettings, getCheckoutPublicBaseUrl } from "../../../../../lib/payment-platform";
 import { getStripe } from "../../../../../lib/stripe-server";
-import { createPayPalOrder, getPayPalAccessToken } from "../../../../../lib/paypal-server";
+import { createPayPalOrder, getPayPalAccessTokenWithClientCreds } from "../../../../../lib/paypal-server";
+import { getEventRecipientPayPalRestCreds } from "../../../../../lib/paypal-merchant-creds";
 
 async function getIdFromContext(context: { params?: Promise<{ id: string }> }): Promise<string | undefined> {
   const params = await context.params;
@@ -104,12 +105,13 @@ export async function POST(req: NextRequest, context: { params?: Promise<{ id: s
     }
 
     if (provider === "paypal") {
-      if (!recipient.paypalMerchantId) {
+      const creds = await getEventRecipientPayPalRestCreds(event.id);
+      if (!creds) {
         return corsJson(
           req,
           {
             message:
-              "The event payment recipient has no PayPal merchant id. Complete PayPal onboarding or paste merchant id in admin settings.",
+              "The event payment recipient has no PayPal REST app credentials. Set paypalRestClientId/paypalRestClientSecret in admin settings.",
           },
           { status: 400 },
         );
@@ -212,23 +214,27 @@ export async function POST(req: NextRequest, context: { params?: Promise<{ id: s
       return corsJson(req, { url: session.url, registrationId: registration.id });
     }
 
-    const token = await getPayPalAccessToken();
-    if (!token) {
-      return corsJson(req, { message: "PayPal platform is not configured" }, { status: 503 });
+    const creds = await getEventRecipientPayPalRestCreds(event.id);
+    if (!creds) {
+      return corsJson(
+        req,
+        { message: "PayPal credentials missing for event recipient" },
+        { status: 400 },
+      );
     }
-    const paypalClientId = process.env.PAYPAL_CLIENT_ID;
-    if (!paypalClientId) {
-      return corsJson(req, { message: "PAYPAL_CLIENT_ID is not configured" }, { status: 503 });
+    const token = await getPayPalAccessTokenWithClientCreds(creds);
+    if (!token) {
+      return corsJson(req, { message: "PayPal credentials invalid for event recipient" }, { status: 503 });
     }
     const orderResult = await createPayPalOrder({
       accessToken: token,
-      clientId: paypalClientId,
+      clientId: creds.clientId,
       currencyCode: event.currency,
       value: formatMoney(event.priceCents, event.currency),
       customId: registration.id,
       returnUrl: successPaypal,
       cancelUrl: cancelPaypal,
-      payeeMerchantId: recipient.paypalMerchantId!,
+      // Not a partner payee flow: merchant's own REST app receives the funds.
     });
     if (!orderResult.ok) {
       return corsJson(

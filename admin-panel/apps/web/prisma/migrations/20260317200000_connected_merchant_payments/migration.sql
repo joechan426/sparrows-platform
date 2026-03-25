@@ -2,7 +2,9 @@
 
 ALTER TABLE "admin_users" ADD COLUMN "stripe_connected_account_id" TEXT,
 ADD COLUMN "stripe_connect_charges_enabled" BOOLEAN NOT NULL DEFAULT false,
-ADD COLUMN "paypal_merchant_id" TEXT;
+ADD COLUMN "paypal_merchant_id" TEXT,
+ADD COLUMN "paypal_rest_client_id_enc" TEXT,
+ADD COLUMN "paypal_rest_client_secret_enc" TEXT;
 
 CREATE UNIQUE INDEX "admin_users_stripe_connected_account_id_key" ON "admin_users"("stripe_connected_account_id");
 

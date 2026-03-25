@@ -23,6 +23,8 @@ export async function GET(req: NextRequest) {
       stripeConnectedAccountId: true,
       stripeConnectChargesEnabled: true,
       paypalMerchantId: true,
+      paypalRestClientIdEnc: true,
+      paypalRestClientSecretEnc: true,
     },
   });
   return withCors(
@@ -40,6 +42,9 @@ export async function GET(req: NextRequest) {
         },
         paypal: {
           merchantId: paymentRow?.paypalMerchantId ?? null,
+          restAppConnected: Boolean(
+            paymentRow?.paypalRestClientIdEnc && paymentRow?.paypalRestClientSecretEnc,
+          ),
         },
       },
     })

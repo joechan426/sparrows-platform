@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "../../../../lib/prisma";
-import { capturePayPalOrder, getPayPalAccessToken } from "../../../../lib/paypal-server";
+import { capturePayPalOrder, getPayPalAccessTokenWithClientCreds } from "../../../../lib/paypal-server";
 import { corsJson, corsOptions } from "../../../../lib/cors";
+import { getEventRecipientPayPalRestCreds } from "../../../../lib/paypal-merchant-creds";
 
 /**
  * POST /api/paypal/capture
@@ -15,16 +16,6 @@ export async function POST(req: NextRequest) {
       return corsJson(req, { message: "orderId is required" }, { status: 400 });
     }
 
-    const token = await getPayPalAccessToken();
-    if (!token) {
-      return corsJson(req, { message: "PayPal not configured" }, { status: 503 });
-    }
-
-    const result = await capturePayPalOrder(token, orderId);
-    if (!result || result.status !== "COMPLETED") {
-      return corsJson(req, { message: "PayPal capture failed", details: result }, { status: 400 });
-    }
-
     const reg = await prisma.eventRegistration.findFirst({
       where: { paypalOrderId: orderId },
       include: { event: true },
@@ -35,6 +26,24 @@ export async function POST(req: NextRequest) {
 
     if (reg.paymentStatus === "PAID") {
       return corsJson(req, { ok: true, registrationId: reg.id, alreadyCaptured: true });
+    }
+
+    const creds = await getEventRecipientPayPalRestCreds(reg.calendarEventId);
+    if (!creds) {
+      return corsJson(
+        req,
+        { message: "PayPal credentials missing for event recipient" },
+        { status: 400 },
+      );
+    }
+    const token = await getPayPalAccessTokenWithClientCreds(creds);
+    if (!token) {
+      return corsJson(req, { message: "PayPal credentials invalid for event recipient" }, { status: 503 });
+    }
+
+    const result = await capturePayPalOrder(token, orderId);
+    if (!result || result.status !== "COMPLETED") {
+      return corsJson(req, { message: "PayPal capture failed", details: result }, { status: 400 });
     }
 
     const amountPaid = reg.event.priceCents ?? reg.amountDueCents ?? 0;

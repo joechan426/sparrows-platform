@@ -37,6 +37,24 @@ export async function getPayPalAccessToken(): Promise<string | null> {
   return data.access_token ?? null;
 }
 
+export async function getPayPalAccessTokenWithClientCreds(params: {
+  clientId: string;
+  clientSecret: string;
+}): Promise<string | null> {
+  const auth = Buffer.from(`${params.clientId}:${params.clientSecret}`).toString("base64");
+  const res = await fetch(`${paypalApiBase()}/v1/oauth2/token`, {
+    method: "POST",
+    headers: {
+      Authorization: `Basic ${auth}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: "grant_type=client_credentials",
+  });
+  if (!res.ok) return null;
+  const data = (await res.json()) as { access_token?: string };
+  return data.access_token ?? null;
+}
+
 export type CreatePayPalOrderResult =
   | { ok: true; id: string; approveUrl: string }
   | { ok: false; httpStatus: number; paypalError: unknown };

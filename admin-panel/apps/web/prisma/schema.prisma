@@ -358,6 +358,9 @@ model AdminUser {
   stripeConnectChargesEnabled Boolean @default(false) @map("stripe_connect_charges_enabled")
   /// PayPal seller merchant id (payer_id style) for third-party orders; from Partner onboarding or manual paste.
   paypalMerchantId     String?  @map("paypal_merchant_id")
+  /// PayPal REST app credentials for this merchant (encrypted at rest).
+  paypalRestClientIdEnc     String? @map("paypal_rest_client_id_enc")
+  paypalRestClientSecretEnc String? @map("paypal_rest_client_secret_enc")
   createdAt            DateTime @default(now()) @map("created_at")
   updatedAt            DateTime @updatedAt @map("updated_at")
 
