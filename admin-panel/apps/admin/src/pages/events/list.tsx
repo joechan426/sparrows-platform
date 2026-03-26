@@ -32,6 +32,9 @@ type CalendarEventRow = {
   eventType: string;
   registrationOpen: boolean;
   capacity: number | null;
+  isPaid?: boolean;
+  priceCents?: number | null;
+  currency?: string | null;
   approvedCount?: number;
 };
 
@@ -337,6 +340,28 @@ export const EventList: React.FC = () => {
         field: "eventType",
         headerName: "Type",
         width: 120,
+      },
+      {
+        field: "isPaid",
+        headerName: "Paid",
+        width: 130,
+        sortable: false,
+        renderCell: ({ row }) => {
+          const paid = Boolean(row.isPaid);
+          if (!paid) return <Typography variant="body2" color="text.secondary">No</Typography>;
+
+          const cents = row.priceCents ?? 0;
+          const amt = cents / 100;
+          return (
+            <Typography
+              variant="body2"
+              sx={{ fontWeight: 700 }}
+              color="text.primary"
+            >
+              ${amt.toFixed(2)}
+            </Typography>
+          );
+        },
       },
       {
         field: "capacity",

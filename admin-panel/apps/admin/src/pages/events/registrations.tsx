@@ -14,11 +14,13 @@ import Button from "@mui/material/Button";
 import Chip from "@mui/material/Chip";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
+import IconButton from "@mui/material/IconButton";
 import Dialog from "@mui/material/Dialog";
 import DialogTitle from "@mui/material/DialogTitle";
 import DialogContent from "@mui/material/DialogContent";
 import DialogActions from "@mui/material/DialogActions";
 import { apiUrl } from "../../lib/api-base";
+import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 
 type Member = {
   id: string;
@@ -599,29 +601,31 @@ export const EventRegistrationsPage: React.FC = () => {
             )}
             {event.capacity == null && <> · Registrations: {rows.length}</>}
           </Typography>
-          {event.isPaid && (
-            <Typography variant="body2" sx={{ mt: 1 }}>
-              Event price ({event.currency ?? "AUD"}):{" "}
-              {(() => {
-                const fromCents =
-                  event.priceCents != null && event.priceCents > 0 ? event.priceCents / 100 : null;
-                const fromDollars =
-                  event.priceDollars != null && Number.isFinite(event.priceDollars) && event.priceDollars > 0
-                    ? event.priceDollars
-                    : null;
-                const amt = fromDollars ?? fromCents;
-                return amt != null ? (
-                  <Box component="span" sx={{ fontWeight: 600 }}>
-                    ${amt.toFixed(2)}
+          {(() => {
+            const isPaid = Boolean(event.isPaid);
+            const priceCentsForDisplay = isPaid ? event.priceCents ?? 0 : 0;
+            const priceDollarsForDisplay = priceCentsForDisplay / 100;
+            const currency = event.currency ?? "AUD";
+
+            return (
+              <Stack direction="row" alignItems="center" spacing={1} sx={{ mt: 1 }}>
+                <Typography variant="body2">
+                  Event price ({currency}):{" "}
+                  <Box component="span" sx={{ color: "#1b5e20", fontWeight: 800 }}>
+                    ${priceDollarsForDisplay.toFixed(2)}
                   </Box>
-                ) : (
-                  <Box component="span" sx={{ color: "error.main", fontWeight: 600 }}>
-                    Price not set
-                  </Box>
-                );
-              })()}
-            </Typography>
-          )}
+                </Typography>
+                <IconButton
+                  component={RouterLink}
+                  to={`/events/${event.id}`}
+                  size="small"
+                  aria-label="Edit event price"
+                >
+                  <EditOutlinedIcon fontSize="small" />
+                </IconButton>
+              </Stack>
+            );
+          })()}
         </Box>
       )}
 
