@@ -19,6 +19,7 @@ import DialogTitle from "@mui/material/DialogTitle";
 import DialogContent from "@mui/material/DialogContent";
 import DialogActions from "@mui/material/DialogActions";
 import { apiUrl } from "../../lib/api-base";
+import { getStoredAdmin } from "../../lib/admin-auth";
 
 type Member = {
   id: string;
@@ -34,6 +35,9 @@ type CalendarEvent = {
   eventType: string;
   registrationOpen: boolean;
   capacity: number | null;
+  isPaid?: boolean;
+  priceCents?: number | null;
+  paymentAccountAdminId?: string | null;
 };
 
 type EventRegistrationRow = {
@@ -42,6 +46,11 @@ type EventRegistrationRow = {
   createdAt: string;
   teamName?: string | null;
   member?: Member | null;
+  paymentStatus?: string;
+  paymentProvider?: string | null;
+  amountDueCents?: number | null;
+  amountPaidCents?: number | null;
+  paidAt?: string | null;
 };
 
 export const EventRegistrationsPage: React.FC = () => {
@@ -80,6 +89,20 @@ export const EventRegistrationsPage: React.FC = () => {
   const [bulkDeleteLoading, setBulkDeleteLoading] = useState(false);
   const [bulkStatusLoading, setBulkStatusLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+
+  const storedAdmin = getStoredAdmin();
+  const currentAdminId = storedAdmin?.id ?? null;
+  const currentAdminRole = storedAdmin?.role ?? null;
+
+  const canManagePaidRegistrations =
+    currentAdminRole === "ADMIN"
+      ? true
+      : !(
+          Boolean(event?.isPaid && event?.priceCents != null && (event.priceCents as number) > 0) &&
+          Boolean(event?.paymentAccountAdminId) &&
+          Boolean(currentAdminId) &&
+          currentAdminId !== event?.paymentAccountAdminId
+        );
 
   const selectedIds =
     rowSelectionModel.type === "include" ? (Array.from(rowSelectionModel.ids) as string[]) : [];
@@ -137,6 +160,13 @@ export const EventRegistrationsPage: React.FC = () => {
     registrationId: string,
     status: "PENDING" | "APPROVED" | "WAITING_LIST" | "REJECTED",
   ) => {
+    if (!canManagePaidRegistrations) {
+      open?.({
+        type: "error",
+        message: "Only the event payment recipient manager can update paid registrations.",
+      });
+      return;
+    }
     if (status === "APPROVED" && event?.capacity != null) {
       const wouldBeApproved = approvedCount + (rows.find((r) => r.id === registrationId)?.status === "APPROVED" ? 0 : 1);
       if (wouldBeApproved > event.capacity) {
@@ -203,6 +233,13 @@ export const EventRegistrationsPage: React.FC = () => {
     status: "PENDING" | "APPROVED" | "WAITING_LIST" | "REJECTED",
   ) => {
     if (selectedIds.length === 0) return;
+    if (!canManagePaidRegistrations) {
+      open?.({
+        type: "error",
+        message: "Only the event payment recipient manager can update paid registrations.",
+      });
+      return;
+    }
     if (status === "APPROVED" && event?.capacity != null) {
       const currentlyApproved = rows.filter((r) => r.status === "APPROVED").length;
       const selectedNotYetApproved = selectedIds.filter(
@@ -296,6 +333,39 @@ export const EventRegistrationsPage: React.FC = () => {
         },
       },
       {
+        field: "paymentStatus",
+        headerName: "Payment",
+        width: 160,
+        renderCell: ({ row }) => {
+          const ps = String(row.paymentStatus ?? "—");
+          const style =
+            ps === "PAID"
+              ? { bgcolor: "success.main", color: "white" }
+              : ps === "AWAITING_PAYMENT"
+                ? { bgcolor: "grey.700", color: "white" }
+                : ps === "WAIVED"
+                  ? { bgcolor: "info.main", color: "white" }
+                  : {};
+          return <Chip label={ps} size="small" variant="filled" sx={style} />;
+        },
+      },
+      {
+        field: "amountPaidCents",
+        headerName: "Paid",
+        width: 140,
+        valueGetter: (_value, row: EventRegistrationRow) =>
+          row.amountPaidCents != null
+            ? `$${(row.amountPaidCents / 100).toFixed(2)}`
+            : "—",
+      },
+      {
+        field: "paidAt",
+        headerName: "Paid At",
+        width: 180,
+        valueGetter: (_value, row: EventRegistrationRow) =>
+          row.paidAt ? new Date(row.paidAt).toLocaleString() : "—",
+      },
+      {
         field: "createdAt",
         headerName: "Registered At",
         width: 180,
@@ -321,6 +391,7 @@ export const EventRegistrationsPage: React.FC = () => {
                 variant="outlined"
                 onClick={() => handleStatusChange(row.id, "PENDING")}
                 sx={{ color: "grey.800", borderColor: "grey.600" }}
+                disabled={!canManagePaidRegistrations}
               >
                 Pending
               </Button>
@@ -329,6 +400,7 @@ export const EventRegistrationsPage: React.FC = () => {
                 variant="contained"
                 color="success"
                 onClick={() => handleStatusChange(row.id, "APPROVED")}
+                disabled={!canManagePaidRegistrations}
               >
                 Approve
               </Button>
@@ -337,6 +409,7 @@ export const EventRegistrationsPage: React.FC = () => {
                 variant="contained"
                 color="warning"
                 onClick={() => handleStatusChange(row.id, "WAITING_LIST")}
+                disabled={!canManagePaidRegistrations}
               >
                 Waitlist
               </Button>
@@ -345,6 +418,7 @@ export const EventRegistrationsPage: React.FC = () => {
                 variant="contained"
                 color="error"
                 onClick={() => handleStatusChange(row.id, "REJECTED")}
+                disabled={!canManagePaidRegistrations}
               >
                 Reject
               </Button>
@@ -353,7 +427,7 @@ export const EventRegistrationsPage: React.FC = () => {
         ),
       },
     ],
-    [],
+    [canManagePaidRegistrations, approvedCount, rows, event?.capacity],
   );
 
   useEffect(() => {
@@ -465,7 +539,7 @@ export const EventRegistrationsPage: React.FC = () => {
                 size="small"
                 color="success"
                 onClick={() => handleBulkStatusChange("APPROVED")}
-                disabled={bulkStatusLoading || bulkDeleteLoading}
+                disabled={bulkStatusLoading || bulkDeleteLoading || !canManagePaidRegistrations}
               >
                 All Approve
               </Button>
@@ -474,7 +548,7 @@ export const EventRegistrationsPage: React.FC = () => {
                 size="small"
                 color="warning"
                 onClick={() => handleBulkStatusChange("WAITING_LIST")}
-                disabled={bulkStatusLoading || bulkDeleteLoading}
+                disabled={bulkStatusLoading || bulkDeleteLoading || !canManagePaidRegistrations}
               >
                 All Waitlist
               </Button>
@@ -483,7 +557,7 @@ export const EventRegistrationsPage: React.FC = () => {
                 size="small"
                 color="error"
                 onClick={() => handleBulkStatusChange("REJECTED")}
-                disabled={bulkStatusLoading || bulkDeleteLoading}
+                disabled={bulkStatusLoading || bulkDeleteLoading || !canManagePaidRegistrations}
               >
                 All Reject
               </Button>

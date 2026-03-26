@@ -14,6 +14,14 @@ import DialogContentText from "@mui/material/DialogContentText";
 import DialogActions from "@mui/material/DialogActions";
 import { useNotification } from "@refinedev/core";
 import { apiUrl } from "../../lib/api-base";
+import { getStoredAdmin, getToken } from "../../lib/admin-auth";
+import Switch from "@mui/material/Switch";
+import FormControlLabel from "@mui/material/FormControlLabel";
+import FormControl from "@mui/material/FormControl";
+import InputLabel from "@mui/material/InputLabel";
+import Select from "@mui/material/Select";
+import MenuItem from "@mui/material/MenuItem";
+import CircularProgress from "@mui/material/CircularProgress";
 
 type CalendarEvent = {
   id: string;
@@ -26,6 +34,10 @@ type CalendarEvent = {
   eventType: string;
   registrationOpen: boolean;
   capacity: number | null;
+  isPaid?: boolean;
+  priceCents?: number | null;
+  currency?: string;
+  paymentAccountAdminId?: string | null;
 };
 
 export const EventShowPage: React.FC = () => {
@@ -38,19 +50,31 @@ export const EventShowPage: React.FC = () => {
   const [event, setEvent] = React.useState<CalendarEvent | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
+  const selfAdmin = getStoredAdmin();
   const [form, setForm] = React.useState<{
     title: string;
     startAt: string;
     endAt: string;
     location: string;
     description: string;
+    isPaid: boolean;
+    priceCents: string;
+    currency: string;
+    paymentAccountAdminId: string;
   }>({
     title: "",
     startAt: "",
     endAt: "",
     location: "",
     description: "",
+    isPaid: false,
+    priceCents: "",
+    currency: "AUD",
+    paymentAccountAdminId: "",
   });
+
+  const [paymentRecipients, setPaymentRecipients] = React.useState<{ id: string; userName: string }[]>([]);
+  const [recipientsLoading, setRecipientsLoading] = React.useState(false);
 
   React.useEffect(() => {
     if (!id) {
@@ -95,7 +119,40 @@ export const EventShowPage: React.FC = () => {
       endAt: toLocalInput(event.endAt),
       location: event.location ?? "",
       description: event.description ?? "",
+      isPaid: Boolean(event.isPaid),
+      priceCents: event.priceCents != null ? String(event.priceCents) : "",
+      currency: event.currency ?? "AUD",
+      paymentAccountAdminId: event.paymentAccountAdminId ?? "",
     });
+  }, [event]);
+
+  React.useEffect(() => {
+    if (!event) return;
+    const token = getToken();
+    if (!token) return;
+    setRecipientsLoading(true);
+    if (selfAdmin && selfAdmin.role !== "ADMIN") {
+      setPaymentRecipients([{ id: selfAdmin.id, userName: selfAdmin.userName }]);
+      setRecipientsLoading(false);
+      return;
+    }
+    fetch(apiUrl("/admin-users"), {
+      method: "GET",
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        const admins = Array.isArray(data) ? data : [];
+        setPaymentRecipients(
+          admins
+            .filter(
+              (a: any) => Array.isArray(a.permissions) && a.permissions.includes("CALENDAR_EVENTS"),
+            )
+            .map((a: any) => ({ id: String(a.id), userName: String(a.userName) })),
+        );
+      })
+      .catch(() => setPaymentRecipients([]))
+      .finally(() => setRecipientsLoading(false));
   }, [event]);
 
   const handleSave = () => {
@@ -126,6 +183,15 @@ export const EventShowPage: React.FC = () => {
           location: form.location.trim() || null,
           startAt: startDate,
           endAt: endDate,
+          isPaid: form.isPaid,
+          priceCents: form.isPaid
+            ? form.priceCents.trim() === ""
+              ? null
+              : Number(form.priceCents)
+            : null,
+          currency: "AUD",
+          paymentAccountAdminId: form.isPaid ? (form.paymentAccountAdminId || null) : null,
+          registrationOpen: event.registrationOpen,
         },
       },
       {
@@ -140,6 +206,10 @@ export const EventShowPage: React.FC = () => {
                   location: form.location.trim() || null,
                   startAt: startDate.toISOString(),
                   endAt: endDate.toISOString(),
+                  isPaid: form.isPaid,
+                  priceCents: form.isPaid ? (form.priceCents.trim() === "" ? null : Number(form.priceCents)) : null,
+                  currency: "AUD",
+                  paymentAccountAdminId: form.isPaid ? (form.paymentAccountAdminId || null) : null,
                 }
               : prev,
           );
@@ -235,6 +305,70 @@ export const EventShowPage: React.FC = () => {
             Sport: {event.sportType} · Event type: {event.eventType} · Registration{" "}
             {event.registrationOpen ? "Open" : "Closed"}
           </Typography>
+        </Box>
+
+        <Box sx={{ mt: 2 }}>
+          <FormControlLabel
+            control={
+              <Switch
+                checked={form.isPaid}
+                onChange={(e) => {
+                  const checked = e.target.checked;
+                  setForm((prev) => ({
+                    ...prev,
+                    isPaid: checked,
+                    priceCents: checked ? prev.priceCents : "",
+                    paymentAccountAdminId: checked ? prev.paymentAccountAdminId : "",
+                  }));
+                }}
+                disabled={Boolean(event.isPaid && event.paymentAccountAdminId && getStoredAdmin()?.role !== "ADMIN" && getStoredAdmin()?.id !== event.paymentAccountAdminId)}
+              />
+            }
+            label="Paid event (checkout required before approval)"
+          />
+
+          {form.isPaid && (
+            <Box sx={{ mt: 1, display: "flex", flexDirection: "column", gap: 2 }}>
+              <TextField
+                label="Price (AUD cents, e.g. 100 = $1)"
+                type="number"
+                inputProps={{ min: 0 }}
+                value={form.priceCents}
+                onChange={(e) => setForm((prev) => ({ ...prev, priceCents: e.target.value }))}
+                disabled={Boolean(event.isPaid && event.paymentAccountAdminId && getStoredAdmin()?.role !== "ADMIN" && getStoredAdmin()?.id !== event.paymentAccountAdminId)}
+              />
+
+              <FormControl fullWidth>
+                <InputLabel id="paymentRecipientLabel2">Payment recipient manager</InputLabel>
+                <Select
+                  labelId="paymentRecipientLabel2"
+                  label="Payment recipient manager"
+                  value={form.paymentAccountAdminId}
+                  onChange={(e) => setForm((prev) => ({ ...prev, paymentAccountAdminId: String(e.target.value) }))}
+                  disabled={
+                    Boolean(event.isPaid && event.paymentAccountAdminId && getStoredAdmin()?.role !== "ADMIN" && getStoredAdmin()?.id !== event.paymentAccountAdminId) ||
+                    recipientsLoading
+                  }
+                >
+                  {recipientsLoading && (
+                    <MenuItem value="">
+                      <CircularProgress size={16} /> Loading…
+                    </MenuItem>
+                  )}
+                  {!recipientsLoading && paymentRecipients.length === 0 && (
+                    <MenuItem value="" disabled>
+                      No eligible managers found
+                    </MenuItem>
+                  )}
+                  {paymentRecipients.map((m) => (
+                    <MenuItem key={m.id} value={m.id}>
+                      {m.userName}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Box>
+          )}
         </Box>
         <Box sx={{ mt: 2 }}>
           <Button variant="contained" onClick={handleSave} disabled={saving}>

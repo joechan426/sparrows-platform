@@ -3,6 +3,16 @@ import { Create } from "@refinedev/mui";
 import { useForm } from "@refinedev/react-hook-form";
 import Box from "@mui/material/Box";
 import TextField from "@mui/material/TextField";
+import Switch from "@mui/material/Switch";
+import FormControlLabel from "@mui/material/FormControlLabel";
+import Select from "@mui/material/Select";
+import MenuItem from "@mui/material/MenuItem";
+import InputLabel from "@mui/material/InputLabel";
+import FormControl from "@mui/material/FormControl";
+import CircularProgress from "@mui/material/CircularProgress";
+import Typography from "@mui/material/Typography";
+import { getToken, getStoredAdmin } from "../../lib/admin-auth";
+import { apiUrl } from "../../lib/api-base";
 
 function toDatetimeLocal(d: Date): string {
   const y = d.getFullYear();
@@ -14,6 +24,13 @@ function toDatetimeLocal(d: Date): string {
 }
 
 export const EventCreatePage: React.FC = () => {
+  const selfAdmin = getStoredAdmin();
+  const [isPaidUI, setIsPaidUI] = React.useState(false);
+  const [paymentRecipients, setPaymentRecipients] = React.useState<{ id: string; userName: string }[]>(
+    [],
+  );
+  const [recipientsLoading, setRecipientsLoading] = React.useState(false);
+
   const {
     saveButtonProps,
     register,
@@ -32,8 +49,39 @@ export const EventCreatePage: React.FC = () => {
       capacity: "",
       startAt: "",
       endAt: "",
+      isPaid: false,
+      priceCents: "",
+      currency: "AUD",
+      paymentAccountAdminId: "",
     },
   });
+
+  React.useEffect(() => {
+    const token = getToken();
+    if (!token || !selfAdmin) return;
+    if (selfAdmin.role !== "ADMIN") {
+      // Non-ADMIN: default payment recipient to self (avoid needing /admin-users).
+      setPaymentRecipients([{ id: selfAdmin.id, userName: selfAdmin.userName } as any]);
+      setValue("paymentAccountAdminId", selfAdmin.id);
+      return;
+    }
+    setRecipientsLoading(true);
+    fetch(apiUrl("/admin-users"), {
+      method: "GET",
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        const admins = Array.isArray(data) ? data : [];
+        setPaymentRecipients(
+          admins
+            .filter((a: any) => Array.isArray(a.permissions) && a.permissions.includes("CALENDAR_EVENTS"))
+            .map((a: any) => ({ id: String(a.id), userName: String(a.userName) })),
+        );
+      })
+      .catch(() => setPaymentRecipients([]))
+      .finally(() => setRecipientsLoading(false));
+  }, []);
 
   const handleStartBlur = (e: React.FocusEvent<HTMLInputElement>) => {
     const v = e.target.value?.trim() ?? "";
@@ -86,6 +134,69 @@ export const EventCreatePage: React.FC = () => {
           {...register("capacity")}
           fullWidth
         />
+
+        <Box sx={{ mt: 1 }}>
+          <FormControlLabel
+            control={
+              <Switch
+                checked={isPaidUI}
+                onChange={(e) => {
+                  const checked = e.target.checked;
+                  setIsPaidUI(checked);
+                  setValue("isPaid", checked);
+                  if (!checked) {
+                    setValue("priceCents", "");
+                    setValue("paymentAccountAdminId", "");
+                  }
+                }}
+              />
+            }
+            label="Paid event (requires checkout before approval)"
+          />
+        </Box>
+
+        {isPaidUI && (
+          <>
+            <TextField
+              label="Price (AUD cents, e.g. 100 = $1)"
+              type="number"
+              inputProps={{ min: 0 }}
+              {...register("priceCents")}
+              fullWidth
+              required
+              error={!!errors?.priceCents}
+              helperText={(errors?.priceCents as any)?.message}
+            />
+
+            <input type="hidden" {...register("currency")} value="AUD" />
+
+            <FormControl fullWidth>
+              <InputLabel id="paymentRecipientLabel">Payment recipient manager</InputLabel>
+              <Select
+                labelId="paymentRecipientLabel"
+                label="Payment recipient manager"
+                defaultValue=""
+                {...register("paymentAccountAdminId", { required: "Payment recipient is required" })}
+              >
+                {recipientsLoading && (
+                  <MenuItem value="">
+                    <CircularProgress size={16} /> Loading…
+                  </MenuItem>
+                )}
+                {paymentRecipients.map((m) => (
+                  <MenuItem key={m.id} value={m.id}>
+                    {m.userName}
+                  </MenuItem>
+                ))}
+              </Select>
+              {errors?.paymentAccountAdminId && (
+                <Typography variant="caption" color="error">
+                  {(errors?.paymentAccountAdminId as any)?.message}
+                </Typography>
+              )}
+            </FormControl>
+          </>
+        )}
       </Box>
     </Create>
   );

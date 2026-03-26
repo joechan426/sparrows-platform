@@ -108,6 +108,29 @@ export async function PATCH(req: NextRequest, context: any) {
       return withCors(req, NextResponse.json({ message: "Registration not found" }, { status: 404 }));
     }
 
+    const paidEvent =
+      reg.event.isPaid && reg.event.priceCents != null && reg.event.priceCents > 0;
+    if (paidEvent) {
+      if (!reg.event.paymentAccountAdminId) {
+        return withCors(
+          req,
+          NextResponse.json(
+            { message: "Paid event is missing payment recipient (paymentAccountAdminId)" },
+            { status: 400 }
+          )
+        );
+      }
+      if (auth.admin.role !== "ADMIN" && auth.admin.id !== reg.event.paymentAccountAdminId) {
+        return withCors(
+          req,
+          NextResponse.json(
+            { message: "Only the event payment recipient manager can update paid event registrations" },
+            { status: 403 }
+          )
+        );
+      }
+    }
+
     const effectivePaymentStatus =
       (paymentPatch.paymentStatus as string | undefined) ?? reg.paymentStatus;
 
