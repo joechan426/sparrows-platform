@@ -37,6 +37,13 @@ export async function POST(req: NextRequest, context: { params?: Promise<{ id: s
         ? body.teamName.trim()
         : null;
 
+    // When called by the iOS app, we want the web return pages to deep-link back into the app.
+    const appReturn =
+      body.appReturn === true ||
+      body.returnToApp === true ||
+      body.return_to_app === true ||
+      body.app === true;
+
     if (!preferredName) {
       return corsJson(req, { message: "preferredName is required" }, { status: 400 });
     }
@@ -171,10 +178,11 @@ export async function POST(req: NextRequest, context: { params?: Promise<{ id: s
     });
 
     const base = getCheckoutPublicBaseUrl();
-    const successStripe = `${base}/calendar/checkout-return?provider=stripe`;
-    const cancelStripe = `${base}/calendar/checkout-return?canceled=1`;
-    const successPaypal = `${base}/calendar/paypal-return`;
-    const cancelPaypal = `${base}/calendar/paypal-return?canceled=1`;
+    const appQuery = appReturn ? "&app=1" : "";
+    const successStripe = `${base}/calendar/checkout-return?provider=stripe${appQuery}`;
+    const cancelStripe = `${base}/calendar/checkout-return?canceled=1${appQuery}`;
+    const successPaypal = `${base}/calendar/paypal-return${appQuery}`;
+    const cancelPaypal = `${base}/calendar/paypal-return?canceled=1${appQuery}`;
 
     if (provider === "stripe") {
       const stripe = getStripe();

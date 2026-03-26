@@ -9,6 +9,7 @@ import SwiftUI
 import WebKit
 import Combine
 import UIKit
+import SafariServices
 
 @MainActor
 private final class SparrowsNewsPreloader: ObservableObject {
@@ -335,6 +336,7 @@ struct ContentView: View {
     @State private var myProfileShowScoreboard = false
     @State private var myProfileScoreboardFullscreen = false
     @State private var browserPopupURL: URL?
+    @State private var checkoutSafariURL: URL?
     @State private var inAppBrowserCache = InAppBrowserCache()
     @StateObject private var newsPreloader = SparrowsNewsPreloader()
     @StateObject private var shopPreloader = SparrowsShopPreloader()
@@ -373,6 +375,19 @@ struct ContentView: View {
                 }
                 await calendarViewModel.loadEventsIfNeeded()
                 applyLabelVisibilityRule(userActivity: false)
+            }
+            .onOpenURL { url in
+                // Web payment return pages may deep-link back into the app.
+                guard url.scheme?.lowercased() == "sparrows-app" else { return }
+                guard url.host?.lowercased() == "profile" else { return }
+
+                checkoutSafariURL = nil
+                if selectedTab != .myProfile {
+                    withAnimation(.easeInOut(duration: 0.22)) {
+                        selectedTab = .myProfile
+                    }
+                }
+                myProfileRefreshToken += 1
             }
             .onChange(of: myProfileScoreboardFullscreen) { isFullscreen in
                 if isFullscreen {
@@ -550,6 +565,9 @@ struct ContentView: View {
                     viewModel: calendarViewModel,
                     memberStore: memberStore,
                     scrollToTopToken: calendarScrollToTopToken,
+                    onOpenCheckout: { url in
+                        checkoutSafariURL = url
+                    },
                     onScrollStateChange: { isAtTop, userActivity in
                         handleTopStateChange(for: .calendar, isAtTop: isAtTop, userActivity: userActivity)
                     }
@@ -599,6 +617,12 @@ struct ContentView: View {
                 url: item.url,
                 cache: inAppBrowserCache,
                 onClose: { browserPopupURL = nil }
+            )
+        }
+        .sheet(item: $checkoutSafariURL.asCheckoutSafariSheetItem()) { item in
+            CheckoutSafariView(
+                url: item.url,
+                onDismiss: { checkoutSafariURL = nil }
             )
         }
     }
@@ -3690,6 +3714,51 @@ private extension Binding where Value == URL? {
     }
 }
 
+private struct CheckoutSafariSheetItem: Identifiable {
+    let id = UUID()
+    let url: URL
+}
+
+private extension Binding where Value == URL? {
+    func asCheckoutSafariSheetItem() -> Binding<CheckoutSafariSheetItem?> {
+        Binding<CheckoutSafariSheetItem?>(
+            get: { wrappedValue.map { CheckoutSafariSheetItem(url: $0) } },
+            set: { newValue in
+                wrappedValue = newValue?.url
+            }
+        )
+    }
+}
+
+private struct CheckoutSafariView: UIViewControllerRepresentable {
+    let url: URL
+    let onDismiss: () -> Void
+
+    func makeUIViewController(context: Context) -> SFSafariViewController {
+        let safari = SFSafariViewController(url: url)
+        safari.delegate = context.coordinator
+        return safari
+    }
+
+    func updateUIViewController(_ uiViewController: SFSafariViewController, context: Context) {}
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(onDismiss: onDismiss)
+    }
+
+    final class Coordinator: NSObject, SFSafariViewControllerDelegate {
+        private let onDismiss: () -> Void
+
+        init(onDismiss: @escaping () -> Void) {
+            self.onDismiss = onDismiss
+        }
+
+        func safariViewControllerDidFinish(_ controller: SFSafariViewController) {
+            onDismiss()
+        }
+    }
+}
+
 @MainActor
 private final class InAppBrowserCache {
     private struct BrowserViewState {
@@ -3941,6 +4010,7 @@ private struct SportsCalendarView: View {
     @ObservedObject var viewModel: SportsCalendarViewModel
     @ObservedObject var memberStore: MemberProfileStore
     let scrollToTopToken: Int
+    let onOpenCheckout: (URL) -> Void
     let onScrollStateChange: (Bool, Bool) -> Void
     @Environment(\.scenePhase) private var scenePhase
 
@@ -4005,6 +4075,7 @@ private struct SportsCalendarView: View {
                     onRegistered: { eventId in
                         optimisticPendingEventIds.insert(eventId)
                     },
+                    onOpenCheckout: onOpenCheckout,
                     onDismiss: {
                         Task {
                             await viewModel.refresh()
@@ -4724,6 +4795,7 @@ private struct RegisterEventSheet: View {
     @ObservedObject var memberStore: MemberProfileStore
     let dateTimeText: String
     let descriptionText: String?
+    let onOpenCheckout: (URL) -> Void
     var onRegistered: ((String) -> Void)?
     var onDismiss: (() -> Void)?
     @Environment(\.dismiss) private var dismiss
@@ -4893,6 +4965,60 @@ private struct RegisterEventSheet: View {
             switch err {
             case .httpStatus(409, _):
                 registerError = "You're already registered for this event."
+            case .httpStatus(402, _):
+                // Paid event requires checkout before registration is approved.
+                do {
+                    let team = isSpecial ? teamName.trimmingCharacters(in: .whitespacesAndNewlines) : ""
+                    let checkoutTeamName = isSpecial ? (team.isEmpty ? nil : team) : nil
+
+                    let stripeCheckout = try await CalendarEventsAPI.checkout(
+                        eventId: event.id,
+                        provider: "stripe",
+                        preferredName: name,
+                        email: em,
+                        teamName: checkoutTeamName,
+                        appReturn: true
+                    )
+
+                    guard let stripeUrl = URL(string: stripeCheckout.url) else {
+                        throw SparrowsAPIError.transport("Invalid checkout URL")
+                    }
+
+                    await MainActor.run {
+                        dismiss()
+                        onOpenCheckout(stripeUrl)
+                    }
+                    return
+                } catch {
+                    // Fallback to PayPal if Stripe checkout could not start.
+                    do {
+                        let team = isSpecial ? teamName.trimmingCharacters(in: .whitespacesAndNewlines) : ""
+                        let checkoutTeamName = isSpecial ? (team.isEmpty ? nil : team) : nil
+
+                        let paypalCheckout = try await CalendarEventsAPI.checkout(
+                            eventId: event.id,
+                            provider: "paypal",
+                            preferredName: name,
+                            email: em,
+                            teamName: checkoutTeamName,
+                            appReturn: true
+                        )
+
+                        guard let paypalUrl = URL(string: paypalCheckout.url) else {
+                            throw SparrowsAPIError.transport("Invalid checkout URL")
+                        }
+
+                        await MainActor.run {
+                            dismiss()
+                            onOpenCheckout(paypalUrl)
+                        }
+                        return
+                    } catch let paypalErr as SparrowsAPIError {
+                        registerError = paypalErr.localizedDescription
+                    } catch {
+                        registerError = "Unable to start checkout."
+                    }
+                }
             case .httpStatus(_, let msg):
                 registerError = msg ?? "Registration failed."
             default:

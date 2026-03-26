@@ -296,6 +296,11 @@ enum AuthAPI {
 
 // MARK: - Calendar Events API
 enum CalendarEventsAPI {
+    struct CheckoutResponse: Decodable {
+        let url: String
+        let registrationId: String?
+    }
+
     /// Same events + ids as sparrowsweb `fetch("/api/google-calendar-ics")`.
     static func listGoogleCalendarICS() async throws -> [GoogleICSEvent] {
         let url = URL(string: "\(SparrowsAPI.apiBase)/google-calendar-ics")!
@@ -345,5 +350,37 @@ enum CalendarEventsAPI {
         if code == 409 { throw SparrowsAPIError.httpStatus(409, "You are already registered for this event.") }
         let message = (try? JSONSerialization.jsonObject(with: data) as? [String: String])?["message"]
         throw SparrowsAPIError.httpStatus(code, message ?? "Registration failed")
+    }
+
+    static func checkout(
+        eventId: String,
+        provider: String,
+        preferredName: String,
+        email: String,
+        teamName: String?,
+        appReturn: Bool
+    ) async throws -> CheckoutResponse {
+        let url = URL(string: "\(SparrowsAPI.apiBase)/calendar-events/\(eventId)/checkout")!
+        var body: [String: Any] = [
+            "provider": provider,
+            "preferredName": preferredName,
+            "email": email,
+            "appReturn": appReturn,
+        ]
+        if let t = teamName, !t.isEmpty { body["teamName"] = t }
+
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, res) = try await SparrowsAPI.data(for: req)
+        let code = res.statusCode
+        if code != 200 {
+            let message = (try? JSONSerialization.jsonObject(with: data) as? [String: String])?["message"]
+            throw SparrowsAPIError.httpStatus(code, message ?? "Checkout failed")
+        }
+
+        return try JSONDecoder().decode(CheckoutResponse.self, from: data)
     }
 }

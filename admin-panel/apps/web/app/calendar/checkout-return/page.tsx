@@ -1,10 +1,12 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 
 function CheckoutReturnInner() {
   const sp = useSearchParams();
+  const router = useRouter();
+  const app = sp.get("app") === "1";
   const canceled = sp.get("canceled") === "1";
   const sessionId = sp.get("session_id");
   const [msg, setMsg] = useState<string>(canceled ? "Checkout was canceled." : "Confirming payment…");
@@ -25,7 +27,15 @@ function CheckoutReturnInner() {
           if (!cancelled) setErr(typeof data.message === "string" ? data.message : "Could not verify payment");
           return;
         }
-        if (!cancelled) setMsg("Payment received. Your registration is pending manager approval.");
+        if (!cancelled) {
+          setMsg("Payment received. Your registration is pending manager approval.");
+          // If opened from iOS app, deep-link back into the app.
+          if (app) {
+            window.location.replace("sparrows-app://profile?payment=1");
+          } else {
+            router.replace("/profile");
+          }
+        }
       } catch {
         if (!cancelled) setErr("Network error while confirming payment.");
       }
@@ -36,6 +46,10 @@ function CheckoutReturnInner() {
   }, [canceled, sessionId]);
 
   if (canceled) {
+    if (app) {
+      window.location.replace("sparrows-app://profile?payment=canceled");
+      return null;
+    }
     return (
       <main style={{ padding: 24, fontFamily: "system-ui" }}>
         <h1>Checkout canceled</h1>
@@ -45,6 +59,10 @@ function CheckoutReturnInner() {
   }
 
   if (!sessionId) {
+    if (app) {
+      window.location.replace("sparrows-app://profile?payment=missing");
+      return null;
+    }
     return (
       <main style={{ padding: 24, fontFamily: "system-ui" }}>
         <h1>Missing session</h1>
