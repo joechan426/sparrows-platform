@@ -17,16 +17,23 @@ export async function GET(req: NextRequest) {
   if (!result.ok) return withCors(req, result.response);
   const hiddenNavResources =
     result.admin.role === "ADMIN" ? await fetchHiddenNavResourcesSafe(result.admin.id) : [];
-  const paymentRow = await prisma.adminUser.findUnique({
-    where: { id: result.admin.id },
-    select: {
-      stripeConnectedAccountId: true,
-      stripeConnectChargesEnabled: true,
-      paypalMerchantId: true,
-      paypalRestClientIdEnc: true,
-      paypalRestClientSecretEnc: true,
-    },
-  });
+  // Be resilient during rollout: DB schema may temporarily lag behind code deploys.
+  // If new columns don't exist yet, return nulls instead of 500.
+  let paymentRow: any = null;
+  try {
+    paymentRow = await prisma.adminUser.findUnique({
+      where: { id: result.admin.id },
+      select: {
+        stripeConnectedAccountId: true,
+        stripeConnectChargesEnabled: true,
+        paypalMerchantId: true,
+        paypalRestClientIdEnc: true,
+        paypalRestClientSecretEnc: true,
+      },
+    });
+  } catch {
+    paymentRow = null;
+  }
   return withCors(
     req,
     NextResponse.json({
