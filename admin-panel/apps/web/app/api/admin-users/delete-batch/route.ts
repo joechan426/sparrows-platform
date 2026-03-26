@@ -8,8 +8,11 @@ import { withCors, corsOptions } from "../../../../lib/cors";
  * Body: { ids: string[] }
  */
 export async function POST(req: NextRequest) {
-  const auth = await requireAdminAuth(req, null);
+  const auth = await requireAdminAuth(req, "any");
   if (!auth.ok) return withCors(req, auth.response);
+  if (auth.admin.role !== "ADMIN") {
+    return withCors(req, NextResponse.json({ message: "Only Admin can delete admin users" }, { status: 403 }));
+  }
 
   try {
     const body = await req.json().catch(() => ({}));

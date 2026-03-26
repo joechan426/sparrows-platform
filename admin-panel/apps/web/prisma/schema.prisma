@@ -323,6 +323,8 @@ model EventRegistration {
 model PaymentProfile {
   id                        String   @id @default(cuid())
   nickname                  String   @unique
+  /// Inactive profiles are hidden from paid-event payment account pickers.
+  isActive                  Boolean  @default(true) @map("is_active")
   stripeConnectedAccountId  String?  @unique @map("stripe_connected_account_id")
   stripeConnectChargesEnabled Boolean  @default(false) @map("stripe_connect_charges_enabled")
   paypalMerchantId          String?  @map("paypal_merchant_id")
@@ -362,6 +364,8 @@ enum AdminModule {
   TEAMS
   CALENDAR_EVENTS
   MEMBERS
+  PAYMENT_PROFILES
+  ADMIN_USERS
 }
 
 model AdminUser {

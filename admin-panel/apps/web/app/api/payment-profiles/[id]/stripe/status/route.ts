@@ -1,6 +1,6 @@
 import { type NextRequest } from "next/server";
 import { prisma } from "../../../../../../lib/prisma";
-import { requireAdminAuth, canManagePaymentProfiles } from "../../../../../../lib/admin-auth";
+import { requireAdminAuth } from "../../../../../../lib/admin-auth";
 import { withCors, corsJson, corsOptions } from "../../../../../../lib/cors";
 import { getStripe } from "../../../../../../lib/stripe-server";
 
@@ -13,11 +13,8 @@ async function getProfileId(context: { params?: Promise<{ id: string }> }): Prom
 
 /** GET /api/payment-profiles/:id/stripe/status */
 export async function GET(req: NextRequest, context: { params?: Promise<{ id: string }> }) {
-  const auth = await requireAdminAuth(req, "any");
+  const auth = await requireAdminAuth(req, "PAYMENT_PROFILES");
   if (!auth.ok) return withCors(req, auth.response);
-  if (!canManagePaymentProfiles(auth.admin)) {
-    return corsJson(req, { message: "Only Super Manager or Admin can view Stripe status" }, { status: 403 });
-  }
 
   const paymentProfileId = await getProfileId(context);
   if (!paymentProfileId) return corsJson(req, { message: "Missing payment profile id" }, { status: 400 });

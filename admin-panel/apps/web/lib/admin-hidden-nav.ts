@@ -3,6 +3,7 @@ const ALLOWED = new Set([
   "teams",
   "calendar-events",
   "members",
+  "payment-profiles",
   "admin-users",
 ]);
 

@@ -7,12 +7,26 @@ import { adminUserPublicSelect } from "../../../lib/fetch-hidden-nav-safe";
 
 const SALT_ROUNDS = 10;
 
-// GET /api/admin-users — list all admin users (ADMIN only)
+const PERMISSION_MODULE_VALUES = [
+  "TOURNAMENTS",
+  "TEAMS",
+  "CALENDAR_EVENTS",
+  "MEMBERS",
+  "PAYMENT_PROFILES",
+  "ADMIN_USERS",
+] as const;
+
+// GET /api/admin-users — ADMIN: all users; SUPER_MANAGER + ADMIN_USERS: Managers only
 export async function GET(req: NextRequest) {
-  const result = await requireAdminAuth(req, null);
+  const result = await requireAdminAuth(req, "any");
   if (!result.ok) return withCors(req, result.response);
+  const viewer = result.admin;
+  if (viewer.role !== "ADMIN" && !viewer.permissions.includes("ADMIN_USERS")) {
+    return corsJson(req, { message: "Forbidden" }, { status: 403 });
+  }
   try {
     const users = await prisma.adminUser.findMany({
+      where: viewer.role === "ADMIN" ? undefined : { role: "MANAGER" },
       orderBy: { createdAt: "desc" },
       select: { ...adminUserPublicSelect },
     });
@@ -51,18 +65,23 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST /api/admin-users — create admin/manager (ADMIN only)
+// POST /api/admin-users — create user (ADMIN only)
 export async function POST(req: NextRequest) {
-  const result = await requireAdminAuth(req, null);
+  const result = await requireAdminAuth(req, "any");
   if (!result.ok) return withCors(req, result.response);
+  if (result.admin.role !== "ADMIN") {
+    return corsJson(req, { message: "Only Admin can create admin users" }, { status: 403 });
+  }
   try {
     const body = await req.json().catch(() => ({}));
     const userName = typeof body.userName === "string" ? body.userName.trim() : "";
     const password = typeof body.password === "string" ? body.password : "";
     const role: "MANAGER" | "ADMIN" | "SUPER_MANAGER" =
       body.role === "MANAGER" || body.role === "ADMIN" || body.role === "SUPER_MANAGER" ? body.role : "MANAGER";
-    const permissions: ("TOURNAMENTS" | "TEAMS" | "CALENDAR_EVENTS" | "MEMBERS")[] = Array.isArray(body.permissions)
-      ? body.permissions.filter((p: string) => ["TOURNAMENTS", "TEAMS", "CALENDAR_EVENTS", "MEMBERS"].includes(p))
+    const permissions: (typeof PERMISSION_MODULE_VALUES)[number][] = Array.isArray(body.permissions)
+      ? body.permissions.filter((p: string): p is (typeof PERMISSION_MODULE_VALUES)[number] =>
+          (PERMISSION_MODULE_VALUES as readonly string[]).includes(p),
+        )
       : [];
 
     if (!userName || !password) {

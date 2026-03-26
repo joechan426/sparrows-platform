@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "../../../../lib/prisma";
 import bcrypt from "bcryptjs";
-import { signToken } from "../../../../lib/admin-auth";
+import { ADMIN_IMPLICIT_MODULES, signToken } from "../../../../lib/admin-auth";
 import type { AdminPayload } from "../../../../lib/admin-auth";
 import { adminUserLoginSelect, fetchHiddenNavResourcesSafe } from "../../../../lib/fetch-hidden-nav-safe";
 
@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
     // Keep the runtime values as strings, but make TS happy by casting to the expected type.
     const permissions: AdminPayload["permissions"] =
       admin.role === "ADMIN"
-        ? (["TOURNAMENTS", "TEAMS", "CALENDAR_EVENTS", "MEMBERS"] as AdminPayload["permissions"])
+        ? ([...ADMIN_IMPLICIT_MODULES] as AdminPayload["permissions"])
         : (admin.permissions.map((p: { module: string }) => p.module) as AdminPayload["permissions"]);
 
     const payload: AdminPayload = {

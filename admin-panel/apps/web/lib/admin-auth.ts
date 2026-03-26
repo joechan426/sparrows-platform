@@ -13,7 +13,22 @@ const JWT_EXPIRY = "7d";
 // Avoid relying on `@prisma/client` enum exports at type level.
 // Prisma enum exports can differ depending on the prisma build/edge/client generation.
 export type AdminRole = "ADMIN" | "SUPER_MANAGER" | "MANAGER";
-export type AdminModule = "TOURNAMENTS" | "TEAMS" | "CALENDAR_EVENTS" | "MEMBERS";
+export type AdminModule =
+  | "TOURNAMENTS"
+  | "TEAMS"
+  | "CALENDAR_EVENTS"
+  | "MEMBERS"
+  | "PAYMENT_PROFILES"
+  | "ADMIN_USERS";
+
+export const ADMIN_IMPLICIT_MODULES: AdminModule[] = [
+  "TOURNAMENTS",
+  "TEAMS",
+  "CALENDAR_EVENTS",
+  "MEMBERS",
+  "PAYMENT_PROFILES",
+  "ADMIN_USERS",
+];
 
 export type AdminPayload = {
   id: string;
@@ -62,17 +77,12 @@ function forbidden(message = "Forbidden") {
 
 /**
  * Require admin authentication. Optionally require a specific module permission.
- * - If module is "any": any authenticated admin (used for /me).
- * - If module is null (e.g. for admin-users): only ADMIN is allowed.
- * - If module is a module name: ADMIN has access; MANAGER and SUPER_MANAGER need that module in permissions.
+ * - If module is "any": any authenticated active admin (e.g. profile, delete-batch prelude).
+ * - If module is a module name: ADMIN has access via implicit modules; other roles need that module in DB permissions.
  */
-export function canManagePaymentProfiles(admin: AdminPayload): boolean {
-  return admin.role === "ADMIN" || admin.role === "SUPER_MANAGER";
-}
-
 export async function requireAdminAuth(
   req: NextRequest,
-  module: AdminModule | null | "any"
+  module: AdminModule | "any"
 ): Promise<AuthResult> {
   const token = getBearerToken(req);
   if (!token) return { ok: false, response: unauthorized("Missing or invalid authorization") };
@@ -94,15 +104,11 @@ export async function requireAdminAuth(
 
   const permissions: AdminModule[] =
     admin.role === "ADMIN"
-      ? ["TOURNAMENTS", "TEAMS", "CALENDAR_EVENTS", "MEMBERS"]
+      ? [...ADMIN_IMPLICIT_MODULES]
       : admin.permissions.map((p: { module: AdminModule }) => p.module);
   const adminPayload: AdminPayload = { id: admin.id, userName: admin.userName, role: admin.role, permissions };
 
   if (module === "any") return { ok: true, admin: adminPayload };
-  if (module === null) {
-    if (admin.role !== "ADMIN") return { ok: false, response: forbidden("Admin only") };
-    return { ok: true, admin: adminPayload };
-  }
   if (!permissions.includes(module)) return { ok: false, response: forbidden("No access to this section") };
   return { ok: true, admin: adminPayload };
 }
@@ -134,7 +140,7 @@ export async function getOptionalAdminAuth(
 
   const permissions: AdminModule[] =
     admin.role === "ADMIN"
-      ? ["TOURNAMENTS", "TEAMS", "CALENDAR_EVENTS", "MEMBERS"]
+      ? [...ADMIN_IMPLICIT_MODULES]
       : admin.permissions.map((p: { module: AdminModule }) => p.module);
   const adminPayload: AdminPayload = { id: admin.id, userName: admin.userName, role: admin.role, permissions };
 

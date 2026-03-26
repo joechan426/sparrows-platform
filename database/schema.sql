@@ -161,6 +161,7 @@ CREATE TABLE admin_users (
 CREATE TABLE payment_profiles (
   id TEXT PRIMARY KEY,
   nickname TEXT NOT NULL UNIQUE,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
   stripe_connected_account_id TEXT UNIQUE,
   stripe_connect_charges_enabled BOOLEAN NOT NULL DEFAULT FALSE,
   paypal_merchant_id TEXT,
@@ -176,7 +177,7 @@ CREATE TABLE payment_profiles (
 CREATE TABLE admin_permissions (
   id TEXT PRIMARY KEY,
   admin_user_id TEXT NOT NULL REFERENCES admin_users(id) ON DELETE CASCADE,
-  module TEXT NOT NULL CHECK (module IN ('TOURNAMENTS', 'TEAMS', 'CALENDAR_EVENTS', 'MEMBERS')),
+  module TEXT NOT NULL CHECK (module IN ('TOURNAMENTS', 'TEAMS', 'CALENDAR_EVENTS', 'MEMBERS', 'PAYMENT_PROFILES', 'ADMIN_USERS')),
   created_at TIMESTAMP NOT NULL DEFAULT NOW(),
   UNIQUE (admin_user_id, module)
 );

@@ -7,6 +7,7 @@ export const ADMIN_SELECTABLE_NAV_RESOURCES = [
   { resource: "teams", label: "Teams" },
   { resource: "calendar-events", label: "Events" },
   { resource: "members", label: "Members" },
+  { resource: "payment-profiles", label: "Payment profiles" },
   { resource: "admin-users", label: "Admin users" },
 ] as const;
 

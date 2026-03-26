@@ -1,6 +1,17 @@
 import { Create } from "@refinedev/mui";
 import { useForm } from "@refinedev/react-hook-form";
-import { Box, TextField, FormControl, InputLabel, Select, MenuItem, FormGroup, FormControlLabel, Checkbox } from "@mui/material";
+import {
+  Box,
+  TextField,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  FormGroup,
+  FormControlLabel,
+  Checkbox,
+  Typography,
+} from "@mui/material";
 import { validateAdminPassword } from "../../lib/password-rules";
 
 const MODULES = [
@@ -8,6 +19,7 @@ const MODULES = [
   { value: "TEAMS", label: "Teams" },
   { value: "CALENDAR_EVENTS", label: "Events" },
   { value: "MEMBERS", label: "Members" },
+  { value: "PAYMENT_PROFILES", label: "Payment profiles" },
 ] as const;
 
 export const AdminUserCreate: React.FC = () => {
@@ -90,6 +102,20 @@ export const AdminUserCreate: React.FC = () => {
                 />
               ))}
             </FormGroup>
+            <Box sx={{ pt: 1.5, mt: 1, borderTop: 1, borderColor: "divider" }}>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
+                Admin users (user management) — only an Admin can grant or remove this when creating an account.
+              </Typography>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={permissions.includes("ADMIN_USERS")}
+                    onChange={() => handlePermissionToggle("ADMIN_USERS")}
+                  />
+                }
+                label="Admin users"
+              />
+            </Box>
           </FormControl>
         )}
       </Box>

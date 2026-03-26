@@ -131,7 +131,7 @@ export const adminAuthProvider: AuthProvider = {
     const admin = getStoredAdmin();
     if (!admin) return undefined;
     if (admin.role === "ADMIN") {
-      return ["TOURNAMENTS", "TEAMS", "CALENDAR_EVENTS", "MEMBERS", "ADMIN_USERS"];
+      return ["TOURNAMENTS", "TEAMS", "CALENDAR_EVENTS", "MEMBERS", "PAYMENT_PROFILES", "ADMIN_USERS"];
     }
     return admin.permissions;
   },
@@ -177,13 +177,12 @@ export function canAccessResource(resourceName: string): boolean {
   const hidden = adminHiddenNavSet();
 
   if (resourceName === "admin-users") {
-    if (admin.role !== "ADMIN") return false;
-    if (hidden.has("admin-users")) return false;
+    if (admin.role === "ADMIN") {
+      if (hidden.has("admin-users")) return false;
+      return true;
+    }
+    if (!admin.permissions.includes("ADMIN_USERS")) return false;
     return true;
-  }
-
-  if (resourceName === "payment-profiles") {
-    return admin.role === "ADMIN" || admin.role === "SUPER_MANAGER";
   }
 
   const module = RESOURCE_TO_MODULE[resourceName];

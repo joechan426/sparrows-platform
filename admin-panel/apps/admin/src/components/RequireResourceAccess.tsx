@@ -27,17 +27,30 @@ function isSelfAdminUserEditPath(pathname: string): boolean {
   return self?.role === "ADMIN" && m[1] === self.id;
 }
 
+function isAdminUsersCreatePath(pathname: string): boolean {
+  return pathname === "/admin-users/create";
+}
+
 export function RequireResourceAccess({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const resource = getResourceForPath(location.pathname);
-  const allowed =
-    resource === null ||
-    isSelfAdminUserEditPath(location.pathname) ||
-    canAccessResource(resource);
+  const pathname = location.pathname;
+  const admin = getStoredAdmin();
+
+  let allowed = true;
+  if (isAdminUsersCreatePath(pathname)) {
+    allowed = admin?.role === "ADMIN";
+  } else {
+    const resource = getResourceForPath(pathname);
+    allowed =
+      resource === null ||
+      isSelfAdminUserEditPath(pathname) ||
+      (resource !== null && canAccessResource(resource));
+  }
+
   useEffect(() => {
-    if (resource !== null && !allowed) navigate(getFirstAccessiblePath(), { replace: true });
-  }, [resource, allowed, navigate]);
-  if (resource !== null && !allowed) return null;
+    if (!allowed) navigate(getFirstAccessiblePath(), { replace: true });
+  }, [allowed, navigate]);
+  if (!allowed) return null;
   return <>{children}</>;
 }

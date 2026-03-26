@@ -27,6 +27,7 @@ const MODULES = [
   { value: "TEAMS", label: "Teams" },
   { value: "CALENDAR_EVENTS", label: "Events" },
   { value: "MEMBERS", label: "Members" },
+  { value: "PAYMENT_PROFILES", label: "Payment profiles" },
 ] as const;
 
 type AdminUserRecord = {
@@ -52,6 +53,7 @@ export const AdminUserEdit: React.FC = () => {
   const navigate = useNavigate();
   const currentAdmin = getStoredAdmin();
   const isAdmin = currentAdmin?.role === "ADMIN";
+  const isSuperManagerViewer = currentAdmin?.role === "SUPER_MANAGER";
 
   const {
     saveButtonProps,
@@ -145,8 +147,8 @@ export const AdminUserEdit: React.FC = () => {
       <Box component="form" sx={{ display: "flex", flexDirection: "column", gap: 2 }} autoComplete="off">
         <TextField
           label="User name"
-          {...register("userName", { required: "Required" })}
-          disabled={!isAdmin}
+          {...register("userName", { required: isSuperManagerViewer ? false : "Required" })}
+          disabled={!isAdmin || isSuperManagerViewer}
           fullWidth
           error={!!errors?.userName}
           helperText={(errors?.userName?.message as string) ?? (isAdmin ? "You can change this user's name" : "Only Admin can change")}
@@ -156,11 +158,12 @@ export const AdminUserEdit: React.FC = () => {
             <Checkbox
               checked={activeValue}
               onChange={(e) => setValue("isActive", e.target.checked, { shouldDirty: true })}
+              disabled={isSuperManagerViewer}
             />
           }
           label="Active (can log in)"
         />
-        {isAdmin && (
+        {isAdmin && !isSuperManagerViewer && (
           <FormControl fullWidth>
             <InputLabel id="admin-role-label">Role</InputLabel>
             <Select
@@ -181,6 +184,7 @@ export const AdminUserEdit: React.FC = () => {
           label="New password (leave blank to keep current)"
           type="password"
           {...register("newPassword")}
+          disabled={isSuperManagerViewer}
           fullWidth
           error={!!passwordError}
           helperText={
@@ -188,12 +192,13 @@ export const AdminUserEdit: React.FC = () => {
             "At least 8 characters with letter, number and special symbol. Leave blank to keep current."
           }
         />
-        {(role === "MANAGER" || role === "SUPER_MANAGER") && (
+        {(role === "MANAGER" || role === "SUPER_MANAGER") &&
+          (isAdmin || (isSuperManagerViewer && record?.role === "MANAGER")) && (
           <FormControl component="fieldset">
             <InputLabel shrink>Page permissions (Manager / Super Manager)</InputLabel>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
-              Choose which sections this user can access. Super Managers also use Payment profiles (not gated here).
-              Only Admins can change this.
+              Choose which sections this user can access (including Payment profiles).{" "}
+              {isSuperManagerViewer ? "Super Managers can edit Managers only." : "Only Admins can edit roles."}
             </Typography>
             <FormGroup row sx={{ pt: 1 }}>
               {MODULES.map((m) => (
@@ -209,6 +214,22 @@ export const AdminUserEdit: React.FC = () => {
                 />
               ))}
             </FormGroup>
+            {isAdmin && !isSuperManagerViewer && (
+              <Box sx={{ pt: 1.5, mt: 1, borderTop: 1, borderColor: "divider" }}>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
+                  Admin users (user management) — only an Admin can grant or remove this.
+                </Typography>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={permissions.includes("ADMIN_USERS")}
+                      onChange={() => handlePermissionToggle("ADMIN_USERS")}
+                    />
+                  }
+                  label="Admin users"
+                />
+              </Box>
+            )}
           </FormControl>
         )}
         {showSelfNavPrefs && (

@@ -56,6 +56,8 @@ export const RESOURCE_TO_MODULE: Record<string, string> = {
   "calendar-events": "CALENDAR_EVENTS",
   "event-registrations": "CALENDAR_EVENTS",
   members: "MEMBERS",
+  "payment-profiles": "PAYMENT_PROFILES",
+  "admin-users": "ADMIN_USERS",
 };
 
 export function canAccessResource(resource: string): boolean {

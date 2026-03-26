@@ -1,11 +1,12 @@
 import { type NextRequest } from "next/server";
 import { prisma } from "../../../lib/prisma";
-import { requireAdminAuth, canManagePaymentProfiles } from "../../../lib/admin-auth";
+import { requireAdminAuth } from "../../../lib/admin-auth";
 import { withCors, corsJson, corsOptions } from "../../../lib/cors";
 
 function mapProfile(p: {
   id: string;
   nickname: string;
+  isActive: boolean;
   stripeConnectedAccountId: string | null;
   stripeConnectChargesEnabled: boolean;
   paypalRestClientIdEnc: string | null;
@@ -14,28 +15,50 @@ function mapProfile(p: {
   return {
     id: p.id,
     nickname: p.nickname,
+    isActive: p.isActive,
     stripeConnected: Boolean(p.stripeConnectedAccountId),
     stripeChargesEnabled: p.stripeConnectChargesEnabled,
     paypalRestAppConnected: Boolean(p.paypalRestClientIdEnc && p.paypalRestClientSecretEnc),
   };
 }
 
-/** GET /api/payment-profiles — nicknames for event payout picker; Super Manager / Admin without calendar module can still list. */
+/**
+ * GET /api/payment-profiles
+ * - ?forEventPicker=1 — managers: only active profiles (needs CALENDAR_EVENTS).
+ * — Full list — needs PAYMENT_PROFILES (or Admin implicit).
+ */
 export async function GET(req: NextRequest) {
-  const auth = await requireAdminAuth(req, "any");
-  if (!auth.ok) return withCors(req, auth.response);
-  if (
-    !canManagePaymentProfiles(auth.admin) &&
-    !auth.admin.permissions.includes("CALENDAR_EVENTS")
-  ) {
-    return corsJson(req, { message: "No access to payment profiles" }, { status: 403 });
-  }
+  const url = new URL(req.url);
+  const forEventPicker = url.searchParams.get("forEventPicker") === "1";
+
   try {
+    if (forEventPicker) {
+      const auth = await requireAdminAuth(req, "CALENDAR_EVENTS");
+      if (!auth.ok) return withCors(req, auth.response);
+      const rows = await prisma.paymentProfile.findMany({
+        where: { isActive: true },
+        orderBy: { nickname: "asc" },
+        select: {
+          id: true,
+          nickname: true,
+          isActive: true,
+          stripeConnectedAccountId: true,
+          stripeConnectChargesEnabled: true,
+          paypalRestClientIdEnc: true,
+          paypalRestClientSecretEnc: true,
+        },
+      });
+      return corsJson(req, rows.map(mapProfile));
+    }
+
+    const auth = await requireAdminAuth(req, "PAYMENT_PROFILES");
+    if (!auth.ok) return withCors(req, auth.response);
     const rows = await prisma.paymentProfile.findMany({
       orderBy: { nickname: "asc" },
       select: {
         id: true,
         nickname: true,
+        isActive: true,
         stripeConnectedAccountId: true,
         stripeConnectChargesEnabled: true,
         paypalRestClientIdEnc: true,
@@ -52,13 +75,10 @@ export async function GET(req: NextRequest) {
   }
 }
 
-/** POST /api/payment-profiles — Super Manager / Admin only; body { nickname }. */
+/** POST /api/payment-profiles — body { nickname }. */
 export async function POST(req: NextRequest) {
-  const auth = await requireAdminAuth(req, "any");
+  const auth = await requireAdminAuth(req, "PAYMENT_PROFILES");
   if (!auth.ok) return withCors(req, auth.response);
-  if (!canManagePaymentProfiles(auth.admin)) {
-    return corsJson(req, { message: "Only Super Manager or Admin can create payment profiles" }, { status: 403 });
-  }
   try {
     const body = await req.json().catch(() => ({}));
     const nickname = typeof body.nickname === "string" ? body.nickname.trim() : "";
@@ -69,10 +89,12 @@ export async function POST(req: NextRequest) {
       data: {
         nickname,
         createdByAdminId: auth.admin.id,
+        isActive: body.isActive === false ? false : true,
       },
       select: {
         id: true,
         nickname: true,
+        isActive: true,
         stripeConnectedAccountId: true,
         stripeConnectChargesEnabled: true,
         paypalRestClientIdEnc: true,

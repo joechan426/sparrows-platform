@@ -8,7 +8,7 @@ import CardContent from "@mui/material/CardContent";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import MuiLink from "@mui/material/Link";
-import { getStoredAdmin, setAuth, getToken } from "../lib/admin-auth";
+import { getStoredAdmin, setAuth, getToken, hasPermission } from "../lib/admin-auth";
 import { validateAdminPassword } from "../lib/password-rules";
 import { axiosWithAuth } from "../lib/axiosWithAuth";
 import { getFirstAccessiblePath } from "../lib/authProvider";
@@ -95,7 +95,7 @@ export const ProfilePage: React.FC = () => {
               </MuiLink>
             </Typography>
           )}
-          {(current.role === "ADMIN" || current.role === "SUPER_MANAGER") && (
+          {hasPermission("PAYMENT_PROFILES") && (
             <Typography variant="body2" sx={{ mb: 2 }}>
               <MuiLink component={RouterLink} to="/payment-profiles">
                 Payment profiles (Stripe / PayPal)

@@ -59,7 +59,7 @@ export const EventCreatePage: React.FC = () => {
     const token = getToken();
     if (!token) return;
     setProfilesLoading(true);
-    fetch(apiUrl("/payment-profiles"), {
+    fetch(apiUrl("/payment-profiles?forEventPicker=1"), {
       method: "GET",
       headers: { Authorization: `Bearer ${token}` },
     })

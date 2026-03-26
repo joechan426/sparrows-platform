@@ -45,7 +45,9 @@ export const AdminUserList: React.FC = () => {
   const selectedIds =
     rowSelectionModel.type === "include" ? Array.from(rowSelectionModel.ids as Set<string>) : [];
 
-  const selfId = getStoredAdmin()?.id;
+  const stored = getStoredAdmin();
+  const selfId = stored?.id;
+  const isAdminViewer = stored?.role === "ADMIN";
 
   const handleDeleteConfirm = async () => {
     if (selectedIds.length === 0) return;
@@ -161,17 +163,19 @@ export const AdminUserList: React.FC = () => {
       title="Admin users"
       headerButtons={
         <Stack direction="row" spacing={1} flexWrap="wrap" alignItems="center">
-          <CreateButton>Create Admin user</CreateButton>
-          <Button
-            variant="outlined"
-            color="error"
-            startIcon={<DeleteOutlineIcon />}
-            disabled={selectedIds.length === 0}
-            onClick={() => setDeleteOpen(true)}
-          >
-            Delete user{selectedIds.length === 1 ? "" : "s"}
-            {selectedIds.length > 0 ? ` (${selectedIds.length})` : ""}
-          </Button>
+          {isAdminViewer && <CreateButton>Create Admin user</CreateButton>}
+          {isAdminViewer && (
+            <Button
+              variant="outlined"
+              color="error"
+              startIcon={<DeleteOutlineIcon />}
+              disabled={selectedIds.length === 0}
+              onClick={() => setDeleteOpen(true)}
+            >
+              Delete user{selectedIds.length === 1 ? "" : "s"}
+              {selectedIds.length > 0 ? ` (${selectedIds.length})` : ""}
+            </Button>
+          )}
         </Stack>
       }
     >
@@ -179,7 +183,7 @@ export const AdminUserList: React.FC = () => {
         {...dataGridProps}
         columns={columns}
         autoHeight
-        checkboxSelection
+        checkboxSelection={isAdminViewer}
         disableRowSelectionOnClick
         rowSelectionModel={rowSelectionModel}
         onRowSelectionModelChange={setRowSelectionModel}

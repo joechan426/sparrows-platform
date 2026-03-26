@@ -5,22 +5,80 @@ import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
-import Table from "@mui/material/Table";
-import TableBody from "@mui/material/TableBody";
-import TableCell from "@mui/material/TableCell";
-import TableHead from "@mui/material/TableHead";
-import TableRow from "@mui/material/TableRow";
 import Stack from "@mui/material/Stack";
+import Accordion from "@mui/material/Accordion";
+import AccordionSummary from "@mui/material/AccordionSummary";
+import AccordionDetails from "@mui/material/AccordionDetails";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import Switch from "@mui/material/Switch";
+import FormControlLabel from "@mui/material/FormControlLabel";
+import Divider from "@mui/material/Divider";
+import Chip from "@mui/material/Chip";
+import Dialog from "@mui/material/Dialog";
+import DialogTitle from "@mui/material/DialogTitle";
+import DialogContent from "@mui/material/DialogContent";
+import DialogActions from "@mui/material/DialogActions";
+import DialogContentText from "@mui/material/DialogContentText";
 import { getToken } from "../../lib/admin-auth";
 import { apiUrl } from "../../lib/api-base";
 
 type ProfileRow = {
   id: string;
   nickname: string;
+  isActive: boolean;
   stripeConnected: boolean;
   stripeChargesEnabled: boolean;
   paypalRestAppConnected: boolean;
 };
+
+type StatusTone = "green" | "orange" | "red";
+
+const HIGHLIGHT: Record<
+  StatusTone,
+  React.ComponentProps<typeof Typography>["sx"]
+> = {
+  green: {
+    fontWeight: 700,
+    color: "success.dark",
+    bgcolor: "rgba(46, 125, 50, 0.2)",
+    px: 1.25,
+    py: 0.75,
+    borderRadius: 1,
+    display: "inline-block",
+    boxShadow: "0 0 14px rgba(76, 175, 80, 0.55)",
+  },
+  orange: {
+    fontWeight: 700,
+    color: "warning.dark",
+    bgcolor: "rgba(237, 108, 2, 0.22)",
+    px: 1.25,
+    py: 0.75,
+    borderRadius: 1,
+    display: "inline-block",
+    boxShadow: "0 0 14px rgba(255, 152, 0, 0.45)",
+  },
+  red: {
+    fontWeight: 700,
+    color: "error.dark",
+    bgcolor: "rgba(211, 47, 47, 0.2)",
+    px: 1.25,
+    py: 0.75,
+    borderRadius: 1,
+    display: "inline-block",
+    boxShadow: "0 0 14px rgba(244, 67, 54, 0.55)",
+  },
+};
+
+function stripeStatus(row: ProfileRow): { label: string; tone: StatusTone } {
+  if (row.stripeChargesEnabled) return { label: "Ready", tone: "green" };
+  if (row.stripeConnected) return { label: "Onboarding", tone: "red" };
+  return { label: "Not connected", tone: "orange" };
+}
+
+function paypalStatus(row: ProfileRow): { label: string; tone: StatusTone } {
+  if (row.paypalRestAppConnected) return { label: "Ready", tone: "green" };
+  return { label: "Not set", tone: "orange" };
+}
 
 export const PaymentProfilesPage: React.FC = () => {
   const [rows, setRows] = React.useState<ProfileRow[]>([]);
@@ -30,6 +88,8 @@ export const PaymentProfilesPage: React.FC = () => {
   const [creating, setCreating] = React.useState(false);
   const [paypalIdByProfile, setPaypalIdByProfile] = React.useState<Record<string, string>>({});
   const [paypalSecretByProfile, setPaypalSecretByProfile] = React.useState<Record<string, string>>({});
+  const [deleteTarget, setDeleteTarget] = React.useState<ProfileRow | null>(null);
+  const [deleting, setDeleting] = React.useState(false);
 
   const load = React.useCallback(async () => {
     const token = getToken();
@@ -86,6 +146,54 @@ export const PaymentProfilesPage: React.FC = () => {
       setError(e instanceof Error ? e.message : "Create failed");
     } finally {
       setCreating(false);
+    }
+  };
+
+  const setProfileActive = async (id: string, isActive: boolean) => {
+    const token = getToken();
+    if (!token) return;
+    setError(null);
+    try {
+      const res = await fetch(apiUrl(`/payment-profiles/${id}`), {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ isActive }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.message ?? "Update failed");
+      }
+      setRows((prev) => prev.map((r) => (r.id === id ? { ...r, isActive } : r)));
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Update failed");
+      await load();
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    const token = getToken();
+    if (!token) return;
+    setDeleting(true);
+    setError(null);
+    try {
+      const res = await fetch(apiUrl(`/payment-profiles/${deleteTarget.id}`), {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.message ?? "Delete failed");
+      }
+      setDeleteTarget(null);
+      await load();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Delete failed");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -190,13 +298,13 @@ export const PaymentProfilesPage: React.FC = () => {
   };
 
   return (
-    <Box sx={{ p: 2, maxWidth: 960, mx: "auto" }}>
+    <Box sx={{ p: 2, maxWidth: 720, mx: "auto" }}>
       <Typography variant="h5" gutterBottom>
         Payment profiles
       </Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        Super Managers connect Stripe and PayPal here. Each profile has a nickname managers select when creating paid
-        events.
+        Inactive profiles are hidden from the paid-event payment account picker. Delete is blocked if any event still
+        uses the profile.
       </Typography>
 
       {error && (
@@ -228,89 +336,157 @@ export const PaymentProfilesPage: React.FC = () => {
 
       {loading ? (
         <Typography>Loading…</Typography>
+      ) : rows.length === 0 ? (
+        <Typography color="text.secondary">No payment profiles yet.</Typography>
       ) : (
-        <Table size="small">
-          <TableHead>
-            <TableRow>
-              <TableCell>Nickname</TableCell>
-              <TableCell>Stripe</TableCell>
-              <TableCell>PayPal REST</TableCell>
-              <TableCell align="right">Actions</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {rows.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={4}>
-                  <Typography variant="body2" color="text.secondary">
-                    No payment profiles yet. Create one above.
-                  </Typography>
-                </TableCell>
-              </TableRow>
-            )}
-            {rows.map((r) => (
-              <TableRow key={r.id}>
-                <TableCell>{r.nickname}</TableCell>
-                <TableCell>
-                  {r.stripeChargesEnabled ? "Ready" : r.stripeConnected ? "Onboarding…" : "Not connected"}
-                </TableCell>
-                <TableCell>{r.paypalRestAppConnected ? "Connected" : "Not set"}</TableCell>
-                <TableCell align="right">
-                  <Stack spacing={1} alignItems="flex-end">
-                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                      <Button size="small" variant="outlined" onClick={() => void startStripe(r.id)}>
-                        Stripe connect
-                      </Button>
-                      <Button
-                        size="small"
-                        color="warning"
-                        variant="outlined"
-                        onClick={() => void disconnectStripe(r.id)}
-                        disabled={!r.stripeConnected}
-                      >
-                        Stripe disconnect
-                      </Button>
+        <Stack spacing={1}>
+          {rows.map((r) => {
+            const st = stripeStatus(r);
+            const pp = paypalStatus(r);
+            return (
+              <Accordion key={r.id} defaultExpanded disableGutters>
+                <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                  <Stack
+                    direction={{ xs: "column", sm: "row" }}
+                    spacing={2}
+                    alignItems={{ sm: "center" }}
+                    sx={{ width: "100%", pr: 1 }}
+                  >
+                    <Typography fontWeight={600}>{r.nickname}</Typography>
+                    <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                      <Typography sx={HIGHLIGHT[st.tone]} variant="body2">
+                        Stripe: {st.label}
+                      </Typography>
+                      <Typography sx={HIGHLIGHT[pp.tone]} variant="body2">
+                        PayPal: {pp.label}
+                      </Typography>
+                      {!r.isActive && <Chip label="Inactive (hidden in events)" size="small" color="default" />}
                     </Stack>
-                    <TextField
-                      size="small"
-                      label="PayPal Client ID"
-                      value={paypalIdByProfile[r.id] ?? ""}
-                      onChange={(e) =>
-                        setPaypalIdByProfile((p) => ({ ...p, [r.id]: e.target.value }))
+                    <Box sx={{ flexGrow: 1 }} />
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={r.isActive}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            void setProfileActive(r.id, e.target.checked);
+                          }}
+                          color="primary"
+                        />
                       }
-                      sx={{ minWidth: 220 }}
+                      label="Active"
+                      onClick={(e) => e.stopPropagation()}
                     />
-                    <TextField
-                      size="small"
-                      label="PayPal Secret"
-                      type="password"
-                      value={paypalSecretByProfile[r.id] ?? ""}
-                      onChange={(e) =>
-                        setPaypalSecretByProfile((p) => ({ ...p, [r.id]: e.target.value }))
-                      }
-                      sx={{ minWidth: 220 }}
-                    />
-                    <Stack direction="row" spacing={1}>
-                      <Button size="small" variant="contained" onClick={() => void savePayPal(r.id)}>
-                        Save PayPal
-                      </Button>
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        color="error"
-                        onClick={() => void clearPayPal(r.id)}
-                        disabled={!r.paypalRestAppConnected}
-                      >
-                        Clear PayPal
-                      </Button>
-                    </Stack>
                   </Stack>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+                </AccordionSummary>
+                <AccordionDetails>
+                  <Stack spacing={3}>
+                    <Box>
+                      <Typography variant="subtitle2" gutterBottom>
+                        Stripe Connect
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
+                        Status:{" "}
+                        <Box component="span" sx={HIGHLIGHT[st.tone]}>
+                          {st.label}
+                        </Box>
+                      </Typography>
+                      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                        <Button size="small" variant="outlined" onClick={() => void startStripe(r.id)}>
+                          Connect or continue onboarding
+                        </Button>
+                        <Button
+                          size="small"
+                          color="warning"
+                          variant="outlined"
+                          onClick={() => void disconnectStripe(r.id)}
+                          disabled={!r.stripeConnected}
+                        >
+                          Disconnect Stripe
+                        </Button>
+                      </Stack>
+                    </Box>
+
+                    <Divider />
+
+                    <Box>
+                      <Typography variant="subtitle2" gutterBottom>
+                        PayPal REST app
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
+                        Status:{" "}
+                        <Box component="span" sx={HIGHLIGHT[pp.tone]}>
+                          {pp.label}
+                        </Box>
+                      </Typography>
+                      <Stack spacing={1.5} sx={{ maxWidth: 400 }}>
+                        <TextField
+                          size="small"
+                          label="Client ID"
+                          value={paypalIdByProfile[r.id] ?? ""}
+                          onChange={(e) =>
+                            setPaypalIdByProfile((p) => ({ ...p, [r.id]: e.target.value }))
+                          }
+                          fullWidth
+                        />
+                        <TextField
+                          size="small"
+                          label="Secret"
+                          type="password"
+                          value={paypalSecretByProfile[r.id] ?? ""}
+                          onChange={(e) =>
+                            setPaypalSecretByProfile((p) => ({ ...p, [r.id]: e.target.value }))
+                          }
+                          fullWidth
+                        />
+                        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                          <Button size="small" variant="contained" onClick={() => void savePayPal(r.id)}>
+                            Save PayPal
+                          </Button>
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            color="error"
+                            onClick={() => void clearPayPal(r.id)}
+                            disabled={!r.paypalRestAppConnected}
+                          >
+                            Clear PayPal
+                          </Button>
+                        </Stack>
+                      </Stack>
+                    </Box>
+
+                    <Divider />
+
+                    <Box>
+                      <Button color="error" variant="outlined" onClick={() => setDeleteTarget(r)}>
+                        Delete profile
+                      </Button>
+                    </Box>
+                  </Stack>
+                </AccordionDetails>
+              </Accordion>
+            );
+          })}
+        </Stack>
       )}
+
+      <Dialog open={deleteTarget != null} onClose={() => !deleting && setDeleteTarget(null)}>
+        <DialogTitle>Delete payment profile?</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Remove &quot;{deleteTarget?.nickname}&quot;? Events still linked to this profile must be updated first.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteTarget(null)} disabled={deleting}>
+            Cancel
+          </Button>
+          <Button color="error" variant="contained" onClick={() => void confirmDelete()} disabled={deleting}>
+            {deleting ? "Deleting…" : "Delete"}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };
