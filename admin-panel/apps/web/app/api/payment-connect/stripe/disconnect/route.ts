@@ -1,25 +1,16 @@
 import { type NextRequest } from "next/server";
-import { prisma } from "../../../../../lib/prisma";
-import { requireAdminAuth } from "../../../../../lib/admin-auth";
-import { withCors, corsJson, corsOptions } from "../../../../../lib/cors";
+import { corsJson, corsOptions } from "../../../../../lib/cors";
 
-/**
- * POST /api/payment-connect/stripe/disconnect
- * Clears local link to Stripe Connect only (does not delete the Stripe account).
- */
+/** @deprecated Use POST /api/payment-profiles/:id/stripe/disconnect */
 export async function POST(req: NextRequest) {
-  const auth = await requireAdminAuth(req, "CALENDAR_EVENTS");
-  if (!auth.ok) return withCors(req, auth.response);
-
-  await prisma.adminUser.update({
-    where: { id: auth.admin.id },
-    data: {
-      stripeConnectedAccountId: null,
-      stripeConnectChargesEnabled: false,
+  return corsJson(
+    req,
+    {
+      message:
+        "Deprecated: use POST /api/payment-profiles/:paymentProfileId/stripe/disconnect (Super Manager or Admin only).",
     },
-  });
-
-  return corsJson(req, { ok: true });
+    { status: 410 },
+  );
 }
 
 export async function OPTIONS(req: NextRequest) {

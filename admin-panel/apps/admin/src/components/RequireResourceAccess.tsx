@@ -8,6 +8,7 @@ const PATH_TO_RESOURCE: { path: string; resource: string }[] = [
   { path: "/teams", resource: "teams" },
   { path: "/events", resource: "calendar-events" },
   { path: "/members", resource: "members" },
+  { path: "/payment-profiles", resource: "payment-profiles" },
   { path: "/admin-users", resource: "admin-users" },
 ];
 

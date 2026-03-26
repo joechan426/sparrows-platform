@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
       (u: {
         id: string;
         userName: string;
-        role: "ADMIN" | "MANAGER";
+        role: "ADMIN" | "SUPER_MANAGER" | "MANAGER";
         isActive: boolean;
         createdAt: Date;
         updatedAt: Date;
@@ -59,7 +59,8 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => ({}));
     const userName = typeof body.userName === "string" ? body.userName.trim() : "";
     const password = typeof body.password === "string" ? body.password : "";
-    const role: "MANAGER" | "ADMIN" = body.role === "MANAGER" || body.role === "ADMIN" ? body.role : "MANAGER";
+    const role: "MANAGER" | "ADMIN" | "SUPER_MANAGER" =
+      body.role === "MANAGER" || body.role === "ADMIN" || body.role === "SUPER_MANAGER" ? body.role : "MANAGER";
     const permissions: ("TOURNAMENTS" | "TEAMS" | "CALENDAR_EVENTS" | "MEMBERS")[] = Array.isArray(body.permissions)
       ? body.permissions.filter((p: string) => ["TOURNAMENTS", "TEAMS", "CALENDAR_EVENTS", "MEMBERS"].includes(p))
       : [];

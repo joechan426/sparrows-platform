@@ -91,8 +91,8 @@ CREATE TABLE calendar_events (
   is_paid BOOLEAN NOT NULL DEFAULT FALSE,
   price_cents INT,
   currency TEXT NOT NULL DEFAULT 'AUD',
-  -- Admin whose connected Stripe/PayPal receives checkout for this paid event (FK to admin_users in Prisma/Neon).
-  payment_account_admin_id TEXT,
+  -- Named payout profile (Stripe Connect / PayPal REST app) for this paid event.
+  payment_profile_id TEXT,
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW()
 );
@@ -143,20 +143,30 @@ CREATE TABLE member_payment_methods (
 );
 
 -- Admin panel users (separate from members/app users).
--- Login uses user_name (plain text). role: 'ADMIN' | 'MANAGER'
+-- Login uses user_name (plain text). role: 'ADMIN' | 'SUPER_MANAGER' | 'MANAGER'
 CREATE TABLE admin_users (
   id TEXT PRIMARY KEY,
   user_name TEXT NOT NULL UNIQUE,
   email TEXT UNIQUE,
   password_hash TEXT NOT NULL,
-  role TEXT NOT NULL CHECK (role IN ('ADMIN', 'MANAGER')),
+  role TEXT NOT NULL CHECK (role IN ('ADMIN', 'SUPER_MANAGER', 'MANAGER')),
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
   -- JSON array of Refine resource names this ADMIN hides from their own nav only (e.g. ["tournaments"]).
   hidden_nav_resources JSONB NOT NULL DEFAULT '[]'::jsonb,
-  -- Stripe Connect: merchant account id; PayPal: seller merchant id (no merchant secret keys stored here).
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+-- Named merchant payout configuration (Super Manager / Admin managed).
+CREATE TABLE payment_profiles (
+  id TEXT PRIMARY KEY,
+  nickname TEXT NOT NULL UNIQUE,
   stripe_connected_account_id TEXT UNIQUE,
   stripe_connect_charges_enabled BOOLEAN NOT NULL DEFAULT FALSE,
   paypal_merchant_id TEXT,
+  paypal_rest_client_id_enc TEXT,
+  paypal_rest_client_secret_enc TEXT,
+  created_by_admin_id TEXT REFERENCES admin_users(id),
   created_at TIMESTAMP NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMP NOT NULL DEFAULT NOW()
 );

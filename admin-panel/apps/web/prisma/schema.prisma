@@ -257,19 +257,19 @@ model CalendarEvent {
   capacity          Int?
   /// Paid events require Stripe/PayPal checkout before registration is eligible for manager approval.
   isPaid            Boolean             @default(false)
-  /// Price in minor units (e.g. AUD cents).
+  /// Price in minor units (e.g. AUD cents). API may expose `priceDollars` for forms.
   priceCents        Int?
   currency          String              @default("AUD")
-  /// Admin user whose connected Stripe / PayPal account receives checkout for this event.
-  paymentAccountAdminId String?         @map("payment_account_admin_id")
+  /// Named payment profile (Stripe Connect / PayPal REST app) that receives checkout for this event.
+  paymentProfileId  String?             @map("payment_profile_id")
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
 
   registrations     EventRegistration[]
-  paymentAccountAdmin AdminUser?        @relation("EventPaymentRecipient", fields: [paymentAccountAdminId], references: [id], onDelete: SetNull)
+  paymentProfile    PaymentProfile?     @relation(fields: [paymentProfileId], references: [id], onDelete: SetNull)
 
   @@unique([sourceEventId, sourceType])
-  @@index([paymentAccountAdminId])
+  @@index([paymentProfileId])
 }
 
 enum EventRegistrationStatus {
@@ -318,8 +318,28 @@ model EventRegistration {
   @@unique([memberId, calendarEventId])
 }
 
+/// Named payout configuration (Stripe Connect + optional PayPal REST credentials).
+/// Created and linked by Super Managers / Admins; managers pick a profile when editing paid events.
+model PaymentProfile {
+  id                        String   @id @default(cuid())
+  nickname                  String   @unique
+  stripeConnectedAccountId  String?  @unique @map("stripe_connected_account_id")
+  stripeConnectChargesEnabled Boolean  @default(false) @map("stripe_connect_charges_enabled")
+  paypalMerchantId          String?  @map("paypal_merchant_id")
+  paypalRestClientIdEnc       String?  @map("paypal_rest_client_id_enc")
+  paypalRestClientSecretEnc   String?  @map("paypal_rest_client_secret_enc")
+  createdByAdminId          String?  @map("created_by_admin_id")
+  createdAt                 DateTime @default(now()) @map("created_at")
+  updatedAt                 DateTime @updatedAt @map("updated_at")
+
+  createdBy    AdminUser?      @relation(fields: [createdByAdminId], references: [id], onDelete: SetNull)
+  calendarEvents CalendarEvent[]
+
+  @@map("payment_profiles")
+}
+
 /// Singleton row id = "default". Toggles which checkout methods are offered platform-wide.
-/// Actual card/PayPal funds go to each manager's connected account (see AdminUser).
+/// Paid event funds settle using the event's `PaymentProfile`.
 model PaymentPlatformSettings {
   id             String   @id // always use "default" in application code
   stripeEnabled  Boolean  @default(false)
@@ -333,6 +353,7 @@ model PaymentPlatformSettings {
 // Admin panel users (separate from Member). Used for admin-panel login only.
 enum AdminRole {
   ADMIN
+  SUPER_MANAGER
   MANAGER
 }
 
@@ -352,20 +373,11 @@ model AdminUser {
   isActive             Boolean  @default(true) @map("is_active")
   /// JSON array of resource names (e.g. "tournaments") this ADMIN hides from their own navigation only.
   hiddenNavResources   Json     @default("[]") @map("hidden_nav_resources")
-  /// Stripe Connect Express/Standard account id (funds settle with this merchant). Set via hosted onboarding only.
-  stripeConnectedAccountId String? @unique @map("stripe_connected_account_id")
-  /// Cached from Stripe `account.updated` webhook (charges enabled).
-  stripeConnectChargesEnabled Boolean @default(false) @map("stripe_connect_charges_enabled")
-  /// PayPal seller merchant id (payer_id style) for third-party orders; from Partner onboarding or manual paste.
-  paypalMerchantId     String?  @map("paypal_merchant_id")
-  /// PayPal REST app credentials for this merchant (encrypted at rest).
-  paypalRestClientIdEnc     String? @map("paypal_rest_client_id_enc")
-  paypalRestClientSecretEnc String? @map("paypal_rest_client_secret_enc")
   createdAt            DateTime @default(now()) @map("created_at")
   updatedAt            DateTime @updatedAt @map("updated_at")
 
   permissions AdminPermission[]
-  eventPaymentRecipients CalendarEvent[] @relation("EventPaymentRecipient")
+  paymentProfilesCreated PaymentProfile[]
 
   @@map("admin_users")
 }

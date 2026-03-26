@@ -26,11 +26,11 @@ export async function POST(req: NextRequest) {
     const reg = await prisma.eventRegistration.findFirst({
       where: { stripeSessionId: sessionId },
       include: {
-        event: { include: { paymentAccountAdmin: true } },
+        event: { include: { paymentProfile: true } },
       },
     });
 
-    const connectedAccountId = reg?.event.paymentAccountAdmin?.stripeConnectedAccountId ?? undefined;
+    const connectedAccountId = reg?.event.paymentProfile?.stripeConnectedAccountId ?? undefined;
     let session: import("stripe").Stripe.Checkout.Session;
     try {
       session = connectedAccountId

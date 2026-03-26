@@ -12,7 +12,7 @@ const JWT_EXPIRY = "7d";
 
 // Avoid relying on `@prisma/client` enum exports at type level.
 // Prisma enum exports can differ depending on the prisma build/edge/client generation.
-export type AdminRole = "ADMIN" | "MANAGER";
+export type AdminRole = "ADMIN" | "SUPER_MANAGER" | "MANAGER";
 export type AdminModule = "TOURNAMENTS" | "TEAMS" | "CALENDAR_EVENTS" | "MEMBERS";
 
 export type AdminPayload = {
@@ -64,8 +64,12 @@ function forbidden(message = "Forbidden") {
  * Require admin authentication. Optionally require a specific module permission.
  * - If module is "any": any authenticated admin (used for /me).
  * - If module is null (e.g. for admin-users): only ADMIN is allowed.
- * - If module is a module name: ADMIN has access; MANAGER needs that module in permissions.
+ * - If module is a module name: ADMIN has access; MANAGER and SUPER_MANAGER need that module in permissions.
  */
+export function canManagePaymentProfiles(admin: AdminPayload): boolean {
+  return admin.role === "ADMIN" || admin.role === "SUPER_MANAGER";
+}
+
 export async function requireAdminAuth(
   req: NextRequest,
   module: AdminModule | null | "any"

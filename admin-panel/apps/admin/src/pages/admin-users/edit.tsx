@@ -11,6 +11,8 @@ import {
   FormControl,
   InputLabel,
   Typography,
+  Select,
+  MenuItem,
 } from "@mui/material";
 import { getStoredAdmin, setAuth, getToken } from "../../lib/admin-auth";
 import { validateAdminPassword } from "../../lib/password-rules";
@@ -30,7 +32,7 @@ const MODULES = [
 type AdminUserRecord = {
   id: string;
   userName: string;
-  role: "ADMIN" | "MANAGER";
+  role: "ADMIN" | "SUPER_MANAGER" | "MANAGER";
   isActive: boolean;
   permissions?: string[];
   hiddenNavResources?: unknown;
@@ -40,7 +42,7 @@ export const AdminUserEdit: React.FC = () => {
   type AdminUserEditForm = {
     userName: string;
     isActive: boolean;
-    role: "ADMIN" | "MANAGER";
+    role: "ADMIN" | "SUPER_MANAGER" | "MANAGER";
     permissions: string[];
     newPassword?: string;
     hiddenNavResources: string[];
@@ -73,6 +75,13 @@ export const AdminUserEdit: React.FC = () => {
           setAuth(token, {
             ...currentAdmin,
             userName: typeof d.userName === "string" ? d.userName : currentAdmin.userName,
+            role:
+              d.role === "ADMIN" || d.role === "SUPER_MANAGER" || d.role === "MANAGER"
+                ? d.role
+                : currentAdmin.role,
+            permissions: Array.isArray(d.permissions)
+              ? (d.permissions as string[])
+              : currentAdmin.permissions,
             hiddenNavResources:
               currentAdmin.role === "ADMIN" && Array.isArray(d.hiddenNavResources)
                 ? normalizeAdminHiddenNavList(d.hiddenNavResources)
@@ -151,6 +160,23 @@ export const AdminUserEdit: React.FC = () => {
           }
           label="Active (can log in)"
         />
+        {isAdmin && (
+          <FormControl fullWidth>
+            <InputLabel id="admin-role-label">Role</InputLabel>
+            <Select
+              labelId="admin-role-label"
+              label="Role"
+              value={role ?? "MANAGER"}
+              onChange={(e) =>
+                setValue("role", e.target.value as AdminUserEditForm["role"], { shouldDirty: true })
+              }
+            >
+              <MenuItem value="MANAGER">Manager</MenuItem>
+              <MenuItem value="SUPER_MANAGER">Super Manager</MenuItem>
+              <MenuItem value="ADMIN">Admin</MenuItem>
+            </Select>
+          </FormControl>
+        )}
         <TextField
           label="New password (leave blank to keep current)"
           type="password"
@@ -162,11 +188,12 @@ export const AdminUserEdit: React.FC = () => {
             "At least 8 characters with letter, number and special symbol. Leave blank to keep current."
           }
         />
-        {role === "MANAGER" && (
+        {(role === "MANAGER" || role === "SUPER_MANAGER") && (
           <FormControl component="fieldset">
-            <InputLabel shrink>Page permissions (Manager)</InputLabel>
+            <InputLabel shrink>Page permissions (Manager / Super Manager)</InputLabel>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
-              Choose which sections this manager can access. Only Admins can change this.
+              Choose which sections this user can access. Super Managers also use Payment profiles (not gated here).
+              Only Admins can change this.
             </Typography>
             <FormGroup row sx={{ pt: 1 }}>
               {MODULES.map((m) => (

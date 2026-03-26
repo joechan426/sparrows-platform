@@ -54,6 +54,7 @@ import { AdminUserEdit } from "./pages/admin-users/edit";
 import { LoginPage } from "./pages/login";
 import { NoAccessPage } from "./pages/no-access";
 import { ProfilePage } from "./pages/profile";
+import { PaymentProfilesPage } from "./pages/payment-profiles";
 
 import { HeaderWithProfileLink } from "./components/HeaderWithProfileLink";
 import { adminAuthProvider, canAccessResource } from "./lib/authProvider";
@@ -197,6 +198,11 @@ const App: React.FC = () => {
                 meta: { label: "Members" },
               },
               {
+                name: "payment-profiles",
+                list: "/payment-profiles",
+                meta: { label: "Payment profiles" },
+              },
+              {
                 name: "admin-users",
                 list: "/admin-users",
                 create: "/admin-users/create",
@@ -277,6 +283,7 @@ const App: React.FC = () => {
                 />
                 <Route path="/members" element={<MemberList />} />
                 <Route path="/members/:id" element={<MemberShow />} />
+                <Route path="/payment-profiles" element={<PaymentProfilesPage />} />
                 <Route path="/admin-users" element={<AdminUserList />} />
                 <Route path="/admin-users/create" element={<AdminUserCreate />} />
                 <Route path="/admin-users/:id/edit" element={<AdminUserEdit />} />

@@ -14,7 +14,7 @@ import DialogContentText from "@mui/material/DialogContentText";
 import DialogActions from "@mui/material/DialogActions";
 import { useNotification } from "@refinedev/core";
 import { apiUrl } from "../../lib/api-base";
-import { getStoredAdmin, getToken } from "../../lib/admin-auth";
+import { getToken } from "../../lib/admin-auth";
 import Switch from "@mui/material/Switch";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import FormControl from "@mui/material/FormControl";
@@ -36,8 +36,10 @@ type CalendarEvent = {
   capacity: number | null;
   isPaid?: boolean;
   priceCents?: number | null;
+  priceDollars?: number | null;
   currency?: string;
-  paymentAccountAdminId?: string | null;
+  paymentProfileId?: string | null;
+  paymentProfile?: { id: string; nickname: string } | null;
 };
 
 export const EventShowPage: React.FC = () => {
@@ -50,7 +52,6 @@ export const EventShowPage: React.FC = () => {
   const [event, setEvent] = React.useState<CalendarEvent | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
-  const selfAdmin = getStoredAdmin();
   const [form, setForm] = React.useState<{
     title: string;
     startAt: string;
@@ -58,9 +59,9 @@ export const EventShowPage: React.FC = () => {
     location: string;
     description: string;
     isPaid: boolean;
-    priceCents: string;
+    priceDollars: string;
     currency: string;
-    paymentAccountAdminId: string;
+    paymentProfileId: string;
   }>({
     title: "",
     startAt: "",
@@ -68,13 +69,13 @@ export const EventShowPage: React.FC = () => {
     location: "",
     description: "",
     isPaid: false,
-    priceCents: "",
+    priceDollars: "",
     currency: "AUD",
-    paymentAccountAdminId: "",
+    paymentProfileId: "",
   });
 
-  const [paymentRecipients, setPaymentRecipients] = React.useState<{ id: string; userName: string }[]>([]);
-  const [recipientsLoading, setRecipientsLoading] = React.useState(false);
+  const [paymentProfiles, setPaymentProfiles] = React.useState<{ id: string; nickname: string }[]>([]);
+  const [profilesLoading, setProfilesLoading] = React.useState(false);
 
   React.useEffect(() => {
     if (!id) {
@@ -113,6 +114,12 @@ export const EventShowPage: React.FC = () => {
         .toISOString()
         .slice(0, 16);
     };
+    const dollars =
+      event.priceDollars != null
+        ? String(event.priceDollars)
+        : event.priceCents != null
+          ? (event.priceCents / 100).toFixed(2)
+          : "";
     setForm({
       title: event.title ?? "",
       startAt: toLocalInput(event.startAt),
@@ -120,9 +127,9 @@ export const EventShowPage: React.FC = () => {
       location: event.location ?? "",
       description: event.description ?? "",
       isPaid: Boolean(event.isPaid),
-      priceCents: event.priceCents != null ? String(event.priceCents) : "",
+      priceDollars: dollars,
       currency: event.currency ?? "AUD",
-      paymentAccountAdminId: event.paymentAccountAdminId ?? "",
+      paymentProfileId: event.paymentProfileId ?? event.paymentProfile?.id ?? "",
     });
   }, [event]);
 
@@ -130,29 +137,23 @@ export const EventShowPage: React.FC = () => {
     if (!event) return;
     const token = getToken();
     if (!token) return;
-    setRecipientsLoading(true);
-    if (selfAdmin && selfAdmin.role !== "ADMIN") {
-      setPaymentRecipients([{ id: selfAdmin.id, userName: selfAdmin.userName }]);
-      setRecipientsLoading(false);
-      return;
-    }
-    fetch(apiUrl("/admin-users"), {
+    setProfilesLoading(true);
+    fetch(apiUrl("/payment-profiles"), {
       method: "GET",
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => r.json())
       .then((data) => {
-        const admins = Array.isArray(data) ? data : [];
-        setPaymentRecipients(
-          admins
-            .filter(
-              (a: any) => Array.isArray(a.permissions) && a.permissions.includes("CALENDAR_EVENTS"),
-            )
-            .map((a: any) => ({ id: String(a.id), userName: String(a.userName) })),
+        const list = Array.isArray(data) ? data : [];
+        setPaymentProfiles(
+          list.map((p: { id?: string; nickname?: string }) => ({
+            id: String(p.id),
+            nickname: String(p.nickname),
+          })),
         );
       })
-      .catch(() => setPaymentRecipients([]))
-      .finally(() => setRecipientsLoading(false));
+      .catch(() => setPaymentProfiles([]))
+      .finally(() => setProfilesLoading(false));
   }, [event]);
 
   const handleSave = () => {
@@ -184,13 +185,13 @@ export const EventShowPage: React.FC = () => {
           startAt: startDate,
           endAt: endDate,
           isPaid: form.isPaid,
-          priceCents: form.isPaid
-            ? form.priceCents.trim() === ""
+          priceDollars: form.isPaid
+            ? form.priceDollars.trim() === ""
               ? null
-              : Number(form.priceCents)
+              : form.priceDollars.trim()
             : null,
           currency: "AUD",
-          paymentAccountAdminId: form.isPaid ? (form.paymentAccountAdminId || null) : null,
+          paymentProfileId: form.isPaid ? (form.paymentProfileId || null) : null,
           registrationOpen: event.registrationOpen,
         },
       },
@@ -207,9 +208,23 @@ export const EventShowPage: React.FC = () => {
                   startAt: startDate.toISOString(),
                   endAt: endDate.toISOString(),
                   isPaid: form.isPaid,
-                  priceCents: form.isPaid ? (form.priceCents.trim() === "" ? null : Number(form.priceCents)) : null,
+                  priceCents:
+                    form.isPaid && form.priceDollars.trim() !== "" && Number.isFinite(parseFloat(form.priceDollars))
+                      ? Math.round(parseFloat(form.priceDollars) * 100)
+                      : null,
+                  priceDollars:
+                    form.isPaid && form.priceDollars.trim() !== "" && Number.isFinite(parseFloat(form.priceDollars))
+                      ? Math.round(parseFloat(form.priceDollars) * 100) / 100
+                      : null,
                   currency: "AUD",
-                  paymentAccountAdminId: form.isPaid ? (form.paymentAccountAdminId || null) : null,
+                  paymentProfileId: form.isPaid ? (form.paymentProfileId || null) : null,
+                  paymentProfile: form.isPaid && form.paymentProfileId
+                    ? {
+                        id: form.paymentProfileId,
+                        nickname:
+                          paymentProfiles.find((p) => p.id === form.paymentProfileId)?.nickname ?? "",
+                      }
+                    : null,
                 }
               : prev,
           );
@@ -317,11 +332,10 @@ export const EventShowPage: React.FC = () => {
                   setForm((prev) => ({
                     ...prev,
                     isPaid: checked,
-                    priceCents: checked ? prev.priceCents : "",
-                    paymentAccountAdminId: checked ? prev.paymentAccountAdminId : "",
+                    priceDollars: checked ? prev.priceDollars : "",
+                    paymentProfileId: checked ? prev.paymentProfileId : "",
                   }));
                 }}
-                disabled={Boolean(event.isPaid && event.paymentAccountAdminId && getStoredAdmin()?.role !== "ADMIN" && getStoredAdmin()?.id !== event.paymentAccountAdminId)}
               />
             }
             label="Paid event (checkout required before approval)"
@@ -330,39 +344,35 @@ export const EventShowPage: React.FC = () => {
           {form.isPaid && (
             <Box sx={{ mt: 1, display: "flex", flexDirection: "column", gap: 2 }}>
               <TextField
-                label="Price (AUD cents, e.g. 100 = $1)"
-                type="number"
-                inputProps={{ min: 0 }}
-                value={form.priceCents}
-                onChange={(e) => setForm((prev) => ({ ...prev, priceCents: e.target.value }))}
-                disabled={Boolean(event.isPaid && event.paymentAccountAdminId && getStoredAdmin()?.role !== "ADMIN" && getStoredAdmin()?.id !== event.paymentAccountAdminId)}
+                label="Price (AUD dollars, e.g. 25.00)"
+                type="text"
+                inputProps={{ inputMode: "decimal" }}
+                value={form.priceDollars}
+                onChange={(e) => setForm((prev) => ({ ...prev, priceDollars: e.target.value }))}
               />
 
               <FormControl fullWidth>
-                <InputLabel id="paymentRecipientLabel2">Payment recipient manager</InputLabel>
+                <InputLabel id="paymentProfileLabel2">Payment account (nickname)</InputLabel>
                 <Select
-                  labelId="paymentRecipientLabel2"
-                  label="Payment recipient manager"
-                  value={form.paymentAccountAdminId}
-                  onChange={(e) => setForm((prev) => ({ ...prev, paymentAccountAdminId: String(e.target.value) }))}
-                  disabled={
-                    Boolean(event.isPaid && event.paymentAccountAdminId && getStoredAdmin()?.role !== "ADMIN" && getStoredAdmin()?.id !== event.paymentAccountAdminId) ||
-                    recipientsLoading
-                  }
+                  labelId="paymentProfileLabel2"
+                  label="Payment account (nickname)"
+                  value={form.paymentProfileId}
+                  onChange={(e) => setForm((prev) => ({ ...prev, paymentProfileId: String(e.target.value) }))}
+                  disabled={profilesLoading}
                 >
-                  {recipientsLoading && (
+                  {profilesLoading && (
                     <MenuItem value="">
                       <CircularProgress size={16} /> Loading…
                     </MenuItem>
                   )}
-                  {!recipientsLoading && paymentRecipients.length === 0 && (
+                  {!profilesLoading && paymentProfiles.length === 0 && (
                     <MenuItem value="" disabled>
-                      No eligible managers found
+                      No payment profiles — ask a Super Manager to create one
                     </MenuItem>
                   )}
-                  {paymentRecipients.map((m) => (
-                    <MenuItem key={m.id} value={m.id}>
-                      {m.userName}
+                  {paymentProfiles.map((p) => (
+                    <MenuItem key={p.id} value={p.id}>
+                      {p.nickname}
                     </MenuItem>
                   ))}
                 </Select>

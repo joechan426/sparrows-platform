@@ -9,7 +9,7 @@ export const ADMIN_USER_KEY = "sparrows_admin_user";
 export type AdminUser = {
   id: string;
   userName: string;
-  role: "ADMIN" | "MANAGER";
+  role: "ADMIN" | "SUPER_MANAGER" | "MANAGER";
   permissions: string[];
   /** ADMIN only: Refine resource roots hidden from this user's navigation (sidebar + mobile). */
   hiddenNavResources?: string[];

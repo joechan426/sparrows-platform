@@ -11,7 +11,7 @@ import InputLabel from "@mui/material/InputLabel";
 import FormControl from "@mui/material/FormControl";
 import CircularProgress from "@mui/material/CircularProgress";
 import Typography from "@mui/material/Typography";
-import { getToken, getStoredAdmin } from "../../lib/admin-auth";
+import { getToken } from "../../lib/admin-auth";
 import { apiUrl } from "../../lib/api-base";
 
 function toDatetimeLocal(d: Date): string {
@@ -23,13 +23,12 @@ function toDatetimeLocal(d: Date): string {
   return `${y}-${m}-${day}T${h}:${min}`;
 }
 
+type PaymentProfileOption = { id: string; nickname: string };
+
 export const EventCreatePage: React.FC = () => {
-  const selfAdmin = getStoredAdmin();
   const [isPaidUI, setIsPaidUI] = React.useState(false);
-  const [paymentRecipients, setPaymentRecipients] = React.useState<{ id: string; userName: string }[]>(
-    [],
-  );
-  const [recipientsLoading, setRecipientsLoading] = React.useState(false);
+  const [paymentProfiles, setPaymentProfiles] = React.useState<PaymentProfileOption[]>([]);
+  const [profilesLoading, setProfilesLoading] = React.useState(false);
 
   const {
     saveButtonProps,
@@ -50,37 +49,32 @@ export const EventCreatePage: React.FC = () => {
       startAt: "",
       endAt: "",
       isPaid: false,
-      priceCents: "",
+      priceDollars: "",
       currency: "AUD",
-      paymentAccountAdminId: "",
+      paymentProfileId: "",
     },
   });
 
   React.useEffect(() => {
     const token = getToken();
-    if (!token || !selfAdmin) return;
-    if (selfAdmin.role !== "ADMIN") {
-      // Non-ADMIN: default payment recipient to self (avoid needing /admin-users).
-      setPaymentRecipients([{ id: selfAdmin.id, userName: selfAdmin.userName } as any]);
-      setValue("paymentAccountAdminId", selfAdmin.id);
-      return;
-    }
-    setRecipientsLoading(true);
-    fetch(apiUrl("/admin-users"), {
+    if (!token) return;
+    setProfilesLoading(true);
+    fetch(apiUrl("/payment-profiles"), {
       method: "GET",
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => r.json())
       .then((data) => {
-        const admins = Array.isArray(data) ? data : [];
-        setPaymentRecipients(
-          admins
-            .filter((a: any) => Array.isArray(a.permissions) && a.permissions.includes("CALENDAR_EVENTS"))
-            .map((a: any) => ({ id: String(a.id), userName: String(a.userName) })),
+        const list = Array.isArray(data) ? data : [];
+        setPaymentProfiles(
+          list.map((p: { id?: string; nickname?: string }) => ({
+            id: String(p.id),
+            nickname: String(p.nickname),
+          })),
         );
       })
-      .catch(() => setPaymentRecipients([]))
-      .finally(() => setRecipientsLoading(false));
+      .catch(() => setPaymentProfiles([]))
+      .finally(() => setProfilesLoading(false));
   }, []);
 
   const handleStartBlur = (e: React.FocusEvent<HTMLInputElement>) => {
@@ -145,8 +139,8 @@ export const EventCreatePage: React.FC = () => {
                   setIsPaidUI(checked);
                   setValue("isPaid", checked);
                   if (!checked) {
-                    setValue("priceCents", "");
-                    setValue("paymentAccountAdminId", "");
+                    setValue("priceDollars", "");
+                    setValue("paymentProfileId", "");
                   }
                 }}
               />
@@ -158,40 +152,45 @@ export const EventCreatePage: React.FC = () => {
         {isPaidUI && (
           <>
             <TextField
-              label="Price (AUD cents, e.g. 100 = $1)"
-              type="number"
-              inputProps={{ min: 0 }}
-              {...register("priceCents")}
+              label="Price (AUD dollars, e.g. 25.00)"
+              type="text"
+              inputProps={{ inputMode: "decimal" }}
+              {...register("priceDollars", { required: "Price is required for paid events" })}
               fullWidth
               required
-              error={!!errors?.priceCents}
-              helperText={(errors?.priceCents as any)?.message}
+              error={!!errors?.priceDollars}
+              helperText={(errors?.priceDollars as { message?: string })?.message}
             />
 
             <input type="hidden" {...register("currency")} value="AUD" />
 
             <FormControl fullWidth>
-              <InputLabel id="paymentRecipientLabel">Payment recipient manager</InputLabel>
+              <InputLabel id="paymentProfileLabel">Payment account (nickname)</InputLabel>
               <Select
-                labelId="paymentRecipientLabel"
-                label="Payment recipient manager"
+                labelId="paymentProfileLabel"
+                label="Payment account (nickname)"
                 defaultValue=""
-                {...register("paymentAccountAdminId", { required: "Payment recipient is required" })}
+                {...register("paymentProfileId", { required: "Payment account is required" })}
               >
-                {recipientsLoading && (
+                {profilesLoading && (
                   <MenuItem value="">
                     <CircularProgress size={16} /> Loading…
                   </MenuItem>
                 )}
-                {paymentRecipients.map((m) => (
-                  <MenuItem key={m.id} value={m.id}>
-                    {m.userName}
+                {!profilesLoading && paymentProfiles.length === 0 && (
+                  <MenuItem value="" disabled>
+                    No payment profiles — ask a Super Manager to create one
+                  </MenuItem>
+                )}
+                {paymentProfiles.map((p) => (
+                  <MenuItem key={p.id} value={p.id}>
+                    {p.nickname}
                   </MenuItem>
                 ))}
               </Select>
-              {errors?.paymentAccountAdminId && (
+              {errors?.paymentProfileId && (
                 <Typography variant="caption" color="error">
-                  {(errors?.paymentAccountAdminId as any)?.message}
+                  {(errors?.paymentProfileId as { message?: string })?.message}
                 </Typography>
               )}
             </FormControl>

@@ -95,6 +95,13 @@ export const ProfilePage: React.FC = () => {
               </MuiLink>
             </Typography>
           )}
+          {(current.role === "ADMIN" || current.role === "SUPER_MANAGER") && (
+            <Typography variant="body2" sx={{ mb: 2 }}>
+              <MuiLink component={RouterLink} to="/payment-profiles">
+                Payment profiles (Stripe / PayPal)
+              </MuiLink>
+            </Typography>
+          )}
           <Box
             component="form"
             onSubmit={handleSubmit(onSubmit)}

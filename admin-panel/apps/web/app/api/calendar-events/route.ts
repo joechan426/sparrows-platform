@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "../../../lib/prisma";
 import { requireAdminAuth } from "../../../lib/admin-auth";
 import { withCors, corsOptions } from "../../../lib/cors";
+import { dollarsToCents, parsePriceDollarsInput } from "../../../lib/price-input";
 
 function classifySportType(title: string): "VOLLEYBALL" | "PICKLEBALL" | "TENNIS" {
   const t = title.toLowerCase();
@@ -147,6 +148,20 @@ export async function POST(req: NextRequest) {
 
     const isPaid = typeof body.isPaid === "boolean" ? body.isPaid : undefined;
     let priceCents: number | null | undefined;
+    if (body.priceDollars !== undefined) {
+      if (body.priceDollars === null || body.priceDollars === "") {
+        priceCents = null;
+      } else {
+        const d = parsePriceDollarsInput(body.priceDollars);
+        if (d === null) {
+          return withCors(
+            req,
+            NextResponse.json({ message: "priceDollars must be a non-negative number or null" }, { status: 400 }),
+          );
+        }
+        priceCents = dollarsToCents(d);
+      }
+    }
     if (body.priceCents !== undefined) {
       if (body.priceCents === null || body.priceCents === "") {
         priceCents = null;
@@ -174,41 +189,54 @@ export async function POST(req: NextRequest) {
       currency = cur;
     }
 
-    let paymentAccountAdminId: string | null | undefined;
-    if (body.paymentAccountAdminId !== undefined) {
-      if (body.paymentAccountAdminId === null || body.paymentAccountAdminId === "") {
-        paymentAccountAdminId = null;
+    let paymentProfileId: string | null | undefined;
+    if (body.paymentProfileId !== undefined) {
+      if (body.paymentProfileId === null || body.paymentProfileId === "") {
+        paymentProfileId = null;
       } else {
-        const pid = String(body.paymentAccountAdminId);
-        const adm = await prisma.adminUser.findUnique({ where: { id: pid }, select: { id: true } });
-        if (!adm) {
+        const pid = String(body.paymentProfileId);
+        const prof = await prisma.paymentProfile.findUnique({ where: { id: pid }, select: { id: true } });
+        if (!prof) {
           return withCors(
             req,
-            NextResponse.json({ message: "paymentAccountAdminId admin not found" }, { status: 400 })
+            NextResponse.json({ message: "paymentProfileId not found" }, { status: 400 })
           );
         }
-        paymentAccountAdminId = pid;
+        paymentProfileId = pid;
       }
     }
 
     const nextIsPaid = isPaid !== undefined ? isPaid : existing?.isPaid ?? false;
     const nextPrice = priceCents !== undefined ? priceCents : existing?.priceCents ?? null;
+    const nextProfileId =
+      paymentProfileId !== undefined ? paymentProfileId : existing?.paymentProfileId ?? null;
 
-    if (nextIsPaid && nextPrice != null && nextPrice > 0 && paymentAccountAdminId === null) {
-      return withCors(
-        req,
-        NextResponse.json(
-          { message: "Cannot clear payment recipient while the event is paid with a price." },
-          { status: 400 }
-        )
-      );
+    if (nextIsPaid && nextPrice != null && nextPrice > 0) {
+      if (paymentProfileId === null || paymentProfileId === "") {
+        return withCors(
+          req,
+          NextResponse.json(
+            { message: "Cannot clear payment profile while the event is paid with a price." },
+            { status: 400 }
+          )
+        );
+      }
+      if (!nextProfileId) {
+        return withCors(
+          req,
+          NextResponse.json(
+            { message: "Select a payment profile for paid events that have a price." },
+            { status: 400 }
+          )
+        );
+      }
     }
 
     const paymentPatch: Record<string, unknown> = {};
     if (isPaid !== undefined) paymentPatch.isPaid = isPaid;
     if (priceCents !== undefined) paymentPatch.priceCents = priceCents;
     if (currency !== undefined) paymentPatch.currency = currency;
-    if (paymentAccountAdminId !== undefined) paymentPatch.paymentAccountAdminId = paymentAccountAdminId;
+    if (paymentProfileId !== undefined) paymentPatch.paymentProfileId = paymentProfileId;
 
     const created = await prisma.calendarEvent.upsert({
       where: {
@@ -243,15 +271,7 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    let out = created;
-    if (created.isPaid && created.priceCents != null && created.priceCents > 0 && !created.paymentAccountAdminId) {
-      out = await prisma.calendarEvent.update({
-        where: { id: created.id },
-        data: { paymentAccountAdminId: auth.admin.id },
-      });
-    }
-
-    return withCors(req, NextResponse.json(out, { status: 201 }));
+    return withCors(req, NextResponse.json(created, { status: 201 }));
   } catch (e: any) {
     return withCors(
       req,

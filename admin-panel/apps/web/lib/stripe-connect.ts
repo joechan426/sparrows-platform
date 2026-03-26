@@ -11,7 +11,7 @@ export function adminStripeConnectReturnUrls(): { returnUrl: string; refreshUrl:
 
 export async function createStripeExpressAccount(
   stripe: Stripe,
-  params: { adminUserId: string; email: string | null },
+  params: { paymentProfileId: string; email: string | null },
 ): Promise<Stripe.Account> {
   const country = (process.env.STRIPE_CONNECT_DEFAULT_COUNTRY || "AU").toUpperCase();
   return stripe.accounts.create({
@@ -22,7 +22,7 @@ export async function createStripeExpressAccount(
       card_payments: { requested: true },
       transfers: { requested: true },
     },
-    metadata: { adminUserId: params.adminUserId },
+    metadata: { paymentProfileId: params.paymentProfileId },
   });
 }
 

@@ -14,7 +14,7 @@ export const AdminUserCreate: React.FC = () => {
   type AdminUserCreateForm = {
     userName: string;
     password: string;
-    role: "ADMIN" | "MANAGER";
+    role: "ADMIN" | "SUPER_MANAGER" | "MANAGER";
     permissions: string[];
   };
   const {
@@ -64,15 +64,18 @@ export const AdminUserCreate: React.FC = () => {
           <Select
             label="Role"
             value={role}
-            onChange={(e) => setValue("role", e.target.value as "ADMIN" | "MANAGER", { shouldDirty: true })}
+            onChange={(e) =>
+              setValue("role", e.target.value as "ADMIN" | "SUPER_MANAGER" | "MANAGER", { shouldDirty: true })
+            }
           >
             <MenuItem value="MANAGER">Manager</MenuItem>
+            <MenuItem value="SUPER_MANAGER">Super Manager</MenuItem>
             <MenuItem value="ADMIN">Admin</MenuItem>
           </Select>
         </FormControl>
-        {role === "MANAGER" && (
+        {(role === "MANAGER" || role === "SUPER_MANAGER") && (
           <FormControl component="fieldset">
-            <InputLabel shrink>Page permissions</InputLabel>
+            <InputLabel shrink>Page permissions (Manager / Super Manager)</InputLabel>
             <FormGroup row sx={{ pt: 1 }}>
               {MODULES.map((m) => (
                 <FormControlLabel

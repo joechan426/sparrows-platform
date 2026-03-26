@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "../../../../lib/prisma";
 import { capturePayPalOrder, getPayPalAccessTokenWithClientCreds } from "../../../../lib/paypal-server";
 import { corsJson, corsOptions } from "../../../../lib/cors";
-import { getEventRecipientPayPalRestCreds } from "../../../../lib/paypal-merchant-creds";
+import { getEventPaymentProfilePayPalRestCreds } from "../../../../lib/paypal-merchant-creds";
 
 /**
  * POST /api/paypal/capture
@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
       return corsJson(req, { ok: true, registrationId: reg.id, alreadyCaptured: true });
     }
 
-    const creds = await getEventRecipientPayPalRestCreds(reg.calendarEventId);
+    const creds = await getEventPaymentProfilePayPalRestCreds(reg.calendarEventId);
     if (!creds) {
       return corsJson(
         req,

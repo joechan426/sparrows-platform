@@ -4,7 +4,7 @@ import { corsJson, corsOptions } from "../../../../../lib/cors";
 import { getPaymentPlatformSettings, getCheckoutPublicBaseUrl } from "../../../../../lib/payment-platform";
 import { getStripe } from "../../../../../lib/stripe-server";
 import { createPayPalOrder, getPayPalAccessTokenWithClientCreds } from "../../../../../lib/paypal-server";
-import { getEventRecipientPayPalRestCreds } from "../../../../../lib/paypal-merchant-creds";
+import { getEventPaymentProfilePayPalRestCreds } from "../../../../../lib/paypal-merchant-creds";
 
 async function getIdFromContext(context: { params?: Promise<{ id: string }> }): Promise<string | undefined> {
   const params = await context.params;
@@ -47,7 +47,7 @@ export async function POST(req: NextRequest, context: { params?: Promise<{ id: s
     const event = await prisma.calendarEvent.findUnique({
       where: { id: calendarEventId },
       include: {
-        paymentAccountAdmin: {
+        paymentProfile: {
           select: {
             id: true,
             stripeConnectedAccountId: true,
@@ -65,18 +65,18 @@ export async function POST(req: NextRequest, context: { params?: Promise<{ id: s
       return corsJson(req, { message: "This event does not require payment" }, { status: 400 });
     }
 
-    if (!event.paymentAccountAdminId || !event.paymentAccountAdmin) {
+    if (!event.paymentProfileId || !event.paymentProfile) {
       return corsJson(
         req,
         {
           message:
-            "This paid event has no payment recipient. A manager must assign a recipient admin in the event settings.",
+            "This paid event has no payment profile. A manager must select a payment account in the event settings.",
         },
         { status: 400 },
       );
     }
 
-    const recipient = event.paymentAccountAdmin;
+    const recipient = event.paymentProfile;
 
     const isSpecial = event.eventType === "SPECIAL";
     if (isSpecial && !teamName) {
@@ -105,7 +105,7 @@ export async function POST(req: NextRequest, context: { params?: Promise<{ id: s
     }
 
     if (provider === "paypal") {
-      const creds = await getEventRecipientPayPalRestCreds(event.id);
+      const creds = await getEventPaymentProfilePayPalRestCreds(event.id);
       if (!creds) {
         return corsJson(
           req,
@@ -214,7 +214,7 @@ export async function POST(req: NextRequest, context: { params?: Promise<{ id: s
       return corsJson(req, { url: session.url, registrationId: registration.id });
     }
 
-    const creds = await getEventRecipientPayPalRestCreds(event.id);
+    const creds = await getEventPaymentProfilePayPalRestCreds(event.id);
     if (!creds) {
       return corsJson(
         req,

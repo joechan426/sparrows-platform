@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
   if (event.type === "account.updated") {
     const account = event.data.object as import("stripe").Stripe.Account;
     if (account.id) {
-      await prisma.adminUser.updateMany({
+      await prisma.paymentProfile.updateMany({
         where: { stripeConnectedAccountId: account.id },
         data: { stripeConnectChargesEnabled: account.charges_enabled === true },
       });

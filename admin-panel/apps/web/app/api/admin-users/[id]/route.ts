@@ -63,10 +63,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       isActive?: boolean;
       userName?: string;
       passwordHash?: string;
+      role?: "ADMIN" | "SUPER_MANAGER" | "MANAGER";
       permissions?: { deleteMany: {}; create: { module: string }[] };
     } = {};
 
     if (typeof data.isActive === "boolean") updates.isActive = data.isActive;
+
+    if (data.role === "ADMIN" || data.role === "SUPER_MANAGER" || data.role === "MANAGER") {
+      updates.role = data.role;
+    }
     const newUserName = typeof data.userName === "string" ? data.userName.trim() : "";
     if (newUserName.length > 0) {
       const existing = await prisma.adminUser.findFirst({

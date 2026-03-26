@@ -1,5 +1,4 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { prisma } from "../../../../lib/prisma";
 import { requireAdminAuth } from "../../../../lib/admin-auth";
 import { fetchHiddenNavResourcesSafe } from "../../../../lib/fetch-hidden-nav-safe";
 
@@ -17,23 +16,6 @@ export async function GET(req: NextRequest) {
   if (!result.ok) return withCors(req, result.response);
   const hiddenNavResources =
     result.admin.role === "ADMIN" ? await fetchHiddenNavResourcesSafe(result.admin.id) : [];
-  // Be resilient during rollout: DB schema may temporarily lag behind code deploys.
-  // If new columns don't exist yet, return nulls instead of 500.
-  let paymentRow: any = null;
-  try {
-    paymentRow = await prisma.adminUser.findUnique({
-      where: { id: result.admin.id },
-      select: {
-        stripeConnectedAccountId: true,
-        stripeConnectChargesEnabled: true,
-        paypalMerchantId: true,
-        paypalRestClientIdEnc: true,
-        paypalRestClientSecretEnc: true,
-      },
-    });
-  } catch {
-    paymentRow = null;
-  }
   return withCors(
     req,
     NextResponse.json({
@@ -42,18 +24,6 @@ export async function GET(req: NextRequest) {
       role: result.admin.role,
       permissions: result.admin.permissions,
       hiddenNavResources,
-      paymentConnections: {
-        stripe: {
-          connectedAccountId: paymentRow?.stripeConnectedAccountId ?? null,
-          chargesEnabled: paymentRow?.stripeConnectChargesEnabled ?? false,
-        },
-        paypal: {
-          merchantId: paymentRow?.paypalMerchantId ?? null,
-          restAppConnected: Boolean(
-            paymentRow?.paypalRestClientIdEnc && paymentRow?.paypalRestClientSecretEnc,
-          ),
-        },
-      },
     })
   );
 }

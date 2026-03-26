@@ -148,6 +148,7 @@ const DEFAULT_RESOURCE_PATHS: { resource: string; path: string }[] = [
   { resource: "teams", path: "/teams" },
   { resource: "calendar-events", path: "/events" },
   { resource: "members", path: "/members" },
+  { resource: "payment-profiles", path: "/payment-profiles" },
   { resource: "admin-users", path: "/admin-users" },
 ];
 
@@ -155,6 +156,7 @@ const DEFAULT_RESOURCE_PATHS: { resource: string; path: string }[] = [
 export function getFirstAccessiblePath(): string {
   const first = DEFAULT_RESOURCE_PATHS.find((r) => canAccessResource(r.resource));
   if (first) return first.path;
+  if (canAccessResource("payment-profiles")) return "/payment-profiles";
   // Profile is always reachable for signed-in users (not gated by module/hidden-nav roots).
   return "/profile";
 }
@@ -178,6 +180,10 @@ export function canAccessResource(resourceName: string): boolean {
     if (admin.role !== "ADMIN") return false;
     if (hidden.has("admin-users")) return false;
     return true;
+  }
+
+  if (resourceName === "payment-profiles") {
+    return admin.role === "ADMIN" || admin.role === "SUPER_MANAGER";
   }
 
   const module = RESOURCE_TO_MODULE[resourceName];
