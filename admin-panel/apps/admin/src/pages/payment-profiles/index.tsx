@@ -28,6 +28,7 @@ type ProfileRow = {
   isActive: boolean;
   stripeConnected: boolean;
   stripeChargesEnabled: boolean;
+  stripeDetailsSubmitted?: boolean;
   paypalRestAppConnected: boolean;
 };
 
@@ -71,6 +72,7 @@ const HIGHLIGHT: Record<
 
 function stripeStatus(row: ProfileRow): { label: string; tone: StatusTone } {
   if (row.stripeChargesEnabled) return { label: "Ready", tone: "green" };
+  if (row.stripeConnected && row.stripeDetailsSubmitted) return { label: "Connected", tone: "orange" };
   if (row.stripeConnected) return { label: "Onboarding", tone: "red" };
   return { label: "Not connected", tone: "orange" };
 }
@@ -91,6 +93,40 @@ export const PaymentProfilesPage: React.FC = () => {
   const [deleteTarget, setDeleteTarget] = React.useState<ProfileRow | null>(null);
   const [deleting, setDeleting] = React.useState(false);
 
+  const syncStripeStatusForRows = React.useCallback(async (token: string, baseRows: ProfileRow[]) => {
+    const targets = baseRows.filter((r) => r.stripeConnected && !r.stripeChargesEnabled);
+    if (targets.length === 0) return;
+
+    const updates: Record<string, { stripeChargesEnabled: boolean; stripeDetailsSubmitted: boolean }> = {};
+
+    await Promise.all(
+      targets.map(async (r) => {
+        try {
+          const res = await fetch(apiUrl(`/payment-profiles/${r.id}/stripe/status`), {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) return;
+          if (typeof data.chargesEnabled !== "boolean" || typeof data.detailsSubmitted !== "boolean") return;
+          updates[r.id] = { stripeChargesEnabled: data.chargesEnabled, stripeDetailsSubmitted: data.detailsSubmitted };
+        } catch {
+          // Ignore individual failures; other profiles should still render.
+        }
+      }),
+    );
+
+    const hasAnyUpdate = Object.keys(updates).length > 0;
+    if (!hasAnyUpdate) return;
+
+    setRows((prev) =>
+      prev.map((r) => {
+        const u = updates[r.id];
+        if (!u) return r;
+        return { ...r, stripeChargesEnabled: u.stripeChargesEnabled, stripeDetailsSubmitted: u.stripeDetailsSubmitted };
+      }),
+    );
+  }, []);
+
   const load = React.useCallback(async () => {
     const token = getToken();
     if (!token) return;
@@ -104,7 +140,9 @@ export const PaymentProfilesPage: React.FC = () => {
       if (!res.ok) {
         throw new Error(data?.message ?? "Failed to load payment profiles");
       }
-      setRows(Array.isArray(data) ? data : []);
+      const nextRows = Array.isArray(data) ? data : [];
+      setRows(nextRows);
+      void syncStripeStatusForRows(token, nextRows);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to load");
       setRows([]);

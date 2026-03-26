@@ -26,6 +26,14 @@ export async function POST(req: NextRequest, context: { params?: Promise<{ id: s
   }
 
   try {
+    // We must generate Stripe `return_url/refresh_url` pointing back to *this* admin-panel host.
+    // Relying on NEXT_PUBLIC_WEB_APP_URL causes onboarding to return to sparrowsweb instead.
+    const forwardedProto = req.headers.get("x-forwarded-proto");
+    const forwardedHost = req.headers.get("x-forwarded-host");
+    const proto = ((forwardedProto ?? "https").split(",")[0] ?? "https").trim();
+    const host = ((forwardedHost ?? req.headers.get("host") ?? "").split(",")[0] ?? "").trim();
+    const adminBaseUrl = host ? `${proto}://${host}` : undefined;
+
     const profile = await prisma.paymentProfile.findUnique({
       where: { id: paymentProfileId },
       select: { id: true, stripeConnectedAccountId: true },
@@ -53,7 +61,7 @@ export async function POST(req: NextRequest, context: { params?: Promise<{ id: s
       });
     }
 
-    const url = await createStripeAccountOnboardingLink(stripe, accountId);
+    const url = await createStripeAccountOnboardingLink(stripe, accountId, adminBaseUrl);
     if (!url) {
       return corsJson(req, { message: "Could not create Stripe onboarding link" }, { status: 502 });
     }

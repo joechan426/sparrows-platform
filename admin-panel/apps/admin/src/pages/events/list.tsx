@@ -343,23 +343,47 @@ export const EventList: React.FC = () => {
       },
       {
         field: "isPaid",
-        headerName: "Paid",
+        headerName: "Price",
         width: 130,
+        align: "center",
+        headerAlign: "center",
         sortable: false,
         renderCell: ({ row }) => {
           const paid = Boolean(row.isPaid);
-          if (!paid) return <Typography variant="body2" color="text.secondary">No</Typography>;
+          if (!paid) {
+            return (
+              <Box
+                sx={{
+                  width: "100%",
+                  height: "100%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Typography variant="body2" color="text.secondary" sx={{ textAlign: "center" }}>
+                  No
+                </Typography>
+              </Box>
+            );
+          }
 
           const cents = row.priceCents ?? 0;
           const amt = cents / 100;
           return (
-            <Typography
-              variant="body2"
-              sx={{ fontWeight: 700 }}
-              color="text.primary"
+            <Box
+              sx={{
+                width: "100%",
+                height: "100%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
             >
-              ${amt.toFixed(2)}
-            </Typography>
+              <Typography variant="body2" sx={{ fontWeight: 700, textAlign: "center" }} color="text.primary">
+                ${amt.toFixed(2)}
+              </Typography>
+            </Box>
           );
         },
       },

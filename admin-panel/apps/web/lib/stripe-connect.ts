@@ -1,8 +1,8 @@
 import type Stripe from "stripe";
 import { getCheckoutPublicBaseUrl } from "./payment-platform";
 
-export function adminStripeConnectReturnUrls(): { returnUrl: string; refreshUrl: string } {
-  const base = getCheckoutPublicBaseUrl();
+export function adminStripeConnectReturnUrls(baseUrl?: string): { returnUrl: string; refreshUrl: string } {
+  const base = (baseUrl && baseUrl.trim().length > 0 ? baseUrl : getCheckoutPublicBaseUrl()).replace(/\/+$/, "");
   return {
     returnUrl: `${base}/admin/connect/stripe/return`,
     refreshUrl: `${base}/admin/connect/stripe/refresh`,
@@ -29,8 +29,9 @@ export async function createStripeExpressAccount(
 export async function createStripeAccountOnboardingLink(
   stripe: Stripe,
   accountId: string,
+  baseUrl?: string,
 ): Promise<string | null> {
-  const { returnUrl, refreshUrl } = adminStripeConnectReturnUrls();
+  const { returnUrl, refreshUrl } = adminStripeConnectReturnUrls(baseUrl);
   const link = await stripe.accountLinks.create({
     account: accountId,
     refresh_url: refreshUrl,
