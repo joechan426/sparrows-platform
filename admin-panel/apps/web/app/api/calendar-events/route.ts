@@ -195,11 +195,34 @@ export async function POST(req: NextRequest) {
         paymentProfileId = null;
       } else {
         const pid = String(body.paymentProfileId);
-        const prof = await prisma.paymentProfile.findUnique({ where: { id: pid }, select: { id: true } });
+        const prof = await prisma.paymentProfile.findUnique({
+          where: { id: pid },
+          select: {
+            id: true,
+            stripeConnectChargesEnabled: true,
+            paypalRestClientIdEnc: true,
+            paypalRestClientSecretEnc: true,
+          },
+        });
         if (!prof) {
           return withCors(
             req,
             NextResponse.json({ message: "paymentProfileId not found" }, { status: 400 })
+          );
+        }
+        const paymentMethodReady =
+          prof.stripeConnectChargesEnabled === true ||
+          Boolean(prof.paypalRestClientIdEnc && prof.paypalRestClientSecretEnc);
+        if (!paymentMethodReady) {
+          return withCors(
+            req,
+            NextResponse.json(
+              {
+                message:
+                  "Selected payment profile is not ready. Stripe or PayPal must be configured and ready before using this profile for paid events.",
+              },
+              { status: 400 },
+            ),
           );
         }
         paymentProfileId = pid;
@@ -229,6 +252,33 @@ export async function POST(req: NextRequest) {
             { status: 400 }
           )
         );
+      }
+      if (nextProfileId) {
+        const prof = await prisma.paymentProfile.findUnique({
+          where: { id: nextProfileId },
+          select: {
+            stripeConnectChargesEnabled: true,
+            paypalRestClientIdEnc: true,
+            paypalRestClientSecretEnc: true,
+          },
+        });
+        const paymentMethodReady = Boolean(
+          prof &&
+            (prof.stripeConnectChargesEnabled === true ||
+              (prof.paypalRestClientIdEnc && prof.paypalRestClientSecretEnc)),
+        );
+        if (!paymentMethodReady) {
+          return withCors(
+            req,
+            NextResponse.json(
+              {
+                message:
+                  "Selected payment profile is not ready. Stripe or PayPal must be configured and ready before using this profile for paid events.",
+              },
+              { status: 400 },
+            ),
+          );
+        }
       }
     }
 

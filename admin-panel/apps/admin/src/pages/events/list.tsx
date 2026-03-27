@@ -321,15 +321,29 @@ export const EventList: React.FC = () => {
         field: "startAt",
         headerName: "Start",
         width: 180,
-        valueGetter: (value: unknown) =>
-          value != null && value !== "" ? new Date(value as string).toLocaleString() : "—",
+        renderCell: ({ row, value }) => (
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%", height: "100%" }}>
+            <Link to={`/events/${row.id}`} style={{ textDecoration: "none", color: "inherit" }}>
+              <Typography variant="body2" sx={{ textAlign: "center" }}>
+                {value != null && value !== "" ? new Date(value as string).toLocaleString() : "—"}
+              </Typography>
+            </Link>
+          </Box>
+        ),
       },
       {
         field: "endAt",
         headerName: "End",
         width: 180,
-        valueGetter: (value: unknown) =>
-          value != null && value !== "" ? new Date(value as string).toLocaleString() : "—",
+        renderCell: ({ row, value }) => (
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%", height: "100%" }}>
+            <Link to={`/events/${row.id}`} style={{ textDecoration: "none", color: "inherit" }}>
+              <Typography variant="body2" sx={{ textAlign: "center" }}>
+                {value != null && value !== "" ? new Date(value as string).toLocaleString() : "—"}
+              </Typography>
+            </Link>
+          </Box>
+        ),
       },
       {
         field: "sportType",
@@ -361,9 +375,11 @@ export const EventList: React.FC = () => {
                   justifyContent: "center",
                 }}
               >
-                <Typography variant="body2" color="text.secondary" sx={{ textAlign: "center" }}>
-                  No
-                </Typography>
+                <Link to={`/events/${row.id}`} style={{ textDecoration: "none", color: "inherit" }}>
+                  <Typography variant="body2" color="text.secondary" sx={{ textAlign: "center" }}>
+                    No
+                  </Typography>
+                </Link>
               </Box>
             );
           }
@@ -380,9 +396,11 @@ export const EventList: React.FC = () => {
                 justifyContent: "center",
               }}
             >
-              <Typography variant="body2" sx={{ fontWeight: 700, textAlign: "center" }} color="text.primary">
-                ${amt.toFixed(2)}
-              </Typography>
+              <Link to={`/events/${row.id}`} style={{ textDecoration: "none", color: "inherit" }}>
+                <Typography variant="body2" sx={{ fontWeight: 700, textAlign: "center" }} color="text.primary">
+                  ${amt.toFixed(2)}
+                </Typography>
+              </Link>
             </Box>
           );
         },
@@ -391,11 +409,18 @@ export const EventList: React.FC = () => {
         field: "capacity",
         headerName: "Capacity",
         width: 140,
-        valueGetter: (_value: unknown, row: CalendarEventRow) => {
+        renderCell: ({ row }) => {
           const approved = row.approvedCount ?? 0;
-          return row.capacity == null
+          const text = row.capacity == null
             ? `${approved}/Unlimited`
             : `${approved}/${row.capacity}`;
+          return (
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%", height: "100%" }}>
+              <Link to={`/events/${row.id}/registrations`} style={{ textDecoration: "none", color: "inherit" }}>
+                <Typography variant="body2" sx={{ textAlign: "center" }}>{text}</Typography>
+              </Link>
+            </Box>
+          );
         },
       },
       {

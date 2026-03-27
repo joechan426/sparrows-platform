@@ -29,6 +29,12 @@ export type CalendarEvent = {
   eventType: string;
   registrationOpen: boolean;
   capacity: number | null;
+  isPaid?: boolean;
+  priceCents?: number | null;
+  priceDollars?: number | null;
+  currency?: string;
+  stripeCheckoutAvailable?: boolean;
+  paypalCheckoutAvailable?: boolean;
   /** Present when loaded from API; count of APPROVED registrations */
   approvedCount?: number;
 };
@@ -149,4 +155,29 @@ export async function apiRegisterForEvent(
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data?.message ?? "Registration failed");
+}
+
+export async function apiCreateEventCheckout(params: {
+  eventId: string;
+  provider: "stripe" | "paypal";
+  preferredName: string;
+  email: string;
+  teamName?: string | null;
+}): Promise<{ url: string }> {
+  const body: Record<string, string> = {
+    provider: params.provider,
+    preferredName: params.preferredName.trim(),
+    email: params.email.trim(),
+  };
+  if (params.teamName != null && String(params.teamName).trim()) body.teamName = String(params.teamName).trim();
+
+  const res = await fetch(`${base()}/api/calendar-events/${params.eventId}/checkout`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.message ?? "Checkout failed");
+  if (!data?.url || typeof data.url !== "string") throw new Error("Checkout URL is missing");
+  return { url: data.url };
 }

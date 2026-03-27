@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import type { CalendarEvent, Member } from "@/lib/api";
-import { apiRegisterForEvent } from "@/lib/api";
+import { apiCalendarEvent, apiCreateEventCheckout, apiRegisterForEvent } from "@/lib/api";
 import { approvedRegistrationHint } from "@/lib/calendar-registration-hint";
 
 function formatDate(d: string): string {
@@ -27,15 +27,65 @@ type Props = {
 };
 
 export function EventDetail({ event, member, onClose, onRegistered }: Props) {
-  const joinHint = event.registrationOpen ? approvedRegistrationHint(event) : null;
+  const [eventData, setEventData] = useState<CalendarEvent>(event);
+  const joinHint = eventData.registrationOpen ? approvedRegistrationHint(eventData) : null;
   const [preferredName, setPreferredName] = useState(member?.preferredName ?? "");
   const [email, setEmail] = useState(member?.email ?? "");
   const [teamName, setTeamName] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [checkoutLoadingProvider, setCheckoutLoadingProvider] = useState<"stripe" | "paypal" | null>(null);
   const [success, setSuccess] = useState(false);
 
-  const special = isSpecial(event);
+  useEffect(() => {
+    setEventData(event);
+    let cancelled = false;
+    (async () => {
+      try {
+        const detail = await apiCalendarEvent(event.id);
+        if (!cancelled) setEventData(detail);
+      } catch {
+        // keep existing event snapshot
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [event]);
+
+  const special = isSpecial(eventData);
+  const requiresPayment = Boolean(eventData.isPaid && (eventData.priceCents ?? 0) > 0);
+
+  async function handleCheckout(provider: "stripe" | "paypal") {
+    setError("");
+    if (!preferredName.trim()) {
+      setError("Preferred name is required.");
+      return;
+    }
+    if (!email.trim()) {
+      setError("Email is required for paid events.");
+      return;
+    }
+    if (special && !teamName.trim()) {
+      setError("Team name is required for this event.");
+      return;
+    }
+    setCheckoutLoadingProvider(provider);
+    try {
+      const result = await apiCreateEventCheckout({
+        eventId: eventData.id,
+        provider,
+        preferredName: preferredName.trim(),
+        email: email.trim(),
+        teamName: special ? teamName.trim() || null : null,
+      });
+      window.location.href = result.url;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to start checkout.");
+    } finally {
+      setCheckoutLoadingProvider(null);
+    }
+  }
 
   async function handleRegister(e: React.FormEvent) {
     e.preventDefault();
@@ -51,14 +101,14 @@ export function EventDetail({ event, member, onClose, onRegistered }: Props) {
     setLoading(true);
     try {
       await apiRegisterForEvent(
-        event.id,
+        eventData.id,
         preferredName.trim(),
         email.trim(),
         special ? teamName.trim() || null : null
       );
       setSuccess(true);
       // Optimistically update the UI (Pending pill) immediately.
-      onRegistered(event.id);
+      onRegistered(eventData.id);
       // Keep the success message visible for a short moment, then close.
       setTimeout(() => onClose(), 1500);
     } catch (err) {
@@ -68,7 +118,7 @@ export function EventDetail({ event, member, onClose, onRegistered }: Props) {
         // Even if fetch throws, we can still optimistically reflect "Pending".
         setSuccess(true);
         setError("");
-        onRegistered(event.id);
+        onRegistered(eventData.id);
         setTimeout(() => onClose(), 1500);
       } else {
         setError(err instanceof Error ? err.message : "Registration failed.");
@@ -82,23 +132,23 @@ export function EventDetail({ event, member, onClose, onRegistered }: Props) {
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal-content event-detail-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <h2 className="modal-title">{event.title}</h2>
+          <h2 className="modal-title">{eventData.title}</h2>
           <button type="button" className="modal-close" onClick={onClose}>
             Close
           </button>
         </div>
         <dl className="event-detail-dl">
           <dt>Date & time</dt>
-          <dd>{formatDate(event.startAt)} · {formatTime(event.startAt)}</dd>
+          <dd>{formatDate(eventData.startAt)} · {formatTime(eventData.startAt)}</dd>
           <dt>Location</dt>
-          <dd>{event.location || "—"}</dd>
+          <dd>{eventData.location || "—"}</dd>
           <dt>Description</dt>
-          <dd>{event.description || "—"}</dd>
+          <dd>{eventData.description || "—"}</dd>
           <dt>Sport</dt>
-          <dd>{event.sportType || "—"}</dd>
+          <dd>{eventData.sportType || "—"}</dd>
           <dt>Registration</dt>
           <dd>
-            {event.registrationOpen ? "Open" : "Closed"}
+            {eventData.registrationOpen ? "Open" : "Closed"}
             {joinHint ? (
               <>
                 {" · "}
@@ -120,13 +170,13 @@ export function EventDetail({ event, member, onClose, onRegistered }: Props) {
           </div>
         )}
 
-        {member && event.registrationOpen && (
+        {member && eventData.registrationOpen && (
           <>
             <h3 className="event-detail-form-title">Register</h3>
             {success ? (
               <p className="form-success">You are registered. Status: PENDING.</p>
             ) : (
-              <form onSubmit={handleRegister} className="auth-form">
+              <form onSubmit={requiresPayment ? (e) => e.preventDefault() : handleRegister} className="auth-form">
                 <div className="field">
                   <label>Preferred name *</label>
                   <input
@@ -155,10 +205,42 @@ export function EventDetail({ event, member, onClose, onRegistered }: Props) {
                     />
                   </div>
                 )}
+                {requiresPayment && (
+                  <div className="field">
+                    <label>Payment method</label>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      {eventData.stripeCheckoutAvailable && (
+                        <button
+                          type="button"
+                          className="btn-primary"
+                          disabled={checkoutLoadingProvider !== null}
+                          onClick={() => void handleCheckout("stripe")}
+                        >
+                          {checkoutLoadingProvider === "stripe" ? "Opening Stripe…" : "Pay with Stripe"}
+                        </button>
+                      )}
+                      {eventData.paypalCheckoutAvailable && (
+                        <button
+                          type="button"
+                          className="btn-primary"
+                          disabled={checkoutLoadingProvider !== null}
+                          onClick={() => void handleCheckout("paypal")}
+                        >
+                          {checkoutLoadingProvider === "paypal" ? "Opening PayPal…" : "Pay with PayPal"}
+                        </button>
+                      )}
+                    </div>
+                    {!eventData.stripeCheckoutAvailable && !eventData.paypalCheckoutAvailable && (
+                      <p className="form-error">No payment method is currently available for this event.</p>
+                    )}
+                  </div>
+                )}
                 {error && <p className="form-error">{error}</p>}
-                <button type="submit" className="btn-primary" disabled={loading}>
-                  {loading ? "Registering…" : "Register"}
-                </button>
+                {!requiresPayment && (
+                  <button type="submit" className="btn-primary" disabled={loading}>
+                    {loading ? "Registering…" : "Register"}
+                  </button>
+                )}
               </form>
             )}
           </>
