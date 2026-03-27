@@ -9,7 +9,9 @@ const PATH_TO_RESOURCE: { path: string; resource: string }[] = [
   { path: "/events", resource: "calendar-events" },
   { path: "/members", resource: "members" },
   { path: "/payment-profiles", resource: "payment-profiles" },
+  { path: "/payments", resource: "payments" },
   { path: "/admin-users", resource: "admin-users" },
+  { path: "/maintenance", resource: "calendar-events" },
 ];
 
 function getResourceForPath(pathname: string): string | null {

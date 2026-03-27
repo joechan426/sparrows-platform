@@ -366,6 +366,7 @@ enum AdminModule {
   MEMBERS
   PAYMENT_PROFILES
   ADMIN_USERS
+  PAYMENTS
 }
 
 model AdminUser {

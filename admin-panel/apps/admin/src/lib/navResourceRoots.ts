@@ -11,6 +11,7 @@ export const NAV_ROOT_BY_RESOURCE: Record<string, string> = {
   "event-registrations": "calendar-events",
   members: "members",
   "payment-profiles": "payment-profiles",
+  payments: "payments",
   "admin-users": "admin-users",
 };
 

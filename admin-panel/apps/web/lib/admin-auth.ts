@@ -19,7 +19,8 @@ export type AdminModule =
   | "CALENDAR_EVENTS"
   | "MEMBERS"
   | "PAYMENT_PROFILES"
-  | "ADMIN_USERS";
+  | "ADMIN_USERS"
+  | "PAYMENTS";
 
 export const ADMIN_IMPLICIT_MODULES: AdminModule[] = [
   "TOURNAMENTS",

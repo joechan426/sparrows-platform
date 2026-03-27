@@ -102,6 +102,20 @@ export const ProfilePage: React.FC = () => {
               </MuiLink>
             </Typography>
           )}
+          {hasPermission("CALENDAR_EVENTS") && (
+            <Typography variant="body2" sx={{ mb: 2 }}>
+              <MuiLink component={RouterLink} to="/maintenance/cleanup-awaiting-payments">
+                Maintenance: clean up stale unpaid event registrations
+              </MuiLink>
+            </Typography>
+          )}
+          {current.role === "ADMIN" && (
+            <Typography variant="body2" sx={{ mb: 2 }}>
+              <MuiLink component={RouterLink} to="/payments">
+                Payments (paid event revenue)
+              </MuiLink>
+            </Typography>
+          )}
           <Box
             component="form"
             onSubmit={handleSubmit(onSubmit)}

@@ -217,7 +217,7 @@ export const AdminUserEdit: React.FC = () => {
             {isAdmin && !isSuperManagerViewer && (
               <Box sx={{ pt: 1.5, mt: 1, borderTop: 1, borderColor: "divider" }}>
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
-                  Admin users (user management) — only an Admin can grant or remove this.
+                  Admin-only modules — only an Admin can grant or remove these.
                 </Typography>
                 <FormControlLabel
                   control={
@@ -228,6 +228,18 @@ export const AdminUserEdit: React.FC = () => {
                   }
                   label="Admin users"
                 />
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={permissions.includes("PAYMENTS")}
+                      onChange={() => handlePermissionToggle("PAYMENTS")}
+                    />
+                  }
+                  label="Payments (revenue)"
+                />
+                <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
+                  The Payments page is visible to Admin accounts only for now; this permission is stored for future use.
+                </Typography>
               </Box>
             )}
           </FormControl>

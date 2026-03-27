@@ -14,6 +14,7 @@ const PERMISSION_MODULE_VALUES = [
   "MEMBERS",
   "PAYMENT_PROFILES",
   "ADMIN_USERS",
+  "PAYMENTS",
 ] as const;
 
 // GET /api/admin-users — ADMIN: all users; SUPER_MANAGER + ADMIN_USERS: Managers only

@@ -19,6 +19,7 @@ const PERMISSION_MODULE_VALUES = [
   "MEMBERS",
   "PAYMENT_PROFILES",
   "ADMIN_USERS",
+  "PAYMENTS",
 ] as const;
 
 /** Modules a Super Manager may assign to Managers (Admin Users is Admin-only). */

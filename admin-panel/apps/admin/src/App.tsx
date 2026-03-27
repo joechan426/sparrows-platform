@@ -55,6 +55,8 @@ import { LoginPage } from "./pages/login";
 import { NoAccessPage } from "./pages/no-access";
 import { ProfilePage } from "./pages/profile";
 import { PaymentProfilesPage } from "./pages/payment-profiles";
+import { PaymentRevenueListPage } from "./pages/payments/list";
+import { CleanupAwaitingPaymentsPage } from "./pages/maintenance/cleanup-awaiting-payments";
 
 import { HeaderWithProfileLink } from "./components/HeaderWithProfileLink";
 import { adminAuthProvider, canAccessResource } from "./lib/authProvider";
@@ -203,6 +205,11 @@ const App: React.FC = () => {
                 meta: { label: "Payment profiles" },
               },
               {
+                name: "payments",
+                list: "/payments",
+                meta: { label: "Payments" },
+              },
+              {
                 name: "admin-users",
                 list: "/admin-users",
                 create: "/admin-users/create",
@@ -292,10 +299,15 @@ const App: React.FC = () => {
                 <Route path="/members" element={<MemberList />} />
                 <Route path="/members/:id" element={<MemberShow />} />
                 <Route path="/payment-profiles" element={<PaymentProfilesPage />} />
+                <Route path="/payments" element={<PaymentRevenueListPage />} />
                 <Route path="/admin-users" element={<AdminUserList />} />
                 <Route path="/admin-users/create" element={<AdminUserCreate />} />
                 <Route path="/admin-users/:id/edit" element={<AdminUserEdit />} />
                 <Route path="/profile" element={<ProfilePage />} />
+                <Route
+                  path="/maintenance/cleanup-awaiting-payments"
+                  element={<CleanupAwaitingPaymentsPage />}
+                />
                 <Route path="/no-access" element={<NoAccessPage />} />
 
                 <Route path="/tournaments/:id" element={<TournamentShow />}>
