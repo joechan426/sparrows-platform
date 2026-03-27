@@ -5,8 +5,9 @@ import {
   useNotification,
   useUpdate,
 } from "@refinedev/core";
-import { List } from "@refinedev/mui";
-import { DataGrid, type GridColDef, type GridRowSelectionModel } from "@mui/x-data-grid";
+import { List } from "../../components/SaasRefineMui";
+import { type GridColDef, type GridRowSelectionModel } from "@mui/x-data-grid";
+import { SaasDataGrid } from "../../components/SaasDataGrid";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import useMediaQuery from "@mui/material/useMediaQuery";
@@ -657,7 +658,7 @@ export const EventRegistrationsPage: React.FC = () => {
         </Typography>
       </Stack>
 
-      <DataGrid
+      <SaasDataGrid
         rows={filteredRows}
         columns={columns}
         autoHeight

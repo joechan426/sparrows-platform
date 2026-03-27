@@ -7,8 +7,11 @@ import Toolbar from "@mui/material/Toolbar";
 import Button from "@mui/material/Button";
 import Typography from "@mui/material/Typography";
 import Avatar from "@mui/material/Avatar";
+import Box from "@mui/material/Box";
+import InputBase from "@mui/material/InputBase";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import { HamburgerMenu } from "@refinedev/mui";
+import SearchIcon from "@mui/icons-material/Search";
 
 export const HeaderWithProfileLink: React.FC<{ sticky?: boolean }> = ({
   sticky = true,
@@ -24,9 +27,31 @@ export const HeaderWithProfileLink: React.FC<{ sticky?: boolean }> = ({
         <Stack
           direction="row"
           width="100%"
-          justifyContent="flex-end"
+          justifyContent="space-between"
           alignItems="center"
+          gap={1}
         >
+          <Box
+            sx={{
+              display: { xs: "none", md: "flex" },
+              alignItems: "center",
+              gap: 1,
+              px: 1.25,
+              py: 0.5,
+              border: "1px solid",
+              borderColor: "divider",
+              borderRadius: 2,
+              minWidth: 260,
+              bgcolor: "background.paper",
+            }}
+          >
+            <SearchIcon fontSize="small" sx={{ color: "text.secondary" }} />
+            <InputBase
+              placeholder="Quick search…"
+              inputProps={{ "aria-label": "quick search" }}
+              sx={{ fontSize: 14, width: "100%" }}
+            />
+          </Box>
           <Stack
             direction="row"
             gap="16px"

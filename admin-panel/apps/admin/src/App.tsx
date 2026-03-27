@@ -254,6 +254,14 @@ const App: React.FC = () => {
                       Footer={() => <AdminMobileBottomNav />}
                       childrenBoxProps={{
                         sx: {
+                          maxWidth: "1600px",
+                          mx: "auto",
+                          width: "100%",
+                          px: { xs: 1, md: 2 },
+                          py: 1,
+                          "& > *": {
+                            borderRadius: 2,
+                          },
                           "@media (max-width: 1024px)": {
                             /* Taller bottom tab bar (2× control size) + safe area */
                             paddingBottom: "calc(144px + env(safe-area-inset-bottom, 0px))",

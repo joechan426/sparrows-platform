@@ -19,6 +19,7 @@ import DialogTitle from "@mui/material/DialogTitle";
 import DialogContent from "@mui/material/DialogContent";
 import DialogActions from "@mui/material/DialogActions";
 import DialogContentText from "@mui/material/DialogContentText";
+import { useNotification } from "@refinedev/core";
 import { getToken } from "../../lib/admin-auth";
 import { apiUrl } from "../../lib/api-base";
 
@@ -83,6 +84,7 @@ function paypalStatus(row: ProfileRow): { label: string; tone: StatusTone } {
 }
 
 export const PaymentProfilesPage: React.FC = () => {
+  const { open } = useNotification();
   const [rows, setRows] = React.useState<ProfileRow[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
@@ -180,8 +182,11 @@ export const PaymentProfilesPage: React.FC = () => {
       }
       setNewNickname("");
       await load();
+      open?.({ type: "success", message: "Payment profile created." });
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Create failed");
+      const message = e instanceof Error ? e.message : "Create failed";
+      setError(message);
+      open?.({ type: "error", message });
     } finally {
       setCreating(false);
     }
@@ -205,8 +210,11 @@ export const PaymentProfilesPage: React.FC = () => {
         throw new Error(data?.message ?? "Update failed");
       }
       setRows((prev) => prev.map((r) => (r.id === id ? { ...r, isActive } : r)));
+      open?.({ type: "success", message: `Profile ${isActive ? "activated" : "deactivated"}.` });
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Update failed");
+      const message = e instanceof Error ? e.message : "Update failed";
+      setError(message);
+      open?.({ type: "error", message });
       await load();
     }
   };
@@ -228,8 +236,11 @@ export const PaymentProfilesPage: React.FC = () => {
       }
       setDeleteTarget(null);
       await load();
+      open?.({ type: "success", message: "Payment profile deleted." });
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Delete failed");
+      const message = e instanceof Error ? e.message : "Delete failed";
+      setError(message);
+      open?.({ type: "error", message });
     } finally {
       setDeleting(false);
     }
@@ -249,10 +260,13 @@ export const PaymentProfilesPage: React.FC = () => {
         throw new Error(data?.message ?? "Stripe onboarding failed");
       }
       if (typeof data.url === "string") {
+        open?.({ type: "progress", message: "Redirecting to Stripe onboarding..." });
         window.location.href = data.url;
       }
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Stripe onboarding failed");
+      const message = e instanceof Error ? e.message : "Stripe onboarding failed";
+      setError(message);
+      open?.({ type: "error", message });
     }
   };
 

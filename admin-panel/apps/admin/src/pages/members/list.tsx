@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from "react";
-import { List, useDataGrid } from "@refinedev/mui";
+import { List, useDataGrid } from "../../components/SaasRefineMui";
 import { useInvalidate, useNotification } from "@refinedev/core";
-import { DataGrid, type GridColDef, type GridRowSelectionModel } from "@mui/x-data-grid";
+import { type GridColDef, type GridRowSelectionModel } from "@mui/x-data-grid";
+import { SaasDataGrid } from "../../components/SaasDataGrid";
 import { useNavigate } from "react-router-dom";
 import Typography from "@mui/material/Typography";
 import Box from "@mui/material/Box";
@@ -215,7 +216,7 @@ export const MemberList: React.FC = () => {
           Delete member{selectedIds.length === 1 ? "" : "s"}{selectedIds.length > 0 ? ` (${selectedIds.length})` : ""}
         </Button>
       </Box>
-      <DataGrid
+      <SaasDataGrid
         {...dataGridProps}
         columns={columns}
         autoHeight

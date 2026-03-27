@@ -1,7 +1,8 @@
 import React, { useState } from "react";
-import { List, useDataGrid } from "@refinedev/mui";
+import { List, useDataGrid } from "../../components/SaasRefineMui";
 import { useUpdate, useDelete, useNotification, useInvalidate } from "@refinedev/core";
-import { DataGrid, type GridColDef, type GridRowSelectionModel } from "@mui/x-data-grid";
+import { type GridColDef, type GridRowSelectionModel } from "@mui/x-data-grid";
+import { SaasDataGrid } from "../../components/SaasDataGrid";
 import { Link, useNavigate } from "react-router-dom";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
@@ -526,7 +527,7 @@ export const EventList: React.FC = () => {
           sx={{ mb: 1, width: { xs: "100%", sm: "auto" }, minWidth: { xs: 0, sm: 220 } }}
           slotProps={{ input: { startAdornment: <InputAdornment position="start">Search</InputAdornment> } }}
         />
-        <DataGrid
+        <SaasDataGrid
           {...dataGridProps}
           rows={filteredListRows}
           columns={columns}

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useList, useNotification } from "@refinedev/core";
-import { List } from "@refinedev/mui";
+import { List } from "../../components/SaasRefineMui";
 import Button from "@mui/material/Button";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";

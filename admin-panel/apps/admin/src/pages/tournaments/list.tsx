@@ -1,6 +1,7 @@
 import React from "react";
-import { List, useDataGrid, EditButton } from "@refinedev/mui";
-import { DataGrid, type GridColDef } from "@mui/x-data-grid";
+import { List, useDataGrid, EditButton } from "../../components/SaasRefineMui";
+import { type GridColDef } from "@mui/x-data-grid";
+import { SaasDataGrid } from "../../components/SaasDataGrid";
 import { Link } from "react-router-dom";
 import Typography from "@mui/material/Typography";
 import Box from "@mui/material/Box";
@@ -52,7 +53,7 @@ export const TournamentList = () => {
 
   return (
     <List>
-      <DataGrid {...dataGridProps} columns={columns} autoHeight />
+      <SaasDataGrid {...dataGridProps} columns={columns} autoHeight />
     </List>
   );
 };

@@ -1,8 +1,9 @@
 import React, { useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useList, useNotification } from "@refinedev/core";
-import { List } from "@refinedev/mui";
-import { DataGrid, type GridColDef } from "@mui/x-data-grid";
+import { List } from "../../components/SaasRefineMui";
+import { type GridColDef } from "@mui/x-data-grid";
+import { SaasDataGrid } from "../../components/SaasDataGrid";
 import Button from "@mui/material/Button";
 import Box from "@mui/material/Box";
 import Dialog from "@mui/material/Dialog";
@@ -195,7 +196,7 @@ export const TournamentDivisions = () => {
           </Button>
         }
       >
-        <DataGrid
+        <SaasDataGrid
           rows={rows}
           columns={columns}
           autoHeight

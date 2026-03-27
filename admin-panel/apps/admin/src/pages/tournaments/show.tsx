@@ -1,6 +1,6 @@
 import { Outlet, useParams, Link, useLocation } from "react-router-dom";
 import { Box, Tabs, Tab, Typography, Stack, Divider } from "@mui/material";
-import { Show } from "@refinedev/mui";
+import { Show } from "../../components/SaasRefineMui";
 import { useShow } from "@refinedev/core";
 
 export const TournamentShow = () => {

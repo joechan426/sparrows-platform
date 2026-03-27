@@ -1,7 +1,8 @@
 import React, { useState } from "react";
-import { List, useDataGrid, EditButton, CreateButton } from "@refinedev/mui";
+import { List, useDataGrid, EditButton, CreateButton } from "../../components/SaasRefineMui";
 import { useInvalidate, useNotification } from "@refinedev/core";
-import { DataGrid, type GridColDef, type GridRowSelectionModel } from "@mui/x-data-grid";
+import { type GridColDef, type GridRowSelectionModel } from "@mui/x-data-grid";
+import { SaasDataGrid } from "../../components/SaasDataGrid";
 import Chip from "@mui/material/Chip";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
@@ -179,7 +180,7 @@ export const AdminUserList: React.FC = () => {
         </Stack>
       }
     >
-      <DataGrid
+      <SaasDataGrid
         {...dataGridProps}
         columns={columns}
         autoHeight

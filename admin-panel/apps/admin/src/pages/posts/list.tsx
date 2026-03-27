@@ -1,8 +1,9 @@
 import { useMany } from "@refinedev/core";
-import { EditButton, List, useDataGrid } from "@refinedev/mui";
+import { EditButton, List, useDataGrid } from "../../components/SaasRefineMui";
 import React from "react";
 
-import { DataGrid, type GridColDef } from "@mui/x-data-grid";
+import { type GridColDef } from "@mui/x-data-grid";
+import { SaasDataGrid } from "../../components/SaasDataGrid";
 
 import type { ICategory, IPost } from "../../interfaces";
 
@@ -75,7 +76,7 @@ export const PostList: React.FC = () => {
           maxHeight: "calc(100vh - 320px)",
         }}
       >
-        <DataGrid {...dataGridProps} columns={columns} />
+        <SaasDataGrid {...dataGridProps} columns={columns} />
       </div>
     </List>
   );
