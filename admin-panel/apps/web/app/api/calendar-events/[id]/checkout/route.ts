@@ -125,63 +125,30 @@ export async function POST(req: NextRequest, context: { params?: Promise<{ id: s
       }
     }
 
-    let member;
-    if (email) {
-      member = await prisma.member.findUnique({ where: { email } });
-      if (!member) {
-        member = await prisma.member.create({
-          data: { email, preferredName },
-        });
-      } else if (preferredName && preferredName !== member.preferredName) {
-        member = await prisma.member.update({
-          where: { id: member.id },
-          data: { preferredName },
-        });
-      }
-    } else {
+    if (!email) {
       return corsJson(req, { message: "email is required for paid registration" }, { status: 400 });
     }
 
-    const existing = await prisma.eventRegistration.findUnique({
-      where: {
-        memberId_calendarEventId: { memberId: member.id, calendarEventId },
-      },
-    });
-    if (existing) {
-      if (existing.paymentStatus === "PAID" || existing.paymentStatus === "WAIVED") {
+    const member = await prisma.member.findUnique({ where: { email } });
+    if (member) {
+      const existing = await prisma.eventRegistration.findUnique({
+        where: {
+          memberId_calendarEventId: { memberId: member.id, calendarEventId },
+        },
+      });
+      if (existing && (existing.paymentStatus === "PAID" || existing.paymentStatus === "WAIVED")) {
         return corsJson(req, { message: "Already registered for this event" }, { status: 409 });
       }
     }
 
-    const registration = await prisma.eventRegistration.upsert({
-      where: {
-        memberId_calendarEventId: { memberId: member.id, calendarEventId },
-      },
-      create: {
-        memberId: member.id,
-        calendarEventId,
-        teamName: teamName ?? undefined,
-        status: "PENDING",
-        paymentStatus: "AWAITING_PAYMENT",
-        amountDueCents: event.priceCents,
-        amountPaidCents: null,
-      },
-      update: {
-        teamName: teamName ?? undefined,
-        paymentStatus: "AWAITING_PAYMENT",
-        amountDueCents: event.priceCents,
-        paymentProvider: null,
-        stripeSessionId: null,
-        paypalOrderId: null,
-        stripePaymentIntentId: null,
-      },
-    });
-
     const base = getCheckoutPublicBaseUrl();
     const appQuery = appReturn ? "&app=1" : "";
-    const successStripe = `${base}/calendar/checkout-return?provider=stripe${appQuery}`;
+    const encodedEmail = encodeURIComponent(email);
+    const encodedName = encodeURIComponent(preferredName);
+    const encodedTeam = encodeURIComponent(teamName ?? "");
+    const successStripe = `${base}/calendar/checkout-return?provider=stripe&e=${encodedEmail}&n=${encodedName}&t=${encodedTeam}${appQuery}`;
     const cancelStripe = `${base}/calendar/checkout-return?canceled=1${appQuery}`;
-    const successPaypal = `${base}/calendar/paypal-return${appQuery}`;
+    const successPaypal = `${base}/calendar/paypal-return?eventId=${encodeURIComponent(calendarEventId)}&e=${encodedEmail}&n=${encodedName}&t=${encodedTeam}${appQuery}`;
     const cancelPaypal = `${base}/calendar/paypal-return?canceled=1${appQuery}`;
 
     if (provider === "stripe") {
@@ -194,8 +161,10 @@ export async function POST(req: NextRequest, context: { params?: Promise<{ id: s
         {
           mode: "payment",
           metadata: {
-            registrationId: registration.id,
             calendarEventId: event.id,
+            email,
+            preferredName,
+            teamName: teamName ?? "",
           },
           line_items: [
             {
@@ -207,19 +176,15 @@ export async function POST(req: NextRequest, context: { params?: Promise<{ id: s
               quantity: 1,
             },
           ],
-          success_url: `${successStripe}&session_id={CHECKOUT_SESSION_ID}`,
+          success_url: `${successStripe}&session_id={CHECKOUT_SESSION_ID}&acct=${encodeURIComponent(stripeAccount)}`,
           cancel_url: cancelStripe,
         },
         { stripeAccount },
       );
-      await prisma.eventRegistration.update({
-        where: { id: registration.id },
-        data: { stripeSessionId: session.id, paymentProvider: "STRIPE" },
-      });
       if (!session.url) {
         return corsJson(req, { message: "Stripe did not return a URL" }, { status: 500 });
       }
-      return corsJson(req, { url: session.url, registrationId: registration.id });
+      return corsJson(req, { url: session.url });
     }
 
     const creds = await getEventPaymentProfilePayPalRestCreds(event.id);
@@ -239,7 +204,7 @@ export async function POST(req: NextRequest, context: { params?: Promise<{ id: s
       clientId: creds.clientId,
       currencyCode: event.currency,
       value: formatMoney(event.priceCents, event.currency),
-      customId: registration.id,
+      customId: `${calendarEventId}:${email.toLowerCase()}`,
       returnUrl: successPaypal,
       cancelUrl: cancelPaypal,
       // Not a partner payee flow: merchant's own REST app receives the funds.
@@ -251,20 +216,13 @@ export async function POST(req: NextRequest, context: { params?: Promise<{ id: s
           message: "Failed to create PayPal order",
           paypalHttpStatus: orderResult.httpStatus,
           paypalDetails: orderResult.paypalError,
-          registrationId: registration.id,
-          hint: "Registrations may show AWAITING_PAYMENT after a failed PayPal call; delete or retry checkout for that member.",
         },
         { status: 502 },
       );
     }
-    await prisma.eventRegistration.update({
-      where: { id: registration.id },
-      data: { paypalOrderId: orderResult.id, paymentProvider: "PAYPAL" },
-    });
     return corsJson(req, {
       url: orderResult.approveUrl,
       orderId: orderResult.id,
-      registrationId: registration.id,
     });
   } catch (e: unknown) {
     return corsJson(

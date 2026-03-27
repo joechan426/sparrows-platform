@@ -19,6 +19,7 @@ import LockIcon from "@mui/icons-material/Lock";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import { getToken } from "../../lib/admin-auth";
 import { apiUrl } from "../../lib/api-base";
+import { useGridPreferences } from "../../lib/grid-preferences";
 
 type MemberRow = {
   id: string;
@@ -164,6 +165,7 @@ export const MemberList: React.FC = () => {
     ],
     []
   );
+  const gridPrefs = useGridPreferences("members-list", columns);
 
   return (
     <List title="Members">
@@ -218,11 +220,14 @@ export const MemberList: React.FC = () => {
       </Box>
       <SaasDataGrid
         {...dataGridProps}
-        columns={columns}
+        columns={gridPrefs.columns}
         autoHeight
         checkboxSelection
         rowSelectionModel={rowSelectionModel}
         onRowSelectionModelChange={setRowSelectionModel}
+        columnVisibilityModel={gridPrefs.columnVisibilityModel}
+        onColumnVisibilityModelChange={gridPrefs.onColumnVisibilityModelChange}
+        onColumnWidthChange={gridPrefs.onColumnWidthChange}
         onRowClick={(params) => navigate(`/members/${params.id}`)}
         sx={{
           "& .MuiDataGrid-row": { cursor: "pointer" },

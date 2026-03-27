@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "../../../../lib/prisma";
 import { getStripe } from "../../../../lib/stripe-server";
+import { upsertPaidRegistration } from "../../../../lib/paid-registration";
 
 export const dynamic = "force-dynamic";
 
@@ -33,22 +34,29 @@ export async function POST(req: NextRequest) {
 
   if (event.type === "checkout.session.completed") {
     const session = event.data.object as import("stripe").Stripe.Checkout.Session;
-    const registrationId = session.metadata?.registrationId;
-    if (registrationId && session.payment_status === "paid") {
+    if (session.payment_status === "paid") {
+      const calendarEventId = session.metadata?.calendarEventId?.trim() ?? "";
+      const email = session.metadata?.email?.trim() ?? "";
+      const preferredName = session.metadata?.preferredName?.trim() ?? "";
+      const teamName = session.metadata?.teamName?.trim() ?? "";
+      if (!calendarEventId || !email || !preferredName) {
+        return NextResponse.json({ message: "Missing checkout metadata" }, { status: 400 });
+      }
       const amount = session.amount_total ?? 0;
-      await prisma.eventRegistration.updateMany({
-        where: { id: registrationId },
-        data: {
-          paymentStatus: "PAID",
-          amountPaidCents: amount,
-          paymentProvider: "STRIPE",
-          paidAt: new Date(),
-          stripeSessionId: session.id,
-          stripePaymentIntentId:
-            typeof session.payment_intent === "string"
-              ? session.payment_intent
-              : session.payment_intent?.id ?? null,
+      await upsertPaidRegistration({
+        context: {
+          calendarEventId,
+          email,
+          preferredName,
+          teamName: teamName || null,
         },
+        provider: "STRIPE",
+        amountPaidCents: amount,
+        stripeSessionId: session.id,
+        stripePaymentIntentId:
+          typeof session.payment_intent === "string"
+            ? session.payment_intent
+            : session.payment_intent?.id ?? null,
       });
     }
   }

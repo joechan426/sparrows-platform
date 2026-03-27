@@ -23,6 +23,7 @@ import Tab from "@mui/material/Tab";
 import TextField from "@mui/material/TextField";
 import InputAdornment from "@mui/material/InputAdornment";
 import { apiUrl } from "../../lib/api-base";
+import { useGridPreferences } from "../../lib/grid-preferences";
 
 type CalendarEventRow = {
   id: string;
@@ -475,6 +476,7 @@ export const EventList: React.FC = () => {
     ],
     [update, handleDeleteClick],
   );
+  const gridPrefs = useGridPreferences("events-list", columns);
 
   return (
     <>
@@ -530,13 +532,16 @@ export const EventList: React.FC = () => {
         <SaasDataGrid
           {...dataGridProps}
           rows={filteredListRows}
-          columns={columns}
+          columns={gridPrefs.columns}
           autoHeight
           getRowId={(row: CalendarEventRow) => row.id}
           checkboxSelection
           disableRowSelectionExcludeModel
           rowSelectionModel={rowSelectionModel}
           onRowSelectionModelChange={(newModel) => setRowSelectionModel(newModel)}
+          columnVisibilityModel={gridPrefs.columnVisibilityModel}
+          onColumnVisibilityModelChange={gridPrefs.onColumnVisibilityModelChange}
+          onColumnWidthChange={gridPrefs.onColumnWidthChange}
           sx={{
             "& .MuiDataGrid-row:nth-of-type(even)": {
               backgroundColor: "action.hover",

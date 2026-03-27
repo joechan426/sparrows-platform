@@ -22,6 +22,7 @@ import DialogContent from "@mui/material/DialogContent";
 import DialogActions from "@mui/material/DialogActions";
 import { apiUrl } from "../../lib/api-base";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
+import { useGridPreferences } from "../../lib/grid-preferences";
 
 type Member = {
   id: string;
@@ -400,6 +401,7 @@ export const EventRegistrationsPage: React.FC = () => {
     ],
     [approvedCount, rows, event?.capacity],
   );
+  const gridPrefs = useGridPreferences("event-registrations-list", columns);
 
   useEffect(() => {
     if (event?.capacity != null) setCapacityInput(String(event.capacity));
@@ -660,7 +662,7 @@ export const EventRegistrationsPage: React.FC = () => {
 
       <SaasDataGrid
         rows={filteredRows}
-        columns={columns}
+        columns={gridPrefs.columns}
         autoHeight
         loading={registrationsLoading}
         getRowId={(row: EventRegistrationRow) => row.id}
@@ -668,6 +670,9 @@ export const EventRegistrationsPage: React.FC = () => {
         disableRowSelectionExcludeModel
         rowSelectionModel={rowSelectionModel}
         onRowSelectionModelChange={(model) => setRowSelectionModel(model)}
+        columnVisibilityModel={gridPrefs.columnVisibilityModel}
+        onColumnVisibilityModelChange={gridPrefs.onColumnVisibilityModelChange}
+        onColumnWidthChange={gridPrefs.onColumnWidthChange}
       />
       <Dialog open={addOpen} onClose={() => !adding && setAddOpen(false)}>
         <DialogTitle>Add participant</DialogTitle>

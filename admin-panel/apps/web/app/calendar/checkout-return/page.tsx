@@ -9,6 +9,7 @@ function CheckoutReturnInner() {
   const app = sp.get("app") === "1";
   const canceled = sp.get("canceled") === "1";
   const sessionId = sp.get("session_id");
+  const connectedAccountId = sp.get("acct")?.trim() || "";
   const [msg, setMsg] = useState<string>(canceled ? "Checkout was canceled." : "Confirming payment…");
   const [err, setErr] = useState<string | null>(null);
 
@@ -20,7 +21,7 @@ function CheckoutReturnInner() {
         const res = await fetch("/api/stripe/verify-checkout", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sessionId }),
+          body: JSON.stringify({ sessionId, connectedAccountId }),
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
@@ -43,7 +44,7 @@ function CheckoutReturnInner() {
     return () => {
       cancelled = true;
     };
-  }, [canceled, sessionId]);
+  }, [canceled, sessionId, connectedAccountId, app, router]);
 
   if (canceled) {
     if (app) {

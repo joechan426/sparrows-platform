@@ -9,6 +9,10 @@ function PayPalReturnInner() {
   const app = sp.get("app") === "1";
   const canceled = sp.get("canceled") === "1";
   const orderId = sp.get("token")?.trim() || "";
+  const calendarEventId = sp.get("eventId")?.trim() || "";
+  const email = sp.get("e")?.trim() || "";
+  const preferredName = sp.get("n")?.trim() || "";
+  const teamName = sp.get("t")?.trim() || "";
   const [msg, setMsg] = useState<string>(canceled ? "PayPal checkout was canceled." : "Completing payment…");
   const [err, setErr] = useState<string | null>(null);
 
@@ -20,7 +24,7 @@ function PayPalReturnInner() {
         const res = await fetch("/api/paypal/capture", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ orderId }),
+          body: JSON.stringify({ orderId, calendarEventId, email, preferredName, teamName }),
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
@@ -44,7 +48,7 @@ function PayPalReturnInner() {
     return () => {
       cancelled = true;
     };
-  }, [canceled, orderId]);
+  }, [canceled, orderId, calendarEventId, email, preferredName, teamName, app, router]);
 
   if (canceled) {
     if (app) {

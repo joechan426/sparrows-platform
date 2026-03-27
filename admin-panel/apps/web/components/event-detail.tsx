@@ -35,10 +35,12 @@ export function EventDetail({ event, member, onClose, onRegistered }: Props) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [checkoutLoadingProvider, setCheckoutLoadingProvider] = useState<"stripe" | "paypal" | null>(null);
+  const [paymentMethodsLoading, setPaymentMethodsLoading] = useState(false);
   const [success, setSuccess] = useState(false);
 
   useEffect(() => {
     setEventData(event);
+    setPaymentMethodsLoading(Boolean(event.isPaid && (event.priceCents ?? 0) > 0));
     let cancelled = false;
     (async () => {
       try {
@@ -46,6 +48,8 @@ export function EventDetail({ event, member, onClose, onRegistered }: Props) {
         if (!cancelled) setEventData(detail);
       } catch {
         // keep existing event snapshot
+      } finally {
+        if (!cancelled) setPaymentMethodsLoading(false);
       }
     })();
     return () => {
@@ -208,30 +212,36 @@ export function EventDetail({ event, member, onClose, onRegistered }: Props) {
                 {requiresPayment && (
                   <div className="field">
                     <label>Payment method</label>
-                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                      {eventData.stripeCheckoutAvailable && (
-                        <button
-                          type="button"
-                          className="btn-primary"
-                          disabled={checkoutLoadingProvider !== null}
-                          onClick={() => void handleCheckout("stripe")}
-                        >
-                          {checkoutLoadingProvider === "stripe" ? "Opening Stripe…" : "Pay with Stripe"}
-                        </button>
-                      )}
-                      {eventData.paypalCheckoutAvailable && (
-                        <button
-                          type="button"
-                          className="btn-primary"
-                          disabled={checkoutLoadingProvider !== null}
-                          onClick={() => void handleCheckout("paypal")}
-                        >
-                          {checkoutLoadingProvider === "paypal" ? "Opening PayPal…" : "Pay with PayPal"}
-                        </button>
-                      )}
-                    </div>
-                    {!eventData.stripeCheckoutAvailable && !eventData.paypalCheckoutAvailable && (
-                      <p className="form-error">No payment method is currently available for this event.</p>
+                    {paymentMethodsLoading ? (
+                      <p>Loading payment method...</p>
+                    ) : (
+                      <>
+                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                          {eventData.stripeCheckoutAvailable && (
+                            <button
+                              type="button"
+                              className="btn-primary"
+                              disabled={checkoutLoadingProvider !== null}
+                              onClick={() => void handleCheckout("stripe")}
+                            >
+                              {checkoutLoadingProvider === "stripe" ? "Opening Stripe…" : "Pay with Stripe"}
+                            </button>
+                          )}
+                          {eventData.paypalCheckoutAvailable && (
+                            <button
+                              type="button"
+                              className="btn-primary"
+                              disabled={checkoutLoadingProvider !== null}
+                              onClick={() => void handleCheckout("paypal")}
+                            >
+                              {checkoutLoadingProvider === "paypal" ? "Opening PayPal…" : "Pay with PayPal"}
+                            </button>
+                          )}
+                        </div>
+                        {!eventData.stripeCheckoutAvailable && !eventData.paypalCheckoutAvailable && (
+                          <p className="form-error">No payment method is currently available for this event.</p>
+                        )}
+                      </>
                     )}
                   </div>
                 )}

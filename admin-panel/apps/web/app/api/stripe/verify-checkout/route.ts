@@ -1,7 +1,7 @@
 import { type NextRequest } from "next/server";
-import { prisma } from "../../../../lib/prisma";
 import { getStripe } from "../../../../lib/stripe-server";
 import { corsJson, corsOptions } from "../../../../lib/cors";
+import { upsertPaidRegistration } from "../../../../lib/paid-registration";
 
 export const dynamic = "force-dynamic";
 
@@ -23,14 +23,10 @@ export async function POST(req: NextRequest) {
       return corsJson(req, { message: "Stripe is not configured" }, { status: 503 });
     }
 
-    const reg = await prisma.eventRegistration.findFirst({
-      where: { stripeSessionId: sessionId },
-      include: {
-        event: { include: { paymentProfile: true } },
-      },
-    });
-
-    const connectedAccountId = reg?.event.paymentProfile?.stripeConnectedAccountId ?? undefined;
+    const connectedAccountId =
+      typeof body.connectedAccountId === "string" && body.connectedAccountId.trim().length > 0
+        ? body.connectedAccountId.trim()
+        : undefined;
     let session: import("stripe").Stripe.Checkout.Session;
     try {
       session = connectedAccountId
@@ -43,28 +39,32 @@ export async function POST(req: NextRequest) {
       return corsJson(req, { message: "Payment not completed yet" }, { status: 400 });
     }
 
-    const registrationId = session.metadata?.registrationId;
-    if (!registrationId) {
-      return corsJson(req, { message: "Session has no registration metadata" }, { status: 400 });
+    const calendarEventId = session.metadata?.calendarEventId?.trim() ?? "";
+    const email = session.metadata?.email?.trim() ?? "";
+    const preferredName = session.metadata?.preferredName?.trim() ?? "";
+    const teamName = session.metadata?.teamName?.trim() ?? "";
+    if (!calendarEventId || !email || !preferredName) {
+      return corsJson(req, { message: "Session metadata is incomplete" }, { status: 400 });
     }
 
     const amount = session.amount_total ?? 0;
-    await prisma.eventRegistration.updateMany({
-      where: { id: registrationId },
-      data: {
-        paymentStatus: "PAID",
-        amountPaidCents: amount,
-        paymentProvider: "STRIPE",
-        paidAt: new Date(),
-        stripeSessionId: session.id,
-        stripePaymentIntentId:
-          typeof session.payment_intent === "string"
-            ? session.payment_intent
-            : session.payment_intent?.id ?? null,
+    const registration = await upsertPaidRegistration({
+      context: {
+        calendarEventId,
+        email,
+        preferredName,
+        teamName: teamName || null,
       },
+      provider: "STRIPE",
+      amountPaidCents: amount,
+      stripeSessionId: session.id,
+      stripePaymentIntentId:
+        typeof session.payment_intent === "string"
+          ? session.payment_intent
+          : session.payment_intent?.id ?? null,
     });
 
-    return corsJson(req, { ok: true, registrationId });
+    return corsJson(req, { ok: true, registrationId: registration.id });
   } catch (e: unknown) {
     return corsJson(
       req,
