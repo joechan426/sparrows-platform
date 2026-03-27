@@ -29,6 +29,7 @@ const PERMISSION_MODULES_SUPER_MANAGER_PATCH = [
   "CALENDAR_EVENTS",
   "MEMBERS",
   "PAYMENT_PROFILES",
+  "PAYMENTS",
 ] as const;
 
 // GET /api/admin-users/:id

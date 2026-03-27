@@ -29,6 +29,7 @@ export const ADMIN_IMPLICIT_MODULES: AdminModule[] = [
   "MEMBERS",
   "PAYMENT_PROFILES",
   "ADMIN_USERS",
+  "PAYMENTS",
 ];
 
 export type AdminPayload = {

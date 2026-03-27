@@ -57,6 +57,7 @@ export const RESOURCE_TO_MODULE: Record<string, string> = {
   "event-registrations": "CALENDAR_EVENTS",
   members: "MEMBERS",
   "payment-profiles": "PAYMENT_PROFILES",
+  payments: "PAYMENTS",
   "admin-users": "ADMIN_USERS",
 };
 

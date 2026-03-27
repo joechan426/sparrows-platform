@@ -20,6 +20,7 @@ const MODULES = [
   { value: "CALENDAR_EVENTS", label: "Events" },
   { value: "MEMBERS", label: "Members" },
   { value: "PAYMENT_PROFILES", label: "Payment profiles" },
+  { value: "PAYMENTS", label: "Payments" },
 ] as const;
 
 export const AdminUserCreate: React.FC = () => {
@@ -115,18 +116,6 @@ export const AdminUserCreate: React.FC = () => {
                 }
                 label="Admin users"
               />
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={permissions.includes("PAYMENTS")}
-                    onChange={() => handlePermissionToggle("PAYMENTS")}
-                  />
-                }
-                label="Payments (revenue)"
-              />
-              <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
-                The Payments page is Admin-only for now; this flag is stored for future use.
-              </Typography>
             </Box>
           </FormControl>
         )}

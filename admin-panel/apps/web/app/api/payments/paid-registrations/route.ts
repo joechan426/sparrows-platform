@@ -15,14 +15,11 @@ function parseMonthParam(raw: string | null): "all" | { y: number; m: number } {
 
 /**
  * GET /api/payments/paid-registrations?month=YYYY-MM|all
- * Paid event registrations (paymentStatus = PAID). Admin role only.
+ * Paid event registrations (paymentStatus = PAID). Requires PAYMENTS module.
  */
 export async function GET(req: NextRequest) {
-  const auth = await requireAdminAuth(req, "any");
+  const auth = await requireAdminAuth(req, "PAYMENTS");
   if (!auth.ok) return withCors(req, auth.response);
-  if (auth.admin.role !== "ADMIN") {
-    return corsJson(req, { message: "Forbidden" }, { status: 403 });
-  }
 
   try {
     const monthParam = parseMonthParam(req.nextUrl.searchParams.get("month"));
@@ -52,7 +49,7 @@ export async function GET(req: NextRequest) {
       orderBy: [{ paidAt: "desc" }, { createdAt: "desc" }],
       include: {
         member: { select: { id: true, preferredName: true, email: true } },
-        event: { select: { id: true, title: true, currency: true } },
+        event: { select: { id: true, title: true, currency: true, startAt: true } },
       },
     });
 
@@ -63,6 +60,8 @@ export async function GET(req: NextRequest) {
       memberEmail: r.member.email,
       eventId: r.calendarEventId,
       eventTitle: r.event.title,
+      eventStartAt: r.event.startAt.toISOString(),
+      paymentProvider: r.paymentProvider ?? null,
       currency: r.event.currency,
       amountPaidCents: r.amountPaidCents ?? 0,
       paidAt: r.paidAt?.toISOString() ?? null,

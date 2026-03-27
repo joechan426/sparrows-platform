@@ -23,6 +23,8 @@ type PaidRow = {
   memberEmail: string;
   eventId: string;
   eventTitle: string;
+  eventStartAt: string;
+  paymentProvider: "STRIPE" | "PAYPAL" | "MANUAL" | null;
   currency: string;
   amountPaidCents: number;
   paidAt: string | null;
@@ -104,12 +106,20 @@ export const PaymentRevenueListPage: React.FC = () => {
       notify?.({ type: "error", message: "No rows to export for the current filter." });
       return;
     }
-    const headers = ["Member", "Email", "Event", "Currency", "Paid", "Registered At"];
+    const headers = ["Member", "Email", "Event", "Start", "Payment Provider", "Currency", "Paid", "Registered At"];
     const body = rows.map((r) =>
       [
         r.memberPreferredName ?? "",
         r.memberEmail ?? "",
         r.eventTitle ?? "",
+        (() => {
+          try {
+            return new Date(r.eventStartAt).toLocaleString();
+          } catch {
+            return "—";
+          }
+        })(),
+        r.paymentProvider ?? "—",
         r.currency ?? "AUD",
         ((r.amountPaidCents ?? 0) / 100).toFixed(2),
         registeredAtDisplay(r),
@@ -172,6 +182,42 @@ export const PaymentRevenueListPage: React.FC = () => {
             </Typography>
           </Box>
         ),
+      },
+      {
+        field: "eventStartAt",
+        headerName: "Start",
+        width: 190,
+        valueGetter: (_v, row) => {
+          try {
+            return new Date(row.eventStartAt).toLocaleString();
+          } catch {
+            return "—";
+          }
+        },
+        renderCell: ({ row }) => (
+          <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
+            <Typography component={Link} to={`/events/${row.eventId}`} variant="body2" color="text.primary">
+              {(() => {
+                try {
+                  return new Date(row.eventStartAt).toLocaleString();
+                } catch {
+                  return "—";
+                }
+              })()}
+            </Typography>
+          </Box>
+        ),
+      },
+      {
+        field: "paymentProvider",
+        headerName: "Payment Provider",
+        width: 160,
+        valueGetter: (_v, row) => {
+          if (row.paymentProvider === "STRIPE") return "Stripe";
+          if (row.paymentProvider === "PAYPAL") return "PayPal";
+          if (row.paymentProvider === "MANUAL") return "Manual";
+          return "—";
+        },
       },
       {
         field: "amountPaidCents",
@@ -265,13 +311,13 @@ export const PaymentRevenueListPage: React.FC = () => {
         >
           <Typography variant="body2" color="text.secondary">
             Events in view:{" "}
-            <Box component="span" sx={{ fontWeight: 700, color: "text.primary" }}>
+            <Box component="span" sx={{ fontWeight: 800, color: "warning.main" }}>
               {stats.eventCount}
             </Box>
           </Typography>
           <Typography variant="body2" color="text.secondary">
             Members in view:{" "}
-            <Box component="span" sx={{ fontWeight: 700, color: "text.primary" }}>
+            <Box component="span" sx={{ fontWeight: 800, color: "warning.main" }}>
               {stats.memberCount}
             </Box>
           </Typography>

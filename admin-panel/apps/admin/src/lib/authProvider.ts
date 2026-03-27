@@ -185,13 +185,6 @@ export function canAccessResource(resourceName: string): boolean {
 
   const hidden = adminHiddenNavSet();
 
-  if (resourceName === "payments") {
-    if (admin.role !== "ADMIN") return false;
-    const root = navRootResourceName(resourceName);
-    if (root && hidden.has(root)) return false;
-    return true;
-  }
-
   if (resourceName === "admin-users") {
     if (admin.role === "ADMIN") {
       if (hidden.has("admin-users")) return false;

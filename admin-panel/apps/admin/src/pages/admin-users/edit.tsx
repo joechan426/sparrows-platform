@@ -28,6 +28,7 @@ const MODULES = [
   { value: "CALENDAR_EVENTS", label: "Events" },
   { value: "MEMBERS", label: "Members" },
   { value: "PAYMENT_PROFILES", label: "Payment profiles" },
+  { value: "PAYMENTS", label: "Payments" },
 ] as const;
 
 type AdminUserRecord = {
@@ -197,7 +198,7 @@ export const AdminUserEdit: React.FC = () => {
           <FormControl component="fieldset">
             <InputLabel shrink>Page permissions (Manager / Super Manager)</InputLabel>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
-              Choose which sections this user can access (including Payment profiles).{" "}
+              Choose which sections this user can access (including Payment profiles and Payments).{" "}
               {isSuperManagerViewer ? "Super Managers can edit Managers only." : "Only Admins can edit roles."}
             </Typography>
             <FormGroup row sx={{ pt: 1 }}>
@@ -228,18 +229,6 @@ export const AdminUserEdit: React.FC = () => {
                   }
                   label="Admin users"
                 />
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={permissions.includes("PAYMENTS")}
-                      onChange={() => handlePermissionToggle("PAYMENTS")}
-                    />
-                  }
-                  label="Payments (revenue)"
-                />
-                <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
-                  The Payments page is visible to Admin accounts only for now; this permission is stored for future use.
-                </Typography>
               </Box>
             )}
           </FormControl>
