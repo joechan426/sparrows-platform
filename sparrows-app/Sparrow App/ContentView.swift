@@ -4006,15 +4006,22 @@ private final class WebViewPreloader {
     }
 }
 
-/// Calendar list row: time only — centered, dark blue fill with white outline (matches web).
+/// Calendar list row: time only — centered, saturated dark blue with white outline ring.
 private struct CalendarEventTimeLabel: View {
     let text: String
-    private static let outlineOffsets: [(CGFloat, CGFloat)] = [
-        (-1, -1), (0, -1), (1, -1),
-        (-1, 0), (1, 0),
-        (-1, 1), (0, 1), (1, 1),
-    ]
-    private static let fillColor = Color(red: 0.04, green: 0.14, blue: 0.26)
+    private static let outlineOffsets: [(CGFloat, CGFloat)] = {
+        var o: [(CGFloat, CGFloat)] = []
+        for r: CGFloat in [1, 2] {
+            o.append(contentsOf: [
+                (-r, -r), (0, -r), (r, -r),
+                (-r, 0), (r, 0),
+                (-r, r), (0, r), (r, r),
+            ])
+        }
+        return o
+    }()
+    /// #0a3482 — must read clearly as blue (not black) in light mode.
+    private static let fillColor = Color(red: 10 / 255, green: 52 / 255, blue: 130 / 255)
 
     var body: some View {
         ZStack {
@@ -4023,17 +4030,18 @@ private struct CalendarEventTimeLabel: View {
                 Text(text)
                     .font(.title2)
                     .fontWeight(.bold)
-                    .foregroundStyle(Color.white)
+                    .foregroundColor(.white)
                     .offset(x: o.0, y: o.1)
             }
             Text(text)
                 .font(.title2)
                 .fontWeight(.bold)
-                .foregroundStyle(Self.fillColor)
+                .foregroundColor(Self.fillColor)
         }
+        .compositingGroup()
         .multilineTextAlignment(.center)
         .lineLimit(2)
-        .minimumScaleFactor(0.8)
+        .minimumScaleFactor(0.75)
         .fixedSize(horizontal: false, vertical: true)
     }
 }
@@ -4566,73 +4574,88 @@ private struct SportsCalendarView: View {
                                 let optimisticPending = optimisticPendingEventIds.contains(event.id)
                                 let effectiveStatus: String? = myRegistration?.status ?? (optimisticPending ? "PENDING" : nil)
                                 let joinHint = calendarParticipantCountHintText(for: event)
-                                HStack(alignment: .center, spacing: 10) {
-                                    Button {
-                                        eventInfoEvent = event
-                                    } label: {
-                                        HStack(alignment: .top, spacing: 10) {
-                                            VStack(alignment: .center, spacing: 2) {
+                                Grid(horizontalSpacing: 8, verticalSpacing: 6) {
+                                    GridRow(alignment: .center) {
+                                        Button {
+                                            eventInfoEvent = event
+                                        } label: {
+                                            VStack(spacing: 2) {
+                                                Spacer(minLength: 0)
                                                 CalendarEventTimeLabel(text: viewModel.eventTimeText(for: event))
+                                                Spacer(minLength: 0)
                                             }
-                                            .frame(minWidth: 56, alignment: .center)
+                                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                        }
+                                        .buttonStyle(.plain)
+                                        .gridCellColumns(3)
+
+                                        Button {
+                                            eventInfoEvent = event
+                                        } label: {
                                             VStack(alignment: .leading, spacing: 4) {
                                                 Text(event.title)
                                                     .font(.subheadline)
                                                     .fontWeight(.semibold)
                                                     .multilineTextAlignment(.leading)
-                                                    .lineLimit(3)
+                                                    .lineLimit(4)
                                                     .fixedSize(horizontal: false, vertical: true)
                                                 Text(calendarRowMetaSubtitle(for: event, includeLocation: false))
                                                     .font(.caption)
                                                     .foregroundStyle(.secondary)
-                                                    .lineLimit(2)
+                                                    .lineLimit(3)
                                                     .fixedSize(horizontal: false, vertical: true)
                                             }
                                             .frame(maxWidth: .infinity, alignment: .leading)
                                         }
-                                    }
-                                    .buttonStyle(.plain)
+                                        .buttonStyle(.plain)
+                                        .gridCellColumns(6)
 
-                                    Group {
-                                        if let status = effectiveStatus {
-                                            HStack(alignment: .center, spacing: 6) {
-                                                Text(RegistrationStatusStyle.displayText(status))
-                                                    .font(.caption)
-                                                    .fontWeight(.medium)
-                                                    .foregroundStyle(.white)
-                                                    .padding(.horizontal, 10)
-                                                    .padding(.vertical, 4)
-                                                    .background(Capsule().fill(RegistrationStatusStyle.color(status)))
-                                                    .frame(minWidth: 98, minHeight: 38)
-                                                if let joinHint {
-                                                    Text(joinHint)
-                                                        .font(.caption2)
-                                                        .fontWeight(.semibold)
-                                                        .foregroundStyle(.secondary)
-                                                        .fixedSize(horizontal: true, vertical: true)
+                                        Group {
+                                            if let status = effectiveStatus {
+                                                VStack(spacing: 6) {
+                                                    Text(RegistrationStatusStyle.displayText(status))
+                                                        .font(.caption)
+                                                        .fontWeight(.medium)
+                                                        .foregroundStyle(.white)
+                                                        .padding(.horizontal, 10)
+                                                        .padding(.vertical, 4)
+                                                        .background(Capsule().fill(RegistrationStatusStyle.color(status)))
+                                                        .frame(minWidth: 88, minHeight: 36)
+                                                    if let joinHint {
+                                                        Text(joinHint)
+                                                            .font(.caption2)
+                                                            .fontWeight(.semibold)
+                                                            .foregroundStyle(.secondary)
+                                                            .multilineTextAlignment(.center)
+                                                            .fixedSize(horizontal: false, vertical: true)
+                                                    }
                                                 }
+                                                .frame(maxWidth: .infinity)
+                                            } else if isRegisterableDatabaseCalendarEvent(event) {
+                                                VStack(spacing: 6) {
+                                                    Button("Register") {
+                                                        registerEvent = event
+                                                    }
+                                                    .buttonStyle(.borderedProminent)
+                                                    .font(.subheadline.bold())
+                                                    .frame(minWidth: 88, minHeight: 36)
+                                                    .disabled((event.registrationOpen ?? false) == false)
+                                                    if let joinHint {
+                                                        Text(joinHint)
+                                                            .font(.caption2)
+                                                            .fontWeight(.semibold)
+                                                            .foregroundStyle(.secondary)
+                                                            .multilineTextAlignment(.center)
+                                                            .fixedSize(horizontal: false, vertical: true)
+                                                    }
+                                                }
+                                                .frame(maxWidth: .infinity)
+                                            } else {
+                                                Color.clear
+                                                    .frame(minWidth: 1, minHeight: 36)
                                             }
-                                        } else if isRegisterableDatabaseCalendarEvent(event) {
-                                            HStack(alignment: .center, spacing: 6) {
-                                                Button("Register") {
-                                                    registerEvent = event
-                                                }
-                                                .buttonStyle(.borderedProminent)
-                                                .font(.subheadline.bold())
-                                                .frame(minWidth: 98, minHeight: 38)
-                                                .disabled((event.registrationOpen ?? false) == false)
-                                                if let joinHint {
-                                                    Text(joinHint)
-                                                        .font(.caption2)
-                                                        .fontWeight(.semibold)
-                                                        .foregroundStyle(.secondary)
-                                                        .fixedSize(horizontal: true, vertical: true)
-                                                }
-                                            }
-                                        } else {
-                                            Color.clear
-                                                .frame(minWidth: 96, minHeight: 38)
                                         }
+                                        .gridCellColumns(3)
                                     }
                                 }
                                 .padding(8)
@@ -4699,78 +4722,93 @@ private struct SportsCalendarView: View {
                             let effectiveStatus: String? = myRegistration?.status ?? (optimisticPending ? "PENDING" : nil)
                             let joinHint = calendarParticipantCountHintText(for: event)
 
-                            HStack(alignment: .center, spacing: 10) {
-                                Button {
-                                    eventInfoEvent = event
-                                } label: {
-                                    HStack(alignment: .top, spacing: 10) {
-                                        VStack(alignment: .center, spacing: 2) {
+                            Grid(horizontalSpacing: 8, verticalSpacing: 6) {
+                                GridRow(alignment: .center) {
+                                    Button {
+                                        eventInfoEvent = event
+                                    } label: {
+                                        VStack(spacing: 4) {
+                                            Spacer(minLength: 0)
                                             CalendarEventTimeLabel(text: viewModel.eventTimeText(for: event))
                                             Text(viewModel.eventDateOnlyText(for: event))
                                                 .font(.caption2)
                                                 .fontWeight(.semibold)
                                                 .foregroundStyle(Color.black.opacity(0.55))
                                                 .multilineTextAlignment(.center)
+                                            Spacer(minLength: 0)
                                         }
-                                        .frame(minWidth: 56, alignment: .center)
+                                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .gridCellColumns(3)
+
+                                    Button {
+                                        eventInfoEvent = event
+                                    } label: {
                                         VStack(alignment: .leading, spacing: 4) {
                                             Text(event.title)
                                                 .font(.subheadline)
                                                 .fontWeight(.bold)
                                                 .foregroundStyle(Color.black)
-                                                .lineLimit(3)
+                                                .lineLimit(4)
                                                 .fixedSize(horizontal: false, vertical: true)
                                             Text(calendarRowMetaSubtitle(for: event, includeLocation: true))
                                                 .font(.caption)
                                                 .foregroundStyle(Color.black.opacity(0.55))
-                                                .lineLimit(2)
+                                                .lineLimit(3)
                                                 .fixedSize(horizontal: false, vertical: true)
                                         }
                                         .frame(maxWidth: .infinity, alignment: .leading)
                                     }
-                                }
-                                .buttonStyle(.plain)
+                                    .buttonStyle(.plain)
+                                    .gridCellColumns(6)
 
-                                Group {
-                                    if let status = effectiveStatus {
-                                        HStack(alignment: .center, spacing: 6) {
-                                            Text(RegistrationStatusStyle.displayText(status))
-                                                .font(.caption)
-                                                .fontWeight(.medium)
-                                                .foregroundStyle(.white)
-                                                .padding(.horizontal, 10)
-                                                .padding(.vertical, 4)
-                                                .background(Capsule().fill(RegistrationStatusStyle.color(status)))
-                                                .frame(minWidth: 98, minHeight: 38)
-                                            if let joinHint {
-                                                Text(joinHint)
-                                                    .font(.caption2)
-                                                    .fontWeight(.semibold)
-                                                    .foregroundStyle(Color.black.opacity(0.55))
-                                                    .fixedSize(horizontal: true, vertical: true)
+                                    Group {
+                                        if let status = effectiveStatus {
+                                            VStack(spacing: 6) {
+                                                Text(RegistrationStatusStyle.displayText(status))
+                                                    .font(.caption)
+                                                    .fontWeight(.medium)
+                                                    .foregroundStyle(.white)
+                                                    .padding(.horizontal, 10)
+                                                    .padding(.vertical, 4)
+                                                    .background(Capsule().fill(RegistrationStatusStyle.color(status)))
+                                                    .frame(minWidth: 88, minHeight: 36)
+                                                if let joinHint {
+                                                    Text(joinHint)
+                                                        .font(.caption2)
+                                                        .fontWeight(.semibold)
+                                                        .foregroundStyle(Color.black.opacity(0.55))
+                                                        .multilineTextAlignment(.center)
+                                                        .fixedSize(horizontal: false, vertical: true)
+                                                }
                                             }
+                                            .frame(maxWidth: .infinity)
+                                        } else if isRegisterableDatabaseCalendarEvent(event) {
+                                            VStack(spacing: 6) {
+                                                Button("Register") {
+                                                    registerEvent = event
+                                                }
+                                                .buttonStyle(.borderedProminent)
+                                                .font(.subheadline.bold())
+                                                .frame(minWidth: 88, minHeight: 36)
+                                                .disabled((event.registrationOpen ?? false) == false)
+                                                if let joinHint {
+                                                    Text(joinHint)
+                                                        .font(.caption2)
+                                                        .fontWeight(.semibold)
+                                                        .foregroundStyle(Color.black.opacity(0.55))
+                                                        .multilineTextAlignment(.center)
+                                                        .fixedSize(horizontal: false, vertical: true)
+                                                }
+                                            }
+                                            .frame(maxWidth: .infinity)
+                                        } else {
+                                            Color.clear
+                                                .frame(minWidth: 1, minHeight: 36)
                                         }
-                                    } else if isRegisterableDatabaseCalendarEvent(event) {
-                                        HStack(alignment: .center, spacing: 6) {
-                                            Button("Register") {
-                                                registerEvent = event
-                                            }
-                                            .buttonStyle(.borderedProminent)
-                                            .font(.subheadline.bold())
-                                            .frame(minWidth: 98, minHeight: 38)
-                                            .disabled((event.registrationOpen ?? false) == false)
-                                            if let joinHint {
-                                                Text(joinHint)
-                                                    .font(.caption2)
-                                                    .fontWeight(.semibold)
-                                                    .foregroundStyle(Color.black.opacity(0.55))
-                                                    .fixedSize(horizontal: true, vertical: true)
-                                            }
-                                        }
-                                    } else {
-                                        Color.clear
-                                            .frame(minWidth: 96, minHeight: 38)
                                     }
+                                    .gridCellColumns(3)
                                 }
                             }
                             .padding(8)

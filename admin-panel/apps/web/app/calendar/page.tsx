@@ -72,15 +72,17 @@ function CalendarListEventRow({
   const canRegister = isAdminPanelEvent(event);
   const effectiveStatus = myReg?.status ?? (optimisticPending ? "PENDING" : undefined);
 
+  const openInfo = () => onOpenDetail(event, !event.registrationOpen);
+
   return (
     <div
       className={`card-event calendar-event-row calendar-event-row-v2${variant === "next" ? " calendar-event-row-next" : ""}`}
     >
       <button
         type="button"
-        className="calendar-event-row-tap"
-        onClick={() => onOpenDetail(event, !event.registrationOpen)}
-        aria-label={`Event details: ${event.title}`}
+        className="calendar-event-time-slot"
+        onClick={openInfo}
+        aria-label={`Event time: ${formatTime(event.startAt)}`}
       >
         <span className="calendar-event-time-col">
           <span className="calendar-event-time-main">{formatTime(event.startAt)}</span>
@@ -88,16 +90,21 @@ function CalendarListEventRow({
             <span className="calendar-event-time-sub">{formatDate(event.startAt)}</span>
           )}
         </span>
-        <span className="calendar-event-title-col">
-          <span className="calendar-event-title-line">{event.title}</span>
-          <span className="calendar-event-meta-line">
-            {event.sportType && `${event.sportType} · `}
-            Registration {event.registrationOpen ? "Open" : "Closed"}
-            {variant === "next" && event.location ? ` · ${event.location}` : ""}
-          </span>
+      </button>
+      <button
+        type="button"
+        className="calendar-event-title-block"
+        onClick={openInfo}
+        aria-label={`Event details: ${event.title}`}
+      >
+        <span className="calendar-event-title-line">{event.title}</span>
+        <span className="calendar-event-meta-line">
+          {event.sportType && `${event.sportType} · `}
+          Registration {event.registrationOpen ? "Open" : "Closed"}
+          {variant === "next" && event.location ? ` · ${event.location}` : ""}
         </span>
       </button>
-      <div className="calendar-event-actions">
+      <div className="calendar-event-actions-col">
         {effectiveStatus ? (
           <>
             <span className={`pill ${statusClass(effectiveStatus)}`}>{statusText(effectiveStatus)}</span>
@@ -108,7 +115,10 @@ function CalendarListEventRow({
             <button
               type="button"
               className={`btn-register ${!event.registrationOpen ? "btn-register-disabled" : ""}`}
-              onClick={() => onOpenDetail(event, false)}
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenDetail(event, false);
+              }}
               disabled={!event.registrationOpen}
             >
               Register
@@ -116,7 +126,7 @@ function CalendarListEventRow({
             <JoinHint event={event} />
           </>
         ) : (
-          <span aria-hidden="true" style={{ display: "inline-block", minWidth: 96 }} />
+          <span className="calendar-event-actions-spacer" aria-hidden="true" />
         )}
       </div>
     </div>
