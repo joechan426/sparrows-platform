@@ -4006,6 +4006,38 @@ private final class WebViewPreloader {
     }
 }
 
+/// Calendar list row: time only — centered, dark blue fill with white outline (matches web).
+private struct CalendarEventTimeLabel: View {
+    let text: String
+    private static let outlineOffsets: [(CGFloat, CGFloat)] = [
+        (-1, -1), (0, -1), (1, -1),
+        (-1, 0), (1, 0),
+        (-1, 1), (0, 1), (1, 1),
+    ]
+    private static let fillColor = Color(red: 0.04, green: 0.14, blue: 0.26)
+
+    var body: some View {
+        ZStack {
+            ForEach(0..<Self.outlineOffsets.count, id: \.self) { i in
+                let o = Self.outlineOffsets[i]
+                Text(text)
+                    .font(.title2)
+                    .fontWeight(.bold)
+                    .foregroundStyle(Color.white)
+                    .offset(x: o.0, y: o.1)
+            }
+            Text(text)
+                .font(.title2)
+                .fontWeight(.bold)
+                .foregroundStyle(Self.fillColor)
+        }
+        .multilineTextAlignment(.center)
+        .lineLimit(2)
+        .minimumScaleFactor(0.8)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
 private struct SportsCalendarView: View {
     @ObservedObject var viewModel: SportsCalendarViewModel
     @ObservedObject var memberStore: MemberProfileStore
@@ -4539,16 +4571,10 @@ private struct SportsCalendarView: View {
                                         eventInfoEvent = event
                                     } label: {
                                         HStack(alignment: .top, spacing: 10) {
-                                            VStack(alignment: .leading, spacing: 2) {
-                                                Text(viewModel.eventTimeText(for: event))
-                                                    .font(.title2)
-                                                    .fontWeight(.bold)
-                                                    .foregroundStyle(.primary)
-                                                    .lineLimit(2)
-                                                    .minimumScaleFactor(0.8)
-                                                    .fixedSize(horizontal: false, vertical: true)
+                                            VStack(alignment: .center, spacing: 2) {
+                                                CalendarEventTimeLabel(text: viewModel.eventTimeText(for: event))
                                             }
-                                            .frame(minWidth: 52, alignment: .leading)
+                                            .frame(minWidth: 56, alignment: .center)
                                             VStack(alignment: .leading, spacing: 4) {
                                                 Text(event.title)
                                                     .font(.subheadline)
@@ -4678,20 +4704,15 @@ private struct SportsCalendarView: View {
                                     eventInfoEvent = event
                                 } label: {
                                     HStack(alignment: .top, spacing: 10) {
-                                        VStack(alignment: .leading, spacing: 2) {
-                                            Text(viewModel.eventTimeText(for: event))
-                                                .font(.title2)
-                                                .fontWeight(.bold)
-                                                .foregroundStyle(Color.black)
-                                                .lineLimit(2)
-                                                .minimumScaleFactor(0.8)
-                                                .fixedSize(horizontal: false, vertical: true)
+                                        VStack(alignment: .center, spacing: 2) {
+                                            CalendarEventTimeLabel(text: viewModel.eventTimeText(for: event))
                                             Text(viewModel.eventDateOnlyText(for: event))
                                                 .font(.caption2)
                                                 .fontWeight(.semibold)
                                                 .foregroundStyle(Color.black.opacity(0.55))
+                                                .multilineTextAlignment(.center)
                                         }
-                                        .frame(minWidth: 52, alignment: .leading)
+                                        .frame(minWidth: 56, alignment: .center)
                                         VStack(alignment: .leading, spacing: 4) {
                                             Text(event.title)
                                                 .font(.subheadline)
