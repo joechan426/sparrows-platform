@@ -24,11 +24,13 @@ type Props = {
   member: Member | null;
   onClose: () => void;
   onRegistered: (eventId: string) => void;
+  /** Read-only details only (no login / register / payment UI). */
+  infoOnly?: boolean;
 };
 
-export function EventDetail({ event, member, onClose, onRegistered }: Props) {
+export function EventDetail({ event, member, onClose, onRegistered, infoOnly = false }: Props) {
   const [eventData, setEventData] = useState<CalendarEvent>(event);
-  const joinHint = eventData.registrationOpen ? approvedRegistrationHint(eventData) : null;
+  const joinHint = approvedRegistrationHint(eventData);
   const [preferredName, setPreferredName] = useState(member?.preferredName ?? "");
   const [email, setEmail] = useState(member?.email ?? "");
   const [teamName, setTeamName] = useState("");
@@ -162,7 +164,7 @@ export function EventDetail({ event, member, onClose, onRegistered }: Props) {
           </dd>
         </dl>
 
-        {!member && (
+        {!infoOnly && !member && (
           <div className="event-detail-guest-message">
             <p>You need to log in or create an account to register for this event.</p>
             <p>
@@ -174,7 +176,7 @@ export function EventDetail({ event, member, onClose, onRegistered }: Props) {
           </div>
         )}
 
-        {member && eventData.registrationOpen && (
+        {!infoOnly && member && eventData.registrationOpen && (
           <>
             <h3 className="event-detail-form-title">Register</h3>
             {success ? (

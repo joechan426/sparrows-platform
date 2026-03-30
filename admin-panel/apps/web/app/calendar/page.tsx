@@ -50,6 +50,79 @@ function JoinHint({ event }: { event: CalendarEvent }) {
   );
 }
 
+type CalendarListRowVariant = "day" | "next";
+
+function CalendarListEventRow({
+  event,
+  variant,
+  registrationsSafe,
+  optimisticPendingEventIds,
+  isAdminPanelEvent,
+  onOpenDetail,
+}: {
+  event: CalendarEvent;
+  variant: CalendarListRowVariant;
+  registrationsSafe: MemberRegistration[];
+  optimisticPendingEventIds: Set<string>;
+  isAdminPanelEvent: (e: CalendarEvent) => boolean;
+  onOpenDetail: (ev: CalendarEvent, infoOnly: boolean) => void;
+}) {
+  const myReg = registrationsSafe.find((r) => r.event?.id === event.id);
+  const optimisticPending = optimisticPendingEventIds.has(event.id);
+  const canRegister = isAdminPanelEvent(event);
+  const effectiveStatus = myReg?.status ?? (optimisticPending ? "PENDING" : undefined);
+
+  return (
+    <div
+      className={`card-event calendar-event-row calendar-event-row-v2${variant === "next" ? " calendar-event-row-next" : ""}`}
+    >
+      <button
+        type="button"
+        className="calendar-event-row-tap"
+        onClick={() => onOpenDetail(event, !event.registrationOpen)}
+        aria-label={`Event details: ${event.title}`}
+      >
+        <span className="calendar-event-time-col">
+          <span className="calendar-event-time-main">{formatTime(event.startAt)}</span>
+          {variant === "next" && (
+            <span className="calendar-event-time-sub">{formatDate(event.startAt)}</span>
+          )}
+        </span>
+        <span className="calendar-event-title-col">
+          <span className="calendar-event-title-line">{event.title}</span>
+          <span className="calendar-event-meta-line">
+            {event.sportType && `${event.sportType} · `}
+            Registration {event.registrationOpen ? "Open" : "Closed"}
+            {variant === "next" && event.location ? ` · ${event.location}` : ""}
+          </span>
+        </span>
+      </button>
+      <div className="calendar-event-actions">
+        {effectiveStatus ? (
+          <>
+            <span className={`pill ${statusClass(effectiveStatus)}`}>{statusText(effectiveStatus)}</span>
+            <JoinHint event={event} />
+          </>
+        ) : canRegister ? (
+          <>
+            <button
+              type="button"
+              className={`btn-register ${!event.registrationOpen ? "btn-register-disabled" : ""}`}
+              onClick={() => onOpenDetail(event, false)}
+              disabled={!event.registrationOpen}
+            >
+              Register
+            </button>
+            <JoinHint event={event} />
+          </>
+        ) : (
+          <span aria-hidden="true" style={{ display: "inline-block", minWidth: 96 }} />
+        )}
+      </div>
+    </div>
+  );
+}
+
 function startOfDay(d: Date): Date {
   const out = new Date(d);
   out.setHours(0, 0, 0, 0);
@@ -136,7 +209,7 @@ export default function CalendarPage() {
     refreshCalendarInBackground,
   } = useNavRefresh();
   const [error, setError] = useState("");
-  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
+  const [eventDetail, setEventDetail] = useState<{ event: CalendarEvent; infoOnly: boolean } | null>(null);
   const [sportFilter, setSportFilter] = useState<SportFilter>(() => {
     if (typeof window === "undefined") return "volleyball";
     try {
@@ -427,47 +500,17 @@ export default function CalendarPage() {
           {filteredEventsForSelectedDate.length === 0 ? (
             <p className="calendar-empty">No matching events on {selectedDateTitle}.</p>
           ) : (
-            filteredEventsForSelectedDate.map((event) => {
-              const myReg = registrationsSafe.find((r) => r.event?.id === event.id);
-              const optimisticPending = optimisticPendingEventIds.has(event.id);
-              const canRegister = isAdminPanelEvent(event);
-              const effectiveStatus = myReg?.status ?? (optimisticPending ? "PENDING" : undefined);
-              return (
-                <div key={event.id} className="card-event calendar-event-row">
-                  <div className="calendar-event-info">
-                    <div className="calendar-event-title">{event.title}</div>
-                    <div className="calendar-event-meta">
-                      {formatTime(event.startAt)}
-                      {event.sportType && ` · ${event.sportType}`}
-                      {" · Registration "}
-                      {event.registrationOpen ? "Open" : "Closed"}
-                    </div>
-                  </div>
-                  {effectiveStatus ? (
-                    <div className="calendar-event-actions">
-                      <span className={`pill ${statusClass(effectiveStatus)}`}>
-                        {statusText(effectiveStatus)}
-                      </span>
-                      <JoinHint event={event} />
-                    </div>
-                  ) : canRegister ? (
-                    <div className="calendar-event-actions">
-                      <button
-                        type="button"
-                        className={`btn-register ${!event.registrationOpen ? "btn-register-disabled" : ""}`}
-                        onClick={() => setSelectedEvent(event)}
-                        disabled={!event.registrationOpen}
-                      >
-                        Register
-                      </button>
-                      <JoinHint event={event} />
-                    </div>
-                  ) : (
-                    <span aria-hidden="true" style={{ display: "inline-block", minWidth: 96 }} />
-                  )}
-                </div>
-              );
-            })
+            filteredEventsForSelectedDate.map((event) => (
+              <CalendarListEventRow
+                key={event.id}
+                event={event}
+                variant="day"
+                registrationsSafe={registrationsSafe}
+                optimisticPendingEventIds={optimisticPendingEventIds}
+                isAdminPanelEvent={isAdminPanelEvent}
+                onOpenDetail={(ev, infoOnly) => setEventDetail({ event: ev, infoOnly })}
+              />
+            ))
           )}
         </div>
       </section>
@@ -481,54 +524,28 @@ export default function CalendarPage() {
           <p className="what-next-empty">Hold tight! The next event is on the way.</p>
         ) : (
           <ul className="what-next-list">
-            {upcomingCup.map((event) => {
-              const myReg = registrationsSafe.find((r) => r.event?.id === event.id);
-              const optimisticPending = optimisticPendingEventIds.has(event.id);
-              const canRegister = isAdminPanelEvent(event);
-              const effectiveStatus = myReg?.status ?? (optimisticPending ? "PENDING" : undefined);
-              return (
-                <li key={event.id} className="what-next-item">
-                  <div className="what-next-item-info">
-                    <div className="what-next-item-title">{event.title}</div>
-                    <div className="what-next-item-meta">
-                      {formatDate(event.startAt)} · {formatTime(event.startAt)}
-                      {event.location && ` · ${event.location}`}
-                    </div>
-                  </div>
-                  {effectiveStatus ? (
-                    <div className="calendar-event-actions">
-                      <span className={`pill ${statusClass(effectiveStatus)}`}>
-                        {statusText(effectiveStatus)}
-                      </span>
-                      <JoinHint event={event} />
-                    </div>
-                  ) : canRegister ? (
-                    <div className="calendar-event-actions">
-                      <button
-                        type="button"
-                        className={`btn-register ${!event.registrationOpen ? "btn-register-disabled" : ""}`}
-                        onClick={() => setSelectedEvent(event)}
-                        disabled={!event.registrationOpen}
-                      >
-                        Register
-                      </button>
-                      <JoinHint event={event} />
-                    </div>
-                  ) : (
-                    <span aria-hidden="true" style={{ display: "inline-block", minWidth: 96 }} />
-                  )}
-                </li>
-              );
-            })}
+            {upcomingCup.map((event) => (
+              <li key={event.id} className="what-next-item what-next-item-v2">
+                <CalendarListEventRow
+                  event={event}
+                  variant="next"
+                  registrationsSafe={registrationsSafe}
+                  optimisticPendingEventIds={optimisticPendingEventIds}
+                  isAdminPanelEvent={isAdminPanelEvent}
+                  onOpenDetail={(ev, infoOnly) => setEventDetail({ event: ev, infoOnly })}
+                />
+              </li>
+            ))}
           </ul>
         )}
       </section>
 
-      {selectedEvent && (
+      {eventDetail && (
         <EventDetail
-          event={selectedEvent}
+          event={eventDetail.event}
           member={member}
-          onClose={() => setSelectedEvent(null)}
+          infoOnly={eventDetail.infoOnly}
+          onClose={() => setEventDetail(null)}
           onRegistered={(eventId) => {
             // Optimistic UI: show Pending immediately after a successful registration.
             setOptimisticPendingEventIds((prev) => {

@@ -1668,9 +1668,9 @@ private func isRegisterableDatabaseCalendarEvent(_ event: CalendarEvent) -> Bool
     !event.id.hasPrefix("ics-")
 }
 
-/// Same rules as sparrowsweb `approvedRegistrationHint`: only when registration is open.
-private func calendarApprovedRegistrationHintText(for event: CalendarEvent) -> String? {
-    guard event.registrationOpen == true else { return nil }
+/// Same data as sparrowsweb `approvedRegistrationHint`: Neon-backed events only; shown even when registration is closed.
+private func calendarParticipantCountHintText(for event: CalendarEvent) -> String? {
+    guard isRegisterableDatabaseCalendarEvent(event) else { return nil }
     let approved = event.approvedCount ?? 0
     if let cap = event.capacity {
         return "\(approved) / \(cap)"
@@ -4021,8 +4021,8 @@ private struct SportsCalendarView: View {
     @State private var monthTransitionDirection = 1
     @State private var monthDragOffset: CGFloat = 0
     @State private var monthContainerWidth: CGFloat = 1
-    @State private var expandedUpcomingEventID: String?
     @State private var registerEvent: CalendarEvent?
+    @State private var eventInfoEvent: CalendarEvent?
     @State private var calendarRegistrations: [APIMemberRegistration] = []
     /// Optimistic Pending pill right after successful register (until registrations refresh).
     @State private var optimisticPendingEventIds: Set<String> = []
@@ -4072,10 +4072,32 @@ private struct SportsCalendarView: View {
                     memberStore: memberStore,
                     dateTimeText: viewModel.eventDateTimeDetailText(for: event),
                     descriptionText: viewModel.firstDescriptionParagraph(for: event),
+                    onOpenCheckout: onOpenCheckout,
                     onRegistered: { eventId in
                         optimisticPendingEventIds.insert(eventId)
                     },
+                    registrationActionsAllowed: true,
+                    onDismiss: {
+                        Task {
+                            await viewModel.refresh()
+                            if let id = memberStore.memberId {
+                                calendarRegistrations = (try? await MemberAPI.registrations(memberId: id)) ?? calendarRegistrations
+                            }
+                        }
+                    }
+                )
+            }
+            .sheet(item: $eventInfoEvent) { event in
+                RegisterEventSheet(
+                    event: event,
+                    memberStore: memberStore,
+                    dateTimeText: viewModel.eventDateTimeDetailText(for: event),
+                    descriptionText: viewModel.firstDescriptionParagraph(for: event),
                     onOpenCheckout: onOpenCheckout,
+                    onRegistered: { eventId in
+                        optimisticPendingEventIds.insert(eventId)
+                    },
+                    registrationActionsAllowed: (event.registrationOpen == true) && isRegisterableDatabaseCalendarEvent(event),
                     onDismiss: {
                         Task {
                             await viewModel.refresh()
@@ -4463,6 +4485,14 @@ private struct SportsCalendarView: View {
         }
     }
 
+    private func calendarRowMetaSubtitle(for event: CalendarEvent, includeLocation: Bool) -> String {
+        var parts: [String] = []
+        if let sport = event.sportType, !sport.isEmpty { parts.append(sport) }
+        parts.append("Registration \((event.registrationOpen ?? false) ? "Open" : "Closed")")
+        if includeLocation, let loc = event.location, !loc.isEmpty { parts.append(loc) }
+        return parts.joined(separator: " · ")
+    }
+
     private func eventsList(sectionHeight: CGFloat) -> some View {
         VStack(spacing: 6) {
             generalEventsSection(height: sectionHeight)
@@ -4503,26 +4533,39 @@ private struct SportsCalendarView: View {
                                 let myRegistration = calendarRegistrations.first(where: { $0.event?.id == event.id })
                                 let optimisticPending = optimisticPendingEventIds.contains(event.id)
                                 let effectiveStatus: String? = myRegistration?.status ?? (optimisticPending ? "PENDING" : nil)
-                                let joinHint = calendarApprovedRegistrationHintText(for: event)
+                                let joinHint = calendarParticipantCountHintText(for: event)
                                 HStack(alignment: .center, spacing: 10) {
-                                    VStack(alignment: .leading, spacing: 3) {
-                                        Text(event.title)
-                                            .font(.subheadline)
-                                            .fontWeight(.semibold)
-                                            .lineLimit(2)
-                                            .fixedSize(horizontal: false, vertical: true)
-                                        Text(viewModel.eventTimeText(for: event))
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
-                                            .lineLimit(1)
-                                            .fixedSize(horizontal: false, vertical: true)
-                                        if let sport = event.sportType, !sport.isEmpty {
-                                            Text("\(sport) · Registration \((event.registrationOpen ?? false) ? "Open" : "Closed")")
-                                                .font(.caption2)
-                                                .foregroundStyle(.secondary)
+                                    Button {
+                                        eventInfoEvent = event
+                                    } label: {
+                                        HStack(alignment: .top, spacing: 10) {
+                                            VStack(alignment: .leading, spacing: 2) {
+                                                Text(viewModel.eventTimeText(for: event))
+                                                    .font(.title2)
+                                                    .fontWeight(.bold)
+                                                    .foregroundStyle(.primary)
+                                                    .lineLimit(2)
+                                                    .minimumScaleFactor(0.8)
+                                                    .fixedSize(horizontal: false, vertical: true)
+                                            }
+                                            .frame(minWidth: 52, alignment: .leading)
+                                            VStack(alignment: .leading, spacing: 4) {
+                                                Text(event.title)
+                                                    .font(.subheadline)
+                                                    .fontWeight(.semibold)
+                                                    .multilineTextAlignment(.leading)
+                                                    .lineLimit(3)
+                                                    .fixedSize(horizontal: false, vertical: true)
+                                                Text(calendarRowMetaSubtitle(for: event, includeLocation: false))
+                                                    .font(.caption)
+                                                    .foregroundStyle(.secondary)
+                                                    .lineLimit(2)
+                                                    .fixedSize(horizontal: false, vertical: true)
+                                            }
+                                            .frame(maxWidth: .infinity, alignment: .leading)
                                         }
                                     }
-                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .buttonStyle(.plain)
 
                                     Group {
                                         if let status = effectiveStatus {
@@ -4620,49 +4663,52 @@ private struct SportsCalendarView: View {
 
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 8) {
-                    let shouldCompact = viewModel.upcomingCupEvents.count > 1
                     if viewModel.upcomingCupEvents.isEmpty {
                         Text("Hold tight! The next event is on the way.")
                             .frame(maxWidth: .infinity, alignment: .leading)
                     } else {
                         ForEach(viewModel.upcomingCupEvents) { event in
-                            let isExpanded = expandedUpcomingEventID == event.id
-                            let showFullDetails = !shouldCompact || isExpanded
                             let myRegistration = calendarRegistrations.first(where: { $0.event?.id == event.id })
                             let optimisticPending = optimisticPendingEventIds.contains(event.id)
                             let effectiveStatus: String? = myRegistration?.status ?? (optimisticPending ? "PENDING" : nil)
-                            let joinHint = calendarApprovedRegistrationHintText(for: event)
+                            let joinHint = calendarParticipantCountHintText(for: event)
 
                             HStack(alignment: .center, spacing: 10) {
-                                VStack(alignment: .leading, spacing: 3) {
-                                    Text(event.title)
-                                        .font(.subheadline)
-                                        .fontWeight(.bold)
-                                        .foregroundStyle(Color.black)
-                                        .lineLimit(showFullDetails ? 3 : 2)
-                                        .fixedSize(horizontal: false, vertical: true)
-
-                                    Text(showFullDetails ? viewModel.eventDateTimeDetailText(for: event) : viewModel.eventDateOnlyText(for: event))
-                                        .font(.caption)
-                                        .foregroundStyle(Color.black.opacity(0.85))
-                                        .lineLimit(showFullDetails ? 2 : 1)
-                                        .fixedSize(horizontal: false, vertical: true)
-
-                                    if showFullDetails, let location = event.location, !location.isEmpty {
-                                        Text("Location: \(location)")
-                                            .font(.caption)
-                                            .foregroundStyle(Color.black.opacity(0.85))
-                                            .lineLimit(1)
-                                            .fixedSize(horizontal: false, vertical: true)
+                                Button {
+                                    eventInfoEvent = event
+                                } label: {
+                                    HStack(alignment: .top, spacing: 10) {
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(viewModel.eventTimeText(for: event))
+                                                .font(.title2)
+                                                .fontWeight(.bold)
+                                                .foregroundStyle(Color.black)
+                                                .lineLimit(2)
+                                                .minimumScaleFactor(0.8)
+                                                .fixedSize(horizontal: false, vertical: true)
+                                            Text(viewModel.eventDateOnlyText(for: event))
+                                                .font(.caption2)
+                                                .fontWeight(.semibold)
+                                                .foregroundStyle(Color.black.opacity(0.55))
+                                        }
+                                        .frame(minWidth: 52, alignment: .leading)
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text(event.title)
+                                                .font(.subheadline)
+                                                .fontWeight(.bold)
+                                                .foregroundStyle(Color.black)
+                                                .lineLimit(3)
+                                                .fixedSize(horizontal: false, vertical: true)
+                                            Text(calendarRowMetaSubtitle(for: event, includeLocation: true))
+                                                .font(.caption)
+                                                .foregroundStyle(Color.black.opacity(0.55))
+                                                .lineLimit(2)
+                                                .fixedSize(horizontal: false, vertical: true)
+                                        }
+                                        .frame(maxWidth: .infinity, alignment: .leading)
                                     }
                                 }
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .contentShape(Rectangle())
-                                .onTapGesture {
-                                    if shouldCompact {
-                                        expandedUpcomingEventID = event.id
-                                    }
-                                }
+                                .buttonStyle(.plain)
 
                                 Group {
                                     if let status = effectiveStatus {
@@ -4719,11 +4765,6 @@ private struct SportsCalendarView: View {
                 await viewModel.refresh()
                 if let id = memberStore.memberId {
                     calendarRegistrations = (try? await MemberAPI.registrations(memberId: id)) ?? calendarRegistrations
-                }
-            }
-            .onChange(of: viewModel.upcomingCupEvents.map(\.id)) { ids in
-                if let expandedUpcomingEventID, !ids.contains(expandedUpcomingEventID) {
-                    self.expandedUpcomingEventID = nil
                 }
             }
         }
@@ -4797,6 +4838,8 @@ private struct RegisterEventSheet: View {
     let descriptionText: String?
     let onOpenCheckout: (URL) -> Void
     var onRegistered: ((String) -> Void)?
+    /// When false, show title/date/description only (no login, register, or checkout UI).
+    var registrationActionsAllowed: Bool = true
     var onDismiss: (() -> Void)?
     @Environment(\.dismiss) private var dismiss
 
@@ -4825,73 +4868,75 @@ private struct RegisterEventSheet: View {
                     }
                     registrationStatusBlock
 
-                    if !registrationOpen {
-                        Text("Registration is closed for this event.")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                            .padding(.top, 8)
-                    } else if !memberStore.hasProfile {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("You need to log in or create an account to register for this event.")
-                                .font(.subheadline)
-                            Text("Open My Profile, then use Log in or Register to continue.")
+                    if registrationActionsAllowed {
+                        if !registrationOpen {
+                            Text("Registration is closed for this event.")
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
-                        }
-                        .padding(.top, 8)
-                    } else if registerSuccess {
-                        Text("You are registered. Status: Pending.")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                                .padding(.top, 8)
+                        } else if !memberStore.hasProfile {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("You need to log in or create an account to register for this event.")
+                                    .font(.subheadline)
+                                Text("Open My Profile, then use Log in or Register to continue.")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            }
                             .padding(.top, 8)
-                    } else {
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text("Register")
-                                .font(.headline)
-                                .padding(.top, 4)
-                            Text("Preferred name *")
-                                .font(.caption)
+                        } else if registerSuccess {
+                            Text("You are registered. Status: Pending.")
+                                .font(.subheadline)
                                 .foregroundStyle(.secondary)
-                            TextField("Preferred name", text: $preferredNameInput)
-                                .textFieldStyle(.roundedBorder)
-                                .textContentType(.name)
-                            Text("Email")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            TextField("Email", text: $emailInput)
-                                .textFieldStyle(.roundedBorder)
-                                .textContentType(.emailAddress)
-                                .keyboardType(.emailAddress)
-                                .autocapitalization(.none)
-                            if isSpecial {
-                                Text("Team name *")
+                                .padding(.top, 8)
+                        } else {
+                            VStack(alignment: .leading, spacing: 10) {
+                                Text("Register")
+                                    .font(.headline)
+                                    .padding(.top, 4)
+                                Text("Preferred name *")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
-                                TextField("Team name", text: $teamName)
+                                TextField("Preferred name", text: $preferredNameInput)
                                     .textFieldStyle(.roundedBorder)
-                            }
-                            if let err = registerError {
-                                Text(err)
+                                    .textContentType(.name)
+                                Text("Email")
                                     .font(.caption)
-                                    .foregroundStyle(.red)
+                                    .foregroundStyle(.secondary)
+                                TextField("Email", text: $emailInput)
+                                    .textFieldStyle(.roundedBorder)
+                                    .textContentType(.emailAddress)
+                                    .keyboardType(.emailAddress)
+                                    .autocapitalization(.none)
+                                if isSpecial {
+                                    Text("Team name *")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                    TextField("Team name", text: $teamName)
+                                        .textFieldStyle(.roundedBorder)
+                                }
+                                if let err = registerError {
+                                    Text(err)
+                                        .font(.caption)
+                                        .foregroundStyle(.red)
+                                }
+                                Button {
+                                    Task { await submitRegistration() }
+                                } label: {
+                                    Text(isRegistering ? "Registering…" : "Register")
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 10)
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .disabled(isRegistering || preferredNameInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || (isSpecial && teamName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty))
                             }
-                            Button {
-                                Task { await submitRegistration() }
-                            } label: {
-                                Text(isRegistering ? "Registering…" : "Register")
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 10)
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .disabled(isRegistering || preferredNameInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || (isSpecial && teamName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty))
+                            .padding(.top, 4)
                         }
-                        .padding(.top, 4)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(16)
             }
-            .navigationTitle("Register")
+            .navigationTitle(registrationActionsAllowed ? "Register" : "Event")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -4910,7 +4955,7 @@ private struct RegisterEventSheet: View {
     @ViewBuilder
     private var registrationStatusBlock: some View {
         let openText = registrationOpen ? "Open" : "Closed"
-        let hint = calendarApprovedRegistrationHintText(for: event)
+        let hint = calendarParticipantCountHintText(for: event)
         VStack(alignment: .leading, spacing: 4) {
             Text("Registration")
                 .font(.caption)
@@ -4918,7 +4963,7 @@ private struct RegisterEventSheet: View {
             HStack(alignment: .firstTextBaseline, spacing: 0) {
                 Text(openText)
                     .font(.body)
-                if registrationOpen, let hint {
+                if let hint {
                     Text(verbatim: " · ")
                         .font(.body)
                         .foregroundStyle(.secondary)

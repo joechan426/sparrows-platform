@@ -113,7 +113,6 @@ export const EventList: React.FC = () => {
       setRowSelectionModel({ type: "include", ids: new Set() });
       invalidate({ resource: "calendar-events", invalidates: ["list", "many", "detail"] });
       await refetchList?.();
-      window.location.reload();
     } catch {
       openNotification?.({ type: "error", message: "Failed to update some events" });
     } finally {
@@ -138,7 +137,6 @@ export const EventList: React.FC = () => {
       setRowSelectionModel({ type: "include", ids: new Set() });
       invalidate({ resource: "calendar-events", invalidates: ["list", "many", "detail"] });
       await refetchList?.();
-      window.location.reload();
     } catch {
       openNotification?.({ type: "error", message: "Failed to update some events" });
     } finally {
@@ -166,7 +164,6 @@ export const EventList: React.FC = () => {
       setBulkDeleteConfirmPending(false);
       invalidate({ resource: "calendar-events", invalidates: ["list", "many", "detail"] });
       await refetchList?.();
-      window.location.reload();
     } catch {
       openNotification?.({ type: "error", message: "Failed to delete some events" });
     } finally {
@@ -259,7 +256,6 @@ export const EventList: React.FC = () => {
       invalidate({ resource: "calendar-events", invalidates: ["list", "many", "detail"] });
       await refetchList?.();
       setImportDialogOpen(false);
-      window.location.reload();
     } catch (e) {
       openNotification?.({ type: "error", message: e instanceof Error ? e.message : "Import failed" });
     } finally {
@@ -435,7 +431,11 @@ export const EventList: React.FC = () => {
             onChange={() => {
               update(
                 { resource: "calendar-events", id: row.id, values: { registrationOpen: !row.registrationOpen } },
-                {},
+                {
+                  onSuccess: () => {
+                    void refetchList?.();
+                  },
+                },
               );
             }}
             inputProps={{ "aria-label": "Toggle registration" }}
@@ -474,7 +474,7 @@ export const EventList: React.FC = () => {
         ),
       },
     ],
-    [update, handleDeleteClick],
+    [update, handleDeleteClick, refetchList],
   );
   const gridPrefs = useGridPreferences("events-list", columns);
 

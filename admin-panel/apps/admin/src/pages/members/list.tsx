@@ -42,11 +42,15 @@ export const MemberList: React.FC = () => {
   const invalidate = useInvalidate();
   const { open: notify } = useNotification();
 
-  const { dataGridProps, setFilters } = useDataGrid<MemberRow>({
+  const membersDataGrid = useDataGrid<MemberRow>({
     resource: "members",
     sorters: { initial: [{ field: "createdAt", order: "desc" }] },
     pagination: { current: 1, pageSize: 25 } as any,
   });
+  const { dataGridProps, setFilters } = membersDataGrid;
+  const refetchMembersList = (membersDataGrid as any)?.tableQueryResult?.refetch as
+    | (() => Promise<unknown>)
+    | undefined;
 
   const selectedIds = rowSelectionModel.type === "include" ? Array.from(rowSelectionModel.ids as Set<string>) : [];
 
@@ -88,6 +92,7 @@ export const MemberList: React.FC = () => {
       setResetPwConfirm("");
       setRowSelectionModel({ type: "include", ids: new Set() });
       invalidate({ resource: "members", invalidates: ["list", "many", "detail"] });
+      await refetchMembersList?.();
     } finally {
       setResetPwLoading(false);
     }
@@ -118,6 +123,7 @@ export const MemberList: React.FC = () => {
       setDeleteOpen(false);
       setRowSelectionModel({ type: "include", ids: new Set() });
       invalidate({ resource: "members", invalidates: ["list", "many", "detail"] });
+      await refetchMembersList?.();
     } finally {
       setDeleteLoading(false);
     }

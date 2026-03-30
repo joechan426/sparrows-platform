@@ -28,10 +28,14 @@ type AdminUserRow = {
 };
 
 export const AdminUserList: React.FC = () => {
-  const { dataGridProps } = useDataGrid<AdminUserRow>({
+  const adminUsersDataGrid = useDataGrid<AdminUserRow>({
     resource: "admin-users",
     sorters: { initial: [{ field: "createdAt", order: "desc" }] },
   });
+  const { dataGridProps } = adminUsersDataGrid;
+  const refetchAdminUsersList = (adminUsersDataGrid as any)?.tableQueryResult?.refetch as
+    | (() => Promise<unknown>)
+    | undefined;
 
   const [rowSelectionModel, setRowSelectionModel] = useState<GridRowSelectionModel>({
     type: "include",
@@ -79,6 +83,7 @@ export const AdminUserList: React.FC = () => {
       setDeleteOpen(false);
       setRowSelectionModel({ type: "include", ids: new Set() });
       invalidate({ resource: "admin-users", invalidates: ["list", "many", "detail"] });
+      await refetchAdminUsersList?.();
     } finally {
       setDeleteLoading(false);
     }
