@@ -107,6 +107,7 @@ CREATE TABLE event_registrations (
   calendar_event_id UUID NOT NULL REFERENCES calendar_events(id),
   team_name TEXT,
   status TEXT NOT NULL,
+  attendance TEXT NOT NULL DEFAULT 'DEFAULT',
   payment_status TEXT NOT NULL DEFAULT 'NONE',
   amount_due_cents INT,
   amount_paid_cents INT,
@@ -149,7 +150,7 @@ CREATE TABLE admin_users (
   user_name TEXT NOT NULL UNIQUE,
   email TEXT UNIQUE,
   password_hash TEXT NOT NULL,
-  role TEXT NOT NULL CHECK (role IN ('ADMIN', 'SUPER_MANAGER', 'MANAGER')),
+  role TEXT NOT NULL CHECK (role IN ('ADMIN', 'SUPER_MANAGER', 'MANAGER', 'COACH')),
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
   -- JSON array of Refine resource names this ADMIN hides from their own nav only (e.g. ["tournaments"]).
   hidden_nav_resources JSONB NOT NULL DEFAULT '[]'::jsonb,
@@ -173,13 +174,21 @@ CREATE TABLE payment_profiles (
 );
 
 -- Page/module permissions for managers. ADMIN has all permissions implicitly.
--- module: 'TOURNAMENTS' | 'TEAMS' | 'CALENDAR_EVENTS' | 'MEMBERS'
+-- module: 'TOURNAMENTS' | 'TEAMS' | 'CALENDAR_EVENTS' | 'MEMBERS' | 'ANNOUNCEMENTS'
 CREATE TABLE admin_permissions (
   id TEXT PRIMARY KEY,
   admin_user_id TEXT NOT NULL REFERENCES admin_users(id) ON DELETE CASCADE,
-  module TEXT NOT NULL CHECK (module IN ('TOURNAMENTS', 'TEAMS', 'CALENDAR_EVENTS', 'MEMBERS', 'PAYMENT_PROFILES', 'ADMIN_USERS', 'PAYMENTS')),
+  module TEXT NOT NULL CHECK (module IN ('TOURNAMENTS', 'TEAMS', 'CALENDAR_EVENTS', 'MEMBERS', 'ANNOUNCEMENTS', 'PAYMENT_PROFILES', 'ADMIN_USERS', 'PAYMENTS')),
   created_at TIMESTAMP NOT NULL DEFAULT NOW(),
   UNIQUE (admin_user_id, module)
+);
+
+-- Manager/Admin announcements shown in sparrowsweb and sparrows-app profile.
+CREATE TABLE announcements (
+  id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  message TEXT NOT NULL,
+  created_by_admin_id TEXT REFERENCES admin_users(id) ON DELETE SET NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
 -- If you already had admin_users before hidden_nav_resources existed, run once on Neon/Postgres:

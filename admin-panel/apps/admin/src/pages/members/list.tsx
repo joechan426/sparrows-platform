@@ -17,7 +17,7 @@ import DialogActions from "@mui/material/DialogActions";
 import SearchIcon from "@mui/icons-material/Search";
 import LockIcon from "@mui/icons-material/Lock";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
-import { getToken } from "../../lib/admin-auth";
+import { getToken, getStoredAdmin } from "../../lib/admin-auth";
 import { apiUrl } from "../../lib/api-base";
 import { useGridPreferences } from "../../lib/grid-preferences";
 
@@ -31,6 +31,8 @@ type MemberRow = {
 export const MemberList: React.FC = () => {
   const [searchInput, setSearchInput] = useState("");
   const [rowSelectionModel, setRowSelectionModel] = useState<GridRowSelectionModel>({ type: "include", ids: new Set<string>() });
+  const storedAdmin = getStoredAdmin();
+  const isCoach = storedAdmin?.role === "COACH";
   const [resetPwOpen, setResetPwOpen] = useState(false);
   const [resetPwPassword, setResetPwPassword] = useState("");
   const [resetPwConfirm, setResetPwConfirm] = useState("");
@@ -60,6 +62,11 @@ export const MemberList: React.FC = () => {
       : [];
     setFilters(next);
   }, [searchInput, setFilters]);
+
+  React.useEffect(() => {
+    if (!isCoach) return;
+    setRowSelectionModel({ type: "include", ids: new Set<string>() });
+  }, [isCoach]);
 
   const handleResetPasswordSubmit = async () => {
     setResetPwError("");
@@ -199,36 +206,40 @@ export const MemberList: React.FC = () => {
             ),
           }}
         />
-        <Button
-          variant="outlined"
-          startIcon={<LockIcon />}
-          disabled={selectedIds.length === 0}
-          sx={{ alignSelf: { xs: "stretch", sm: "auto" } }}
-          onClick={() => {
-            setResetPwError("");
-            setResetPwPassword("");
-            setResetPwConfirm("");
-            setResetPwOpen(true);
-          }}
-        >
-          Reset password {selectedIds.length > 0 ? `(${selectedIds.length})` : ""}
-        </Button>
-        <Button
-          variant="outlined"
-          color="error"
-          startIcon={<DeleteOutlineIcon />}
-          disabled={selectedIds.length === 0}
-          sx={{ alignSelf: { xs: "stretch", sm: "auto" } }}
-          onClick={() => setDeleteOpen(true)}
-        >
-          Delete member{selectedIds.length === 1 ? "" : "s"}{selectedIds.length > 0 ? ` (${selectedIds.length})` : ""}
-        </Button>
+        {!isCoach && (
+          <>
+            <Button
+              variant="outlined"
+              startIcon={<LockIcon />}
+              disabled={selectedIds.length === 0}
+              sx={{ alignSelf: { xs: "stretch", sm: "auto" } }}
+              onClick={() => {
+                setResetPwError("");
+                setResetPwPassword("");
+                setResetPwConfirm("");
+                setResetPwOpen(true);
+              }}
+            >
+              Reset password {selectedIds.length > 0 ? `(${selectedIds.length})` : ""}
+            </Button>
+            <Button
+              variant="outlined"
+              color="error"
+              startIcon={<DeleteOutlineIcon />}
+              disabled={selectedIds.length === 0}
+              sx={{ alignSelf: { xs: "stretch", sm: "auto" } }}
+              onClick={() => setDeleteOpen(true)}
+            >
+              Delete member{selectedIds.length === 1 ? "" : "s"}{selectedIds.length > 0 ? ` (${selectedIds.length})` : ""}
+            </Button>
+          </>
+        )}
       </Box>
       <SaasDataGrid
         {...dataGridProps}
         columns={gridPrefs.columns}
         autoHeight
-        checkboxSelection
+        checkboxSelection={!isCoach}
         rowSelectionModel={rowSelectionModel}
         onRowSelectionModelChange={setRowSelectionModel}
         columnVisibilityModel={gridPrefs.columnVisibilityModel}

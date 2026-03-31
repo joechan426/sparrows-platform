@@ -27,6 +27,7 @@ const MODULES = [
   { value: "TEAMS", label: "Teams" },
   { value: "CALENDAR_EVENTS", label: "Events" },
   { value: "MEMBERS", label: "Members" },
+  { value: "ANNOUNCEMENTS", label: "Announcements" },
   { value: "PAYMENT_PROFILES", label: "Payment profiles" },
   { value: "PAYMENTS", label: "Payments" },
 ] as const;
@@ -34,7 +35,7 @@ const MODULES = [
 type AdminUserRecord = {
   id: string;
   userName: string;
-  role: "ADMIN" | "SUPER_MANAGER" | "MANAGER";
+  role: "ADMIN" | "SUPER_MANAGER" | "MANAGER" | "COACH";
   isActive: boolean;
   permissions?: string[];
   hiddenNavResources?: unknown;
@@ -44,7 +45,7 @@ export const AdminUserEdit: React.FC = () => {
   type AdminUserEditForm = {
     userName: string;
     isActive: boolean;
-    role: "ADMIN" | "SUPER_MANAGER" | "MANAGER";
+    role: "ADMIN" | "SUPER_MANAGER" | "MANAGER" | "COACH";
     permissions: string[];
     newPassword?: string;
     hiddenNavResources: string[];
@@ -79,7 +80,7 @@ export const AdminUserEdit: React.FC = () => {
             ...currentAdmin,
             userName: typeof d.userName === "string" ? d.userName : currentAdmin.userName,
             role:
-              d.role === "ADMIN" || d.role === "SUPER_MANAGER" || d.role === "MANAGER"
+              d.role === "ADMIN" || d.role === "SUPER_MANAGER" || d.role === "MANAGER" || d.role === "COACH"
                 ? d.role
                 : currentAdmin.role,
             permissions: Array.isArray(d.permissions)
@@ -177,6 +178,7 @@ export const AdminUserEdit: React.FC = () => {
             >
               <MenuItem value="MANAGER">Manager</MenuItem>
               <MenuItem value="SUPER_MANAGER">Super Manager</MenuItem>
+              <MenuItem value="COACH">Coach</MenuItem>
               <MenuItem value="ADMIN">Admin</MenuItem>
             </Select>
           </FormControl>
@@ -193,7 +195,7 @@ export const AdminUserEdit: React.FC = () => {
             "At least 8 characters with letter, number and special symbol. Leave blank to keep current."
           }
         />
-        {(role === "MANAGER" || role === "SUPER_MANAGER") &&
+        {(role === "MANAGER" || role === "SUPER_MANAGER" || role === "COACH") &&
           (isAdmin || (isSuperManagerViewer && record?.role === "MANAGER")) && (
           <FormControl component="fieldset">
             <InputLabel shrink>Page permissions (Manager / Super Manager)</InputLabel>

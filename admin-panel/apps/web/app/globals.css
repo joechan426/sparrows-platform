@@ -250,6 +250,7 @@ input[type="password"] {
     border-radius: 10px;
     transition: background 0.15s ease, color 0.15s ease;
     -webkit-tap-highlight-color: transparent;
+    position: relative;
   }
 
   .nav-mobile-item-active {
@@ -281,6 +282,7 @@ input[type="password"] {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  position: relative;
   padding: 0.5rem 1rem;
   min-height: 40px;
   font-size: 0.95rem;
@@ -288,6 +290,31 @@ input[type="password"] {
   color: rgba(0, 0, 0, 0.7);
   border-radius: 10px;
   transition: background 0.15s ease;
+}
+.nav-unread-badge,
+.nav-mobile-unread-badge,
+.profile-unread-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #fff;
+  background: #d32f2f;
+}
+.nav-unread-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+}
+.nav-mobile-unread-badge {
+  position: absolute;
+  top: 4px;
+  right: 10px;
 }
 .nav-item:hover {
   color: #000;
@@ -748,6 +775,11 @@ input[type="password"] {
   max-width: 520px;
   margin: 0 auto;
 }
+.calendar-page-title {
+  min-height: 2.25rem;
+  display: flex;
+  align-items: center;
+}
 .sport-filters {
   display: flex;
   gap: 10px;
@@ -1084,6 +1116,10 @@ input[type="password"] {
   white-space: normal;
   max-width: 100%;
 }
+.calendar-joined-hint {
+  color: #1b5e20;
+  font-weight: 700;
+}
 .calendar-event-actions-spacer {
   display: block;
   min-width: 72px;
@@ -1096,6 +1132,24 @@ input[type="password"] {
   line-height: 1.2;
   text-align: right;
   white-space: nowrap;
+}
+.calendar-queue-hint {
+  margin-top: 2px;
+  display: block;
+  font-size: 0.72rem;
+  line-height: 1.2;
+  white-space: normal;
+}
+.calendar-queue-waitlisted {
+  color: #ef6c00;
+  font-weight: 700;
+}
+.calendar-queue-requested {
+  color: #424242;
+  font-weight: 700;
+}
+.calendar-queue-sep {
+  color: rgba(0, 0, 0, 0.45);
 }
 .calendar-event-info {
   flex: 1;

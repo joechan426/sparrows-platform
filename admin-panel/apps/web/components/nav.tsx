@@ -5,6 +5,7 @@ import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { useNavRefresh } from "@/lib/nav-refresh-context";
+import { useAnnouncements } from "@/lib/announcements-context";
 import { useEffect } from "react";
 import { CONTACT_LINKS, HOME_LOGO_URL } from "@/lib/contact-links";
 
@@ -59,6 +60,7 @@ export function Nav() {
   const pathname = usePathname();
   const router = useRouter();
   const { member } = useAuth();
+  const { unreadCount } = useAnnouncements();
   const { refreshCalendarInBackground, refreshRegistrationsInBackground } = useNavRefresh();
 
   useEffect(() => {
@@ -125,6 +127,11 @@ export function Nav() {
               onClick={() => onInternalNavClick(href)}
             >
               <span className="nav-label">{label}</span>
+              {href === "/profile" && unreadCount > 0 && (
+                <span className="nav-unread-badge" aria-label={`${unreadCount} unread announcements`}>
+                  {unreadCount}
+                </span>
+              )}
             </Link>
           ) : (
             <a key={href} href={href} target="_blank" rel="noopener noreferrer" className="nav-item">
@@ -178,6 +185,11 @@ export function Nav() {
                 sizes="28px"
               />
               <span className="nav-mobile-tab-text">{tabLabel}</span>
+              {href === "/profile" && unreadCount > 0 && (
+                <span className="nav-mobile-unread-badge" aria-label={`${unreadCount} unread announcements`}>
+                  {unreadCount}
+                </span>
+              )}
             </Link>
           ) : (
             <a

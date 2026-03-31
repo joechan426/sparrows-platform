@@ -12,12 +12,13 @@ const JWT_EXPIRY = "7d";
 
 // Avoid relying on `@prisma/client` enum exports at type level.
 // Prisma enum exports can differ depending on the prisma build/edge/client generation.
-export type AdminRole = "ADMIN" | "SUPER_MANAGER" | "MANAGER";
+export type AdminRole = "ADMIN" | "SUPER_MANAGER" | "MANAGER" | "COACH";
 export type AdminModule =
   | "TOURNAMENTS"
   | "TEAMS"
   | "CALENDAR_EVENTS"
   | "MEMBERS"
+  | "ANNOUNCEMENTS"
   | "PAYMENT_PROFILES"
   | "ADMIN_USERS"
   | "PAYMENTS";
@@ -27,6 +28,7 @@ export const ADMIN_IMPLICIT_MODULES: AdminModule[] = [
   "TEAMS",
   "CALENDAR_EVENTS",
   "MEMBERS",
+  "ANNOUNCEMENTS",
   "PAYMENT_PROFILES",
   "ADMIN_USERS",
   "PAYMENTS",

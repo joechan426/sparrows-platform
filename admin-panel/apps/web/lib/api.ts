@@ -37,6 +37,10 @@ export type CalendarEvent = {
   paypalCheckoutAvailable?: boolean;
   /** Present when loaded from API; count of APPROVED registrations */
   approvedCount?: number;
+  /** Count of WAITING_LIST registrations */
+  waitlistedCount?: number;
+  /** Count of PENDING registrations */
+  pendingCount?: number;
 };
 
 export type MemberRegistration = {
@@ -45,6 +49,14 @@ export type MemberRegistration = {
   teamName: string | null;
   createdAt: string;
   event: CalendarEvent | null;
+};
+
+export type Announcement = {
+  id: string;
+  message: string;
+  createdAt: string;
+  createdByAdminId?: string | null;
+  createdByUserName?: string | null;
 };
 
 export async function apiLogin(email: string, password: string): Promise<Member> {
@@ -180,4 +192,20 @@ export async function apiCreateEventCheckout(params: {
   if (!res.ok) throw new Error(data?.message ?? "Checkout failed");
   if (!data?.url || typeof data.url !== "string") throw new Error("Checkout URL is missing");
   return { url: data.url };
+}
+
+export async function apiAnnouncements(start: number, end: number): Promise<{ items: Announcement[]; total: number }> {
+  const res = await fetch(`${base()}/api/announcements?_start=${Math.max(0, start)}&_end=${Math.max(0, end)}`);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.message ?? "Failed to load announcements");
+  const items = Array.isArray(data) ? (data as Announcement[]) : [];
+  const totalHeader = Number(res.headers.get("X-Total-Count") ?? String(items.length));
+  return { items, total: Number.isFinite(totalHeader) ? totalHeader : items.length };
+}
+
+export async function apiUnreadAnnouncementsCount(sinceISO: string): Promise<number> {
+  const res = await fetch(`${base()}/api/announcements/unread-count?since=${encodeURIComponent(sinceISO)}`);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.message ?? "Failed to load unread announcement count");
+  return Number(data?.count ?? 0);
 }

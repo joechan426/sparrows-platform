@@ -12,6 +12,7 @@ const PERMISSION_MODULE_VALUES = [
   "TEAMS",
   "CALENDAR_EVENTS",
   "MEMBERS",
+  "ANNOUNCEMENTS",
   "PAYMENT_PROFILES",
   "ADMIN_USERS",
   "PAYMENTS",
@@ -35,7 +36,7 @@ export async function GET(req: NextRequest) {
       (u: {
         id: string;
         userName: string;
-        role: "ADMIN" | "SUPER_MANAGER" | "MANAGER";
+        role: "ADMIN" | "SUPER_MANAGER" | "MANAGER" | "COACH";
         isActive: boolean;
         createdAt: Date;
         updatedAt: Date;
@@ -77,8 +78,13 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => ({}));
     const userName = typeof body.userName === "string" ? body.userName.trim() : "";
     const password = typeof body.password === "string" ? body.password : "";
-    const role: "MANAGER" | "ADMIN" | "SUPER_MANAGER" =
-      body.role === "MANAGER" || body.role === "ADMIN" || body.role === "SUPER_MANAGER" ? body.role : "MANAGER";
+    const role: "MANAGER" | "ADMIN" | "SUPER_MANAGER" | "COACH" =
+      body.role === "MANAGER" ||
+      body.role === "ADMIN" ||
+      body.role === "SUPER_MANAGER" ||
+      body.role === "COACH"
+        ? body.role
+        : "MANAGER";
     const permissions: (typeof PERMISSION_MODULE_VALUES)[number][] = Array.isArray(body.permissions)
       ? body.permissions.filter((p: string): p is (typeof PERMISSION_MODULE_VALUES)[number] =>
           (PERMISSION_MODULE_VALUES as readonly string[]).includes(p),

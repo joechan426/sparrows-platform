@@ -17,6 +17,7 @@ const PERMISSION_MODULE_VALUES = [
   "TEAMS",
   "CALENDAR_EVENTS",
   "MEMBERS",
+  "ANNOUNCEMENTS",
   "PAYMENT_PROFILES",
   "ADMIN_USERS",
   "PAYMENTS",
@@ -28,6 +29,7 @@ const PERMISSION_MODULES_SUPER_MANAGER_PATCH = [
   "TEAMS",
   "CALENDAR_EVENTS",
   "MEMBERS",
+  "ANNOUNCEMENTS",
   "PAYMENT_PROFILES",
   "PAYMENTS",
 ] as const;
@@ -192,13 +194,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       isActive?: boolean;
       userName?: string;
       passwordHash?: string;
-      role?: "ADMIN" | "SUPER_MANAGER" | "MANAGER";
+      role?: "ADMIN" | "SUPER_MANAGER" | "MANAGER" | "COACH";
       permissions?: { deleteMany: {}; create: { module: string }[] };
     } = {};
 
     if (typeof data.isActive === "boolean") updates.isActive = data.isActive;
 
-    if (data.role === "ADMIN" || data.role === "SUPER_MANAGER" || data.role === "MANAGER") {
+    if (data.role === "ADMIN" || data.role === "SUPER_MANAGER" || data.role === "MANAGER" || data.role === "COACH") {
       updates.role = data.role;
     }
     const newUserName = typeof data.userName === "string" ? data.userName.trim() : "";

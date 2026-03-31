@@ -6,11 +6,22 @@ import type { CalendarEvent, Member } from "@/lib/api";
 import { apiCalendarEvent, apiCreateEventCheckout, apiRegisterForEvent } from "@/lib/api";
 import { approvedRegistrationHint } from "@/lib/calendar-registration-hint";
 
+const SYDNEY_TIME_ZONE = "Australia/Sydney";
 function formatDate(d: string): string {
-  return new Date(d).toLocaleDateString(undefined, { dateStyle: "medium" });
+  return new Intl.DateTimeFormat("en-AU", {
+    timeZone: SYDNEY_TIME_ZONE,
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).format(new Date(d));
 }
 function formatTime(d: string): string {
-  return new Date(d).toLocaleTimeString(undefined, { timeStyle: "short" });
+  return new Intl.DateTimeFormat("en-AU", {
+    timeZone: SYDNEY_TIME_ZONE,
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).format(new Date(d));
 }
 
 function isSpecial(event: CalendarEvent): boolean {

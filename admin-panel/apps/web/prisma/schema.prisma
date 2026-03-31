@@ -293,12 +293,19 @@ enum EventPaymentProvider {
   MANUAL
 }
 
+enum EventAttendanceStatus {
+  DEFAULT
+  PRESENT
+  ABSENT
+}
+
 model EventRegistration {
   id              String                  @id @default(cuid())
   memberId        String
   calendarEventId String
   teamName        String?
   status          EventRegistrationStatus @default(PENDING)
+  attendance      EventAttendanceStatus   @default(DEFAULT)
   paymentStatus   EventPaymentStatus      @default(NONE)
   amountDueCents  Int?
   amountPaidCents Int?
@@ -357,6 +364,7 @@ enum AdminRole {
   ADMIN
   SUPER_MANAGER
   MANAGER
+  COACH
 }
 
 enum AdminModule {
@@ -364,6 +372,7 @@ enum AdminModule {
   TEAMS
   CALENDAR_EVENTS
   MEMBERS
+  ANNOUNCEMENTS
   PAYMENT_PROFILES
   ADMIN_USERS
   PAYMENTS
@@ -383,6 +392,7 @@ model AdminUser {
 
   permissions AdminPermission[]
   paymentProfilesCreated PaymentProfile[]
+  announcementsCreated Announcement[]
 
   @@map("admin_users")
 }
@@ -397,4 +407,16 @@ model AdminPermission {
 
   @@unique([adminUserId, module])
   @@map("admin_permissions")
+}
+
+model Announcement {
+  id              String    @id @default(cuid())
+  message         String
+  createdByAdminId String?  @map("created_by_admin_id")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  createdBy       AdminUser? @relation(fields: [createdByAdminId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@map("announcements")
 }

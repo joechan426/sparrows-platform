@@ -21,9 +21,13 @@ export async function PATCH(req: NextRequest, context: any) {
 
     const body = await req.json().catch(() => ({}));
     const statusRaw = typeof body.status === "string" ? body.status.toUpperCase().trim() : "";
+    const attendanceRaw = typeof body.attendance === "string" ? body.attendance.toUpperCase().trim() : "";
 
     type AllowedStatus = "PENDING" | "APPROVED" | "WAITING_LIST" | "REJECTED";
     const allowed: AllowedStatus[] = ["PENDING", "APPROVED", "WAITING_LIST", "REJECTED"];
+
+    type AllowedAttendance = "DEFAULT" | "PRESENT" | "ABSENT";
+    const allowedAttendance: AllowedAttendance[] = ["DEFAULT", "PRESENT", "ABSENT"];
 
     let nextStatus: AllowedStatus | null = null;
     if (statusRaw) {
@@ -35,6 +39,23 @@ export async function PATCH(req: NextRequest, context: any) {
             {
               message:
                 "Invalid status. Allowed values are PENDING, APPROVED, WAITING_LIST, REJECTED",
+            },
+            { status: 400 }
+          )
+        );
+      }
+    }
+
+    let nextAttendance: AllowedAttendance | null = null;
+    if (attendanceRaw) {
+      nextAttendance = allowedAttendance.find((s) => s === attendanceRaw) ?? null;
+      if (!nextAttendance) {
+        return withCors(
+          req,
+          NextResponse.json(
+            {
+              message:
+                "Invalid attendance. Allowed values are DEFAULT, PRESENT, ABSENT",
             },
             { status: 400 }
           )
@@ -90,11 +111,14 @@ export async function PATCH(req: NextRequest, context: any) {
       }
     }
 
-    if (!nextStatus && Object.keys(paymentPatch).length === 0) {
+    if (!nextStatus && !nextAttendance && Object.keys(paymentPatch).length === 0) {
       return withCors(
         req,
         NextResponse.json(
-          { message: "Provide status and/or payment fields (amountPaidCents, managerPaymentNote, paymentStatus)" },
+          {
+            message:
+              "Provide status and/or attendance and/or payment fields (amountPaidCents, managerPaymentNote, paymentStatus)",
+          },
           { status: 400 }
         )
       );
@@ -162,6 +186,9 @@ export async function PATCH(req: NextRequest, context: any) {
     const data: Record<string, unknown> = { ...paymentPatch };
     if (nextStatus) {
       data.status = nextStatus;
+    }
+    if (nextAttendance) {
+      data.attendance = nextAttendance;
     }
 
     const updated = await prisma.eventRegistration.update({

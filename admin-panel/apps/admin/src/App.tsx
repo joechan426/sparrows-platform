@@ -48,6 +48,7 @@ import { EventRegistrationsPage } from "./pages/events/registrations";
 import { EventCreatePage } from "./pages/events/create";
 import { MemberList } from "./pages/members/list";
 import { MemberShow } from "./pages/members/show";
+import { AnnouncementListPage } from "./pages/announcements/list";
 import { AdminUserList } from "./pages/admin-users/list";
 import { AdminUserCreate } from "./pages/admin-users/create";
 import { AdminUserEdit } from "./pages/admin-users/edit";
@@ -200,6 +201,11 @@ const App: React.FC = () => {
                 meta: { label: "Members" },
               },
               {
+                name: "announcements",
+                list: "/announcements",
+                meta: { label: "Announcements" },
+              },
+              {
                 name: "payment-profiles",
                 list: "/payment-profiles",
                 meta: { label: "Payment profiles" },
@@ -298,6 +304,7 @@ const App: React.FC = () => {
                 />
                 <Route path="/members" element={<MemberList />} />
                 <Route path="/members/:id" element={<MemberShow />} />
+                <Route path="/announcements" element={<AnnouncementListPage />} />
                 <Route path="/payment-profiles" element={<PaymentProfilesPage />} />
                 <Route path="/payments" element={<PaymentRevenueListPage />} />
                 <Route path="/admin-users" element={<AdminUserList />} />

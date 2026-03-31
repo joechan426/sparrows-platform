@@ -9,7 +9,7 @@ export const ADMIN_USER_KEY = "sparrows_admin_user";
 export type AdminUser = {
   id: string;
   userName: string;
-  role: "ADMIN" | "SUPER_MANAGER" | "MANAGER";
+  role: "ADMIN" | "SUPER_MANAGER" | "MANAGER" | "COACH";
   permissions: string[];
   /** ADMIN only: Refine resource roots hidden from this user's navigation (sidebar + mobile). */
   hiddenNavResources?: string[];
@@ -56,6 +56,7 @@ export const RESOURCE_TO_MODULE: Record<string, string> = {
   "calendar-events": "CALENDAR_EVENTS",
   "event-registrations": "CALENDAR_EVENTS",
   members: "MEMBERS",
+  announcements: "ANNOUNCEMENTS",
   "payment-profiles": "PAYMENT_PROFILES",
   payments: "PAYMENTS",
   "admin-users": "ADMIN_USERS",

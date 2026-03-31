@@ -6,7 +6,6 @@ import { useAuth } from "@/lib/auth-context";
 import type { CalendarEvent, MemberRegistration } from "@/lib/api";
 import dynamic from "next/dynamic";
 import { useNavRefresh } from "@/lib/nav-refresh-context";
-import { approvedRegistrationHint } from "@/lib/calendar-registration-hint";
 
 const EventDetail = dynamic(
   () => import("@/components/event-detail").then((m) => m.EventDetail),
@@ -15,12 +14,25 @@ const EventDetail = dynamic(
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 type SportFilter = "volleyball" | "pickleball" | "tennis";
+const SYDNEY_TIME_ZONE = "Australia/Sydney";
+const SYDNEY_DATE_FORMATTER = new Intl.DateTimeFormat("en-AU", {
+  timeZone: SYDNEY_TIME_ZONE,
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+});
+const SYDNEY_TIME_FORMATTER = new Intl.DateTimeFormat("en-AU", {
+  timeZone: SYDNEY_TIME_ZONE,
+  hour: "numeric",
+  minute: "2-digit",
+  hour12: true,
+});
 
 function formatDate(d: string): string {
-  return new Date(d).toLocaleDateString(undefined, { dateStyle: "medium" });
+  return SYDNEY_DATE_FORMATTER.format(new Date(d));
 }
 function formatTime(d: string): string {
-  return new Date(d).toLocaleTimeString(undefined, { timeStyle: "short" });
+  return SYDNEY_TIME_FORMATTER.format(new Date(d));
 }
 
 function isSpecial(event: CalendarEvent): boolean {
@@ -41,11 +53,25 @@ function statusText(s: string): string {
 }
 
 function JoinHint({ event }: { event: CalendarEvent }) {
-  const hint = approvedRegistrationHint(event);
-  if (!hint) return null;
+  const approved = event.approvedCount ?? 0;
+  if (approved <= 0) return null;
   return (
-    <span className="calendar-approved-hint" aria-label={`Approved participants: ${hint}`}>
-      {hint}
+    <span className="calendar-approved-hint calendar-joined-hint" aria-label={`Approved participants: ${approved}`}>
+      {approved} Joined
+    </span>
+  );
+}
+
+function QueueHint({ event }: { event: CalendarEvent }) {
+  const waitlisted = event.waitlistedCount ?? 0;
+  const requested = event.pendingCount ?? 0;
+  if (waitlisted <= 0 && requested <= 0) return null;
+
+  return (
+    <span className="calendar-queue-hint" aria-label={`Waitlisted ${waitlisted}, Requested ${requested}`}>
+      {waitlisted > 0 && <span className="calendar-queue-waitlisted">{waitlisted} Waitlisted</span>}
+      {waitlisted > 0 && requested > 0 && <span className="calendar-queue-sep"> · </span>}
+      {requested > 0 && <span className="calendar-queue-requested">{requested} Requested</span>}
     </span>
   );
 }
@@ -103,6 +129,7 @@ function CalendarListEventRow({
           Registration {event.registrationOpen ? "Open" : "Closed"}
           {variant === "next" && event.location ? ` · ${event.location}` : ""}
         </span>
+        <QueueHint event={event} />
       </button>
       <div className="calendar-event-actions-col">
         {effectiveStatus ? (
@@ -391,11 +418,22 @@ export default function CalendarPage() {
 
   const monthGrid = useMemo(() => daysInMonthGrid(currentMonth), [currentMonth]);
   const monthTitle = useMemo(
-    () => currentMonth.toLocaleDateString(undefined, { month: "long", year: "numeric" }),
+    () =>
+      new Intl.DateTimeFormat("en-AU", {
+        timeZone: SYDNEY_TIME_ZONE,
+        month: "long",
+        year: "numeric",
+      }).format(currentMonth),
     [currentMonth]
   );
   const selectedDateTitle = useMemo(
-    () => selectedDate.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" }),
+    () =>
+      new Intl.DateTimeFormat("en-AU", {
+        timeZone: SYDNEY_TIME_ZONE,
+        weekday: "long",
+        month: "short",
+        day: "numeric",
+      }).format(selectedDate),
     [selectedDate]
   );
 
@@ -423,7 +461,7 @@ export default function CalendarPage() {
 
   return (
     <div className="page-content calendar-page">
-      <h1 className="page-title">Calendar</h1>
+      <h1 className="page-title calendar-page-title">Sparrows Events Calendar</h1>
 
       {/* Sport filters — same as app, with outline logos */}
       <div className="sport-filters">

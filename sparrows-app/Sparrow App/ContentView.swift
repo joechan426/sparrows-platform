@@ -10,6 +10,7 @@ import WebKit
 import Combine
 import UIKit
 import SafariServices
+import UserNotifications
 
 @MainActor
 private final class SparrowsNewsPreloader: ObservableObject {
@@ -315,6 +316,8 @@ final class MemberProfileStore: ObservableObject {
 }
 
 struct ContentView: View {
+    private let announcementsSeenAtKey = "sparrows.announcements.seenAt"
+    private let lastNotifiedAnnouncementIdKey = "sparrows.announcements.lastNotifiedId"
     @State private var selectedTab: AppTab = .calendar
     @State private var webViewPreloader = WebViewPreloader()
     @StateObject private var calendarViewModel = SportsCalendarViewModel()
@@ -333,13 +336,69 @@ struct ContentView: View {
     @State private var myProfileShowAccount = false
     @State private var myProfileShowScheduledEvents = true
     @State private var myProfileShowHistory = false
+    @State private var myProfileShowAnnouncements = false
     @State private var myProfileShowScoreboard = false
     @State private var myProfileScoreboardFullscreen = false
+    @State private var announcementsUnreadCount = 0
     @State private var browserPopupURL: URL?
     @State private var checkoutSafariURL: URL?
     @State private var inAppBrowserCache = InAppBrowserCache()
     @StateObject private var newsPreloader = SparrowsNewsPreloader()
     @StateObject private var shopPreloader = SparrowsShopPreloader()
+
+    private var announcementsSeenAt: Date {
+        let stored = UserDefaults.standard.string(forKey: announcementsSeenAtKey) ?? ""
+        return ISO8601DateFormatter().date(from: stored) ?? .distantPast
+    }
+
+    private func requestAnnouncementNotificationPermission() {
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in }
+    }
+
+    private func showAnnouncementNotification(message: String) {
+        let content = UNMutableNotificationContent()
+        content.title = "New announcement"
+        content.body = message
+        content.sound = .default
+        content.userInfo = ["sparrowsNotificationType": "announcement"]
+        let request = UNNotificationRequest(
+            identifier: UUID().uuidString,
+            content: content,
+            trigger: UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
+        )
+        UNUserNotificationCenter.current().add(request)
+    }
+
+    private func markAnnouncementsSeenNow() {
+        let now = ISO8601DateFormatter().string(from: Date())
+        UserDefaults.standard.set(now, forKey: announcementsSeenAtKey)
+        announcementsUnreadCount = 0
+    }
+
+    private func refreshAnnouncementUnreadCount() async {
+        guard memberStore.memberId != nil else {
+            await MainActor.run { announcementsUnreadCount = 0 }
+            return
+        }
+        do {
+            let latest = try await AnnouncementsAPI.list(start: 0, end: 50).items
+            let seenAt = announcementsSeenAt
+            let unread = latest.filter { item in
+                (ISO8601DateFormatter().date(from: item.createdAt) ?? .distantPast) > seenAt
+            }.count
+
+            if let newest = latest.first, unread > 0 {
+                let lastNotified = UserDefaults.standard.string(forKey: lastNotifiedAnnouncementIdKey)
+                if lastNotified != newest.id {
+                    UserDefaults.standard.set(newest.id, forKey: lastNotifiedAnnouncementIdKey)
+                    showAnnouncementNotification(message: newest.message)
+                }
+            }
+            await MainActor.run {
+                announcementsUnreadCount = unread
+            }
+        } catch { }
+    }
 
     var body: some View {
         ZStack {
@@ -359,6 +418,7 @@ struct ContentView: View {
                     BottomTabBar(
                         selectedTab: $selectedTab,
                         showLabels: showTabLabels,
+                        announcementsUnreadCount: announcementsUnreadCount,
                         onSelect: selectTab,
                         onReselect: handleReselect
                     )
@@ -374,7 +434,15 @@ struct ContentView: View {
                     await shopPreloader.preloadIfNeeded()
                 }
                 await calendarViewModel.loadEventsIfNeeded()
+                requestAnnouncementNotificationPermission()
+                await refreshAnnouncementUnreadCount()
                 applyLabelVisibilityRule(userActivity: false)
+            }
+            .task(id: memberStore.memberId) {
+                await refreshAnnouncementUnreadCount()
+            }
+            .onReceive(Timer.publish(every: 30, tolerance: 5, on: .main, in: .common).autoconnect()) { _ in
+                Task { await refreshAnnouncementUnreadCount() }
             }
             .onOpenURL { url in
                 // Web payment return pages may deep-link back into the app.
@@ -387,6 +455,15 @@ struct ContentView: View {
                         selectedTab = .myProfile
                     }
                 }
+                myProfileRefreshToken += 1
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .sparrowsOpenAnnouncements)) { _ in
+                if selectedTab != .myProfile {
+                    withAnimation(.easeInOut(duration: 0.22)) {
+                        selectedTab = .myProfile
+                    }
+                }
+                myProfileShowAnnouncements = true
                 myProfileRefreshToken += 1
             }
             .onChange(of: myProfileScoreboardFullscreen) { isFullscreen in
@@ -597,7 +674,12 @@ struct ContentView: View {
                     showAccount: $myProfileShowAccount,
                     showScheduledEvents: $myProfileShowScheduledEvents,
                     showHistory: $myProfileShowHistory,
+                    showAnnouncements: $myProfileShowAnnouncements,
                     showScoreboard: $myProfileShowScoreboard,
+                    announcementsUnreadCount: $announcementsUnreadCount,
+                    onAnnouncementsSeen: {
+                        markAnnouncementsSeenNow()
+                    },
                     onScoreboardFullscreenChange: { isFullscreen in
                         myProfileScoreboardFullscreen = isFullscreen
                     },
@@ -709,6 +791,7 @@ private enum AppTab: CaseIterable {
 private struct BottomTabBar: View {
     @Binding var selectedTab: AppTab
     let showLabels: Bool
+    let announcementsUnreadCount: Int
     let onSelect: (AppTab) -> Void
     let onReselect: (AppTab) -> Void
 
@@ -724,15 +807,27 @@ private struct BottomTabBar: View {
                     }
                 } label: {
                     VStack(spacing: showLabels ? 4 : 0) {
-                        if let logoAssetName = tab.logoAssetName {
-                            Image(logoAssetName)
-                                .resizable()
-                                .scaledToFill()
-                                .frame(width: 20, height: 20)
-                                .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
-                        } else {
-                            Image(systemName: tab.systemIcon(isSelected: isSelected))
-                                .font(.system(size: 17, weight: .semibold))
+                        ZStack(alignment: .topTrailing) {
+                            if let logoAssetName = tab.logoAssetName {
+                                Image(logoAssetName)
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: 20, height: 20)
+                                    .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+                            } else {
+                                Image(systemName: tab.systemIcon(isSelected: isSelected))
+                                    .font(.system(size: 17, weight: .semibold))
+                            }
+                            if tab == .myProfile, announcementsUnreadCount > 0 {
+                                Text("\(announcementsUnreadCount)")
+                                    .font(.caption2)
+                                    .fontWeight(.bold)
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 5)
+                                    .padding(.vertical, 1)
+                                    .background(Capsule().fill(Color.red))
+                                    .offset(x: 10, y: -8)
+                            }
                         }
                         if showLabels {
                             Text(tab.title)
@@ -1668,14 +1763,39 @@ private func isRegisterableDatabaseCalendarEvent(_ event: CalendarEvent) -> Bool
     !event.id.hasPrefix("ics-")
 }
 
-/// Same data as sparrowsweb `approvedRegistrationHint`: Neon-backed events only; shown even when registration is closed.
+/// Neon-backed events only; shown in right-side action column.
 private func calendarParticipantCountHintText(for event: CalendarEvent) -> String? {
     guard isRegisterableDatabaseCalendarEvent(event) else { return nil }
     let approved = event.approvedCount ?? 0
-    if let cap = event.capacity {
-        return "\(approved) / \(cap)"
+    guard approved > 0 else { return nil }
+    return "\(approved) Joined"
+}
+
+private struct CalendarQueueHintView: View {
+    let waitlisted: Int
+    let requested: Int
+
+    var body: some View {
+        HStack(spacing: 0) {
+            if waitlisted > 0 {
+                Text("\(waitlisted) Waitlisted")
+                    .foregroundStyle(Color.orange)
+                    .fontWeight(.semibold)
+            }
+            if waitlisted > 0, requested > 0 {
+                Text(" \u{00B7} ")
+                    .foregroundStyle(.secondary)
+            }
+            if requested > 0 {
+                Text("\(requested) Requested")
+                    .foregroundStyle(Color(white: 0.25))
+                    .fontWeight(.semibold)
+            }
+        }
+        .font(.caption2)
+        .lineLimit(1)
+        .minimumScaleFactor(0.85)
     }
-    return approved == 1 ? "1 is joining" : "\(approved) are joining"
 }
 
 private enum RegistrationStatusStyle {
@@ -1715,6 +1835,114 @@ private struct MySparrowsHistoryPage: View {
         }
         .navigationTitle("My Sparrows History")
         .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+private struct MyAnnouncementsPage: View {
+    let onViewed: () -> Void
+    @State private var items: [APIAnnouncement] = []
+    @State private var totalCount = 0
+    @State private var isLoading = false
+    @State private var errorText: String?
+
+    private let pageSize = 10
+
+    var body: some View {
+        List {
+            if let newest = items.first {
+                Section {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(newest.message)
+                            .font(.body)
+                        Text(sydneyDateTime(newest.createdAt))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.vertical, 2)
+                } header: {
+                    Text("Latest Announcement")
+                }
+            }
+
+            Section {
+                if items.isEmpty && !isLoading && errorText == nil {
+                    Text("No announcements yet.")
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(items) { item in
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(item.message)
+                                .font(.body)
+                            Text(sydneyDateTime(item.createdAt))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.vertical, 2)
+                    }
+                }
+                if let errorText {
+                    Text(errorText)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
+                Button {
+                    Task { await loadMore() }
+                } label: {
+                    Text(canLoadMore ? (isLoading ? "Loading..." : "Load More") : "No more records")
+                        .frame(maxWidth: .infinity)
+                }
+                .disabled(isLoading || !canLoadMore)
+            } header: {
+                Text("Announcements History")
+            }
+        }
+        .navigationTitle("Announcements")
+        .navigationBarTitleDisplayMode(.inline)
+        .task {
+            onViewed()
+            await reload()
+        }
+    }
+
+    private var canLoadMore: Bool {
+        items.count < totalCount
+    }
+
+    private func reload() async {
+        isLoading = true
+        errorText = nil
+        do {
+            let result = try await AnnouncementsAPI.list(start: 0, end: pageSize)
+            items = result.items
+            totalCount = result.total
+        } catch {
+            errorText = "Failed to load announcements."
+        }
+        isLoading = false
+    }
+
+    private func loadMore() async {
+        guard canLoadMore else { return }
+        isLoading = true
+        errorText = nil
+        do {
+            let result = try await AnnouncementsAPI.list(start: items.count, end: items.count + pageSize)
+            items.append(contentsOf: result.items)
+            totalCount = result.total
+        } catch {
+            errorText = "Failed to load announcements."
+        }
+        isLoading = false
+    }
+
+    private func sydneyDateTime(_ raw: String) -> String {
+        let iso = ISO8601DateFormatter()
+        let date = iso.date(from: raw) ?? Date()
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_AU_POSIX")
+        f.timeZone = TimeZone(identifier: "Australia/Sydney")
+        f.dateFormat = "d MMM yyyy, h:mm a"
+        return f.string(from: date)
     }
 }
 
@@ -2094,7 +2322,10 @@ private struct MyProfileView: View {
     @Binding var showAccount: Bool
     @Binding var showScheduledEvents: Bool
     @Binding var showHistory: Bool
+    @Binding var showAnnouncements: Bool
     @Binding var showScoreboard: Bool
+    @Binding var announcementsUnreadCount: Int
+    let onAnnouncementsSeen: () -> Void
     let onScoreboardFullscreenChange: (Bool) -> Void
     let onScrollStateChange: (Bool, Bool) -> Void
     @Environment(\.openURL) private var openURL
@@ -2138,6 +2369,12 @@ private struct MyProfileView: View {
                 } else {
                     NavigationStack {
                     ZStack(alignment: .bottom) {
+                        NavigationLink(isActive: $showAnnouncements) {
+                            MyAnnouncementsPage(onViewed: onAnnouncementsSeen)
+                        } label: {
+                            EmptyView()
+                        }
+                        .hidden()
                         ScrollViewReader { proxy in
                             ScrollView {
                                 GeometryReader { geo in
@@ -2225,6 +2462,35 @@ private struct MyProfileView: View {
                                                 .font(.headline)
                                                 .foregroundStyle(Color.black)
                                             Spacer()
+                                            Image(systemName: "chevron.right")
+                                                .font(.body.weight(.semibold))
+                                                .foregroundStyle(.secondary)
+                                        }
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 10)
+                                        .contentShape(Rectangle())
+                                    }
+                                    .buttonStyle(.plain)
+
+                                    sectionDivider
+
+                                    Button {
+                                        showAnnouncements = true
+                                    } label: {
+                                        HStack {
+                                            Text("Announcements")
+                                                .font(.headline)
+                                                .foregroundStyle(Color.black)
+                                            Spacer()
+                                            if announcementsUnreadCount > 0 {
+                                                Text("\(announcementsUnreadCount)")
+                                                    .font(.caption2)
+                                                    .fontWeight(.bold)
+                                                    .foregroundStyle(.white)
+                                                    .padding(.horizontal, 6)
+                                                    .padding(.vertical, 2)
+                                                    .background(Capsule().fill(Color.red))
+                                            }
                                             Image(systemName: "chevron.right")
                                                 .font(.body.weight(.semibold))
                                                 .foregroundStyle(.secondary)
@@ -4604,6 +4870,13 @@ private struct SportsCalendarView: View {
                                                     .foregroundStyle(.secondary)
                                                     .lineLimit(3)
                                                     .fixedSize(horizontal: false, vertical: true)
+                                                if (event.waitlistedCount ?? 0) > 0 || (event.pendingCount ?? 0) > 0 {
+                                                    CalendarQueueHintView(
+                                                        waitlisted: event.waitlistedCount ?? 0,
+                                                        requested: event.pendingCount ?? 0
+                                                    )
+                                                    .padding(.top, 2)
+                                                }
                                             }
                                             .frame(maxWidth: .infinity, alignment: .leading)
                                         }
@@ -4625,7 +4898,7 @@ private struct SportsCalendarView: View {
                                                         Text(joinHint)
                                                             .font(.caption2)
                                                             .fontWeight(.semibold)
-                                                            .foregroundStyle(.secondary)
+                                                            .foregroundStyle(Color(red: 0.11, green: 0.37, blue: 0.13))
                                                             .multilineTextAlignment(.center)
                                                             .fixedSize(horizontal: false, vertical: true)
                                                     }
@@ -4644,7 +4917,7 @@ private struct SportsCalendarView: View {
                                                         Text(joinHint)
                                                             .font(.caption2)
                                                             .fontWeight(.semibold)
-                                                            .foregroundStyle(.secondary)
+                                                            .foregroundStyle(Color(red: 0.11, green: 0.37, blue: 0.13))
                                                             .multilineTextAlignment(.center)
                                                             .fixedSize(horizontal: false, vertical: true)
                                                     }
@@ -4757,6 +5030,13 @@ private struct SportsCalendarView: View {
                                                 .foregroundStyle(Color.black.opacity(0.55))
                                                 .lineLimit(3)
                                                 .fixedSize(horizontal: false, vertical: true)
+                                            if (event.waitlistedCount ?? 0) > 0 || (event.pendingCount ?? 0) > 0 {
+                                                CalendarQueueHintView(
+                                                    waitlisted: event.waitlistedCount ?? 0,
+                                                    requested: event.pendingCount ?? 0
+                                                )
+                                                .padding(.top, 2)
+                                            }
                                         }
                                         .frame(maxWidth: .infinity, alignment: .leading)
                                     }
@@ -4778,7 +5058,7 @@ private struct SportsCalendarView: View {
                                                     Text(joinHint)
                                                         .font(.caption2)
                                                         .fontWeight(.semibold)
-                                                        .foregroundStyle(Color.black.opacity(0.55))
+                                                        .foregroundStyle(Color(red: 0.11, green: 0.37, blue: 0.13))
                                                         .multilineTextAlignment(.center)
                                                         .fixedSize(horizontal: false, vertical: true)
                                                 }
@@ -4797,7 +5077,7 @@ private struct SportsCalendarView: View {
                                                     Text(joinHint)
                                                         .font(.caption2)
                                                         .fontWeight(.semibold)
-                                                        .foregroundStyle(Color.black.opacity(0.55))
+                                                        .foregroundStyle(Color(red: 0.11, green: 0.37, blue: 0.13))
                                                         .multilineTextAlignment(.center)
                                                         .fixedSize(horizontal: false, vertical: true)
                                                 }
@@ -5204,6 +5484,8 @@ private struct CalendarEvent: Identifiable {
     var registrationOpen: Bool? = nil
     var capacity: Int? = nil
     var approvedCount: Int? = nil
+    var waitlistedCount: Int? = nil
+    var pendingCount: Int? = nil
 }
 
 @MainActor
@@ -5218,12 +5500,19 @@ private final class SportsCalendarViewModel: ObservableObject {
     private let cacheLifetime: TimeInterval = 60
     private let calendar = Calendar.current
     private let calendarID = "945081910faa58ca2e3f90dc85e35fa627841dd35b5dbb4a0c3714c13363ab2d%40group.calendar.google.com"
+    private let sydneyTimeZone = TimeZone(identifier: "Australia/Sydney") ?? TimeZone(secondsFromGMT: 11 * 3600)!
+
+    private func formatter(_ format: String) -> DateFormatter {
+        let f = DateFormatter()
+        f.calendar = calendar
+        f.locale = Locale(identifier: "en_AU_POSIX")
+        f.timeZone = sydneyTimeZone
+        f.dateFormat = format
+        return f
+    }
 
     var monthTitle: String {
-        let formatter = DateFormatter()
-        formatter.calendar = calendar
-        formatter.dateFormat = "LLLL yyyy"
-        return formatter.string(from: startOfMonth(for: currentMonth))
+        formatter("LLLL yyyy").string(from: startOfMonth(for: currentMonth))
     }
 
     var monthIdentityKey: String {
@@ -5290,10 +5579,7 @@ private final class SportsCalendarViewModel: ObservableObject {
     }
 
     var selectedDateTitle: String {
-        let formatter = DateFormatter()
-        formatter.calendar = calendar
-        formatter.dateFormat = "MMM d, yyyy"
-        return formatter.string(from: selectedDate)
+        formatter("MMM d, yyyy").string(from: selectedDate)
     }
 
     var daysInMonthGrid: [Date?] {
@@ -5401,10 +5687,8 @@ private final class SportsCalendarViewModel: ObservableObject {
     }
 
     func eventTimeText(for event: CalendarEvent) -> String {
-        let dayFormatter = DateFormatter()
-        dayFormatter.dateFormat = "MMM d"
-        let timeFormatter = DateFormatter()
-        timeFormatter.dateFormat = "h:mm a"
+        let dayFormatter = formatter("MMM d")
+        let timeFormatter = formatter("h:mm a")
 
         let sameDay = calendar.isDate(event.startDate, inSameDayAs: event.endDate)
         if sameDay {
@@ -5414,10 +5698,8 @@ private final class SportsCalendarViewModel: ObservableObject {
     }
 
     func eventDateTimeDetailText(for event: CalendarEvent) -> String {
-        let dayFormatter = DateFormatter()
-        dayFormatter.dateFormat = "EEE, MMM d, yyyy"
-        let timeFormatter = DateFormatter()
-        timeFormatter.dateFormat = "h:mm a"
+        let dayFormatter = formatter("EEE, MMM d, yyyy")
+        let timeFormatter = formatter("h:mm a")
 
         let sameDay = calendar.isDate(event.startDate, inSameDayAs: event.endDate)
         if sameDay {
@@ -5427,9 +5709,7 @@ private final class SportsCalendarViewModel: ObservableObject {
     }
 
     func eventDateOnlyText(for event: CalendarEvent) -> String {
-        let dayFormatter = DateFormatter()
-        dayFormatter.dateFormat = "EEE, MMM d, yyyy"
-        return dayFormatter.string(from: event.startDate)
+        formatter("EEE, MMM d, yyyy").string(from: event.startDate)
     }
 
     func firstDescriptionParagraph(for event: CalendarEvent) -> String? {
@@ -5526,7 +5806,9 @@ private final class SportsCalendarViewModel: ObservableObject {
                     eventType: g.eventType,
                     registrationOpen: false,
                     capacity: nil,
-                    approvedCount: nil
+                    approvedCount: nil,
+                    waitlistedCount: nil,
+                    pendingCount: nil
                 )
             }
         }
@@ -5565,7 +5847,9 @@ private final class SportsCalendarViewModel: ObservableObject {
                     eventType: api.eventType,
                     registrationOpen: api.registrationOpen,
                     capacity: api.capacity,
-                    approvedCount: api.approvedCount
+                    approvedCount: api.approvedCount,
+                    waitlistedCount: api.waitlistedCount,
+                    pendingCount: api.pendingCount
                 ))
             } else {
                 merged.append(CalendarEvent(
@@ -5579,7 +5863,9 @@ private final class SportsCalendarViewModel: ObservableObject {
                     eventType: inferEventType(from: ics.title),
                     registrationOpen: false,
                     capacity: nil,
-                    approvedCount: nil
+                    approvedCount: nil,
+                    waitlistedCount: nil,
+                    pendingCount: nil
                 ))
             }
         }
@@ -5600,7 +5886,9 @@ private final class SportsCalendarViewModel: ObservableObject {
                 eventType: api.eventType,
                 registrationOpen: api.registrationOpen,
                 capacity: api.capacity,
-                approvedCount: api.approvedCount
+                approvedCount: api.approvedCount,
+                waitlistedCount: api.waitlistedCount,
+                pendingCount: api.pendingCount
             ))
         }
 
@@ -5642,7 +5930,9 @@ private final class SportsCalendarViewModel: ObservableObject {
                             eventType: inferEventType(from: summary),
                             registrationOpen: false,
                             capacity: nil,
-                            approvedCount: nil
+                            approvedCount: nil,
+                            waitlistedCount: nil,
+                            pendingCount: nil
                         )
                     )
                 }

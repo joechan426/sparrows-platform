@@ -19,6 +19,7 @@ const MODULES = [
   { value: "TEAMS", label: "Teams" },
   { value: "CALENDAR_EVENTS", label: "Events" },
   { value: "MEMBERS", label: "Members" },
+  { value: "ANNOUNCEMENTS", label: "Announcements" },
   { value: "PAYMENT_PROFILES", label: "Payment profiles" },
   { value: "PAYMENTS", label: "Payments" },
 ] as const;
@@ -27,7 +28,7 @@ export const AdminUserCreate: React.FC = () => {
   type AdminUserCreateForm = {
     userName: string;
     password: string;
-    role: "ADMIN" | "SUPER_MANAGER" | "MANAGER";
+    role: "ADMIN" | "SUPER_MANAGER" | "MANAGER" | "COACH";
     permissions: string[];
   };
   const {
@@ -78,15 +79,16 @@ export const AdminUserCreate: React.FC = () => {
             label="Role"
             value={role}
             onChange={(e) =>
-              setValue("role", e.target.value as "ADMIN" | "SUPER_MANAGER" | "MANAGER", { shouldDirty: true })
+              setValue("role", e.target.value as "ADMIN" | "SUPER_MANAGER" | "MANAGER" | "COACH", { shouldDirty: true })
             }
           >
             <MenuItem value="MANAGER">Manager</MenuItem>
             <MenuItem value="SUPER_MANAGER">Super Manager</MenuItem>
+            <MenuItem value="COACH">Coach</MenuItem>
             <MenuItem value="ADMIN">Admin</MenuItem>
           </Select>
         </FormControl>
-        {(role === "MANAGER" || role === "SUPER_MANAGER") && (
+        {(role === "MANAGER" || role === "SUPER_MANAGER" || role === "COACH") && (
           <FormControl component="fieldset">
             <InputLabel shrink>Page permissions (Manager / Super Manager)</InputLabel>
             <FormGroup row sx={{ pt: 1 }}>

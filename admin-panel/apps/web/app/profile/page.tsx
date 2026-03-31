@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/auth-context";
 import { apiChangePassword, apiUpdateMember } from "@/lib/api";
 import type { MemberRegistration } from "@/lib/api";
 import { useNavRefresh } from "@/lib/nav-refresh-context";
+import { useAnnouncements } from "@/lib/announcements-context";
 import { ContactUsBlock } from "@/components/contact-us-block";
 
 function formatDate(d: string): string {
@@ -49,6 +50,7 @@ export default function ProfilePage() {
   const [preferredNameDraft, setPreferredNameDraft] = useState("");
   const [nameSaving, setNameSaving] = useState(false);
   const [nameError, setNameError] = useState("");
+  const { unreadCount } = useAnnouncements();
 
   useEffect(() => {
     if (!member?.id) return;
@@ -326,6 +328,16 @@ export default function ProfilePage() {
       <Link href="/history" className="profile-link-row">
         <span className="disclosure-title">My Sparrows History</span>
         <span className="chevron-right">›</span>
+      </Link>
+
+      <div className="section-divider" />
+
+      <Link href="/announcements" className="profile-link-row">
+        <span className="disclosure-title">Announcements</span>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+          {unreadCount > 0 && <span className="profile-unread-badge">{unreadCount}</span>}
+          <span className="chevron-right">›</span>
+        </span>
       </Link>
 
       <div className="section-divider" />

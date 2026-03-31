@@ -24,6 +24,7 @@ import TextField from "@mui/material/TextField";
 import InputAdornment from "@mui/material/InputAdornment";
 import { apiUrl } from "../../lib/api-base";
 import { useGridPreferences } from "../../lib/grid-preferences";
+import { getStoredAdmin } from "../../lib/admin-auth";
 
 type CalendarEventRow = {
   id: string;
@@ -68,6 +69,8 @@ function getEventType(summary: string): string {
 export const EventList: React.FC = () => {
   const navigate = useNavigate();
   const { open: openNotification } = useNotification();
+  const storedAdmin = getStoredAdmin();
+  const isCoach = storedAdmin?.role === "COACH";
   const dataGrid = useDataGrid<CalendarEventRow>({
     resource: "calendar-events",
   });
@@ -95,6 +98,10 @@ export const EventList: React.FC = () => {
   const selectedIds = rowSelectionModel.type === "include" ? Array.from(rowSelectionModel.ids) as string[] : [];
   const selectedCount = rowSelectionModel.type === "include" ? rowSelectionModel.ids.size : 0;
   const [bulkDeleteConfirmPending, setBulkDeleteConfirmPending] = useState(false);
+
+  React.useEffect(() => {
+    if (isCoach) setRowSelectionModel({ type: "include", ids: new Set<string>() });
+  }, [isCoach]);
 
   const handleBulkOpenRegistration = async () => {
     if (selectedIds.length === 0) return;
@@ -428,6 +435,7 @@ export const EventList: React.FC = () => {
         renderCell: ({ row }) => (
           <Switch
             checked={Boolean(row.registrationOpen)}
+            disabled={isCoach}
             onChange={() => {
               update(
                 { resource: "calendar-events", id: row.id, values: { registrationOpen: !row.registrationOpen } },
@@ -466,15 +474,17 @@ export const EventList: React.FC = () => {
               <Button size="small" variant="outlined" component={Link} to={`/events/${row.id}/registrations`}>
                 Registrations
               </Button>
-              <Button size="small" color="error" variant="outlined" onClick={() => handleDeleteClick(row)}>
-                Delete
-              </Button>
+              {!isCoach && (
+                <Button size="small" color="error" variant="outlined" onClick={() => handleDeleteClick(row)}>
+                  Delete
+                </Button>
+              )}
             </Stack>
           </Box>
         ),
       },
     ],
-    [update, handleDeleteClick, refetchList],
+    [update, handleDeleteClick, refetchList, isCoach],
   );
   const gridPrefs = useGridPreferences("events-list", columns);
 
@@ -483,42 +493,54 @@ export const EventList: React.FC = () => {
       <List
         title="Events"
         headerButtons={
-          <Stack spacing={1} alignItems="stretch" sx={{ width: "100%", maxWidth: "100%" }}>
-            <Stack
-              direction={{ xs: "column", sm: "row" }}
-              spacing={1}
-              flexWrap="wrap"
-              alignItems={{ xs: "stretch", sm: "center" }}
-            >
-              <Button variant="contained" onClick={openImportDialog} sx={{ width: { xs: "100%", sm: "auto" } }}>
-                Import from Google Calendar
-              </Button>
-              <Button
-                variant="contained"
-                color="primary"
-                onClick={() => navigate("/events/create")}
-                sx={{ width: { xs: "100%", sm: "auto" } }}
+          isCoach ? undefined : (
+            <Stack spacing={1} alignItems="stretch" sx={{ width: "100%", maxWidth: "100%" }}>
+              <Stack
+                direction={{ xs: "column", sm: "row" }}
+                spacing={1}
+                flexWrap="wrap"
+                alignItems={{ xs: "stretch", sm: "center" }}
               >
-                Create event
-              </Button>
-            </Stack>
-            {selectedCount > 0 && (
-              <Stack direction="row" spacing={1} flexWrap="wrap" alignItems="center">
-                <Typography variant="body2" color="text.secondary" sx={{ ml: { sm: 1 } }}>
-                  {selectedCount} selected
-                </Typography>
-                <Button variant="outlined" size="small" onClick={handleBulkOpenRegistration} disabled={bulkActionLoading}>
-                  Open Registration
+                <Button variant="contained" onClick={openImportDialog} sx={{ width: { xs: "100%", sm: "auto" } }}>
+                  Import from Google Calendar
                 </Button>
-                <Button variant="outlined" size="small" onClick={handleBulkCloseRegistration} disabled={bulkActionLoading}>
-                  Close Registration
-                </Button>
-                <Button variant="outlined" size="small" color="error" onClick={handleBulkDelete} disabled={bulkActionLoading}>
-                  Delete selected
+                <Button
+                  variant="contained"
+                  color="primary"
+                  onClick={() => navigate("/events/create")}
+                  sx={{ width: { xs: "100%", sm: "auto" } }}
+                >
+                  Create event
                 </Button>
               </Stack>
-            )}
-          </Stack>
+              {selectedCount > 0 && (
+                <Stack direction="row" spacing={1} flexWrap="wrap" alignItems="center">
+                  <Typography variant="body2" color="text.secondary" sx={{ ml: { sm: 1 } }}>
+                    {selectedCount} selected
+                  </Typography>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={handleBulkOpenRegistration}
+                    disabled={bulkActionLoading}
+                  >
+                    Open Registration
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={handleBulkCloseRegistration}
+                    disabled={bulkActionLoading}
+                  >
+                    Close Registration
+                  </Button>
+                  <Button variant="outlined" size="small" color="error" onClick={handleBulkDelete} disabled={bulkActionLoading}>
+                    Delete selected
+                  </Button>
+                </Stack>
+              )}
+            </Stack>
+          )
         }
       >
         <TextField
@@ -535,7 +557,7 @@ export const EventList: React.FC = () => {
           columns={gridPrefs.columns}
           autoHeight
           getRowId={(row: CalendarEventRow) => row.id}
-          checkboxSelection
+          checkboxSelection={!isCoach}
           disableRowSelectionExcludeModel
           rowSelectionModel={rowSelectionModel}
           onRowSelectionModelChange={(newModel) => setRowSelectionModel(newModel)}

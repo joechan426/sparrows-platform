@@ -43,8 +43,7 @@ export async function GET(req: NextRequest) {
         orderBy: { startAt: "asc" },
         include: {
           registrations: {
-            where: { status: "APPROVED" },
-            select: { id: true },
+            select: { status: true },
           },
         },
       }),
@@ -56,12 +55,19 @@ export async function GET(req: NextRequest) {
         registrations,
         ...e
       }: {
-        registrations: { id: string }[];
+        registrations: { status: string }[];
         [key: string]: unknown;
-      }) => ({
-        ...e,
-        approvedCount: registrations.length,
-      })
+      }) => {
+        const approvedCount = registrations.filter((r) => r.status === "APPROVED").length;
+        const waitlistedCount = registrations.filter((r) => r.status === "WAITING_LIST").length;
+        const pendingCount = registrations.filter((r) => r.status === "PENDING").length;
+        return {
+          ...e,
+          approvedCount,
+          waitlistedCount,
+          pendingCount,
+        };
+      }
     );
 
     return withCors(

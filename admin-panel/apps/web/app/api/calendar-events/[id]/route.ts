@@ -33,8 +33,7 @@ export async function GET(req: NextRequest, context: any) {
       where: { id },
       include: {
         registrations: {
-          where: { status: "APPROVED" },
-          select: { id: true },
+          select: { status: true },
         },
         paymentProfile: {
           select: {
@@ -51,6 +50,9 @@ export async function GET(req: NextRequest, context: any) {
     if (!raw) return withCors(req, NextResponse.json({ message: "Not found" }, { status: 404 }));
 
     const { registrations, paymentProfile, ...event } = raw;
+    const approvedCount = registrations.filter((r: { status: string }) => r.status === "APPROVED").length;
+    const waitlistedCount = registrations.filter((r: { status: string }) => r.status === "WAITING_LIST").length;
+    const pendingCount = registrations.filter((r: { status: string }) => r.status === "PENDING").length;
     const settings = await getPaymentPlatformSettings();
     const stripeCheckoutAvailable = Boolean(
       settings.stripeEnabled &&
@@ -74,7 +76,9 @@ export async function GET(req: NextRequest, context: any) {
           ...event,
           priceDollars: centsToPriceDollars(event.priceCents),
           paymentProfile: paymentProfilePublic,
-          approvedCount: registrations.length,
+          approvedCount,
+          waitlistedCount,
+          pendingCount,
           stripeCheckoutAvailable,
           paypalCheckoutAvailable,
         },

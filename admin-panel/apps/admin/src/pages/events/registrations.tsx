@@ -21,6 +21,7 @@ import DialogTitle from "@mui/material/DialogTitle";
 import DialogContent from "@mui/material/DialogContent";
 import DialogActions from "@mui/material/DialogActions";
 import { apiUrl } from "../../lib/api-base";
+import { getStoredAdmin } from "../../lib/admin-auth";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import { useGridPreferences } from "../../lib/grid-preferences";
 
@@ -48,6 +49,7 @@ type EventRegistrationRow = {
   id: string;
   status: string;
   createdAt: string;
+  attendance?: string;
   teamName?: string | null;
   member?: Member | null;
   paymentStatus?: string;
@@ -62,6 +64,8 @@ export const EventRegistrationsPage: React.FC = () => {
   const isMobileToolbar = useMediaQuery("(max-width:1024px)");
   const { id } = useParams<{ id: string }>();
   const { open } = useNotification();
+  const storedAdmin = getStoredAdmin();
+  const isCoach = storedAdmin?.role === "COACH";
   const [event, setEvent] = useState<CalendarEvent | null>(null);
   const [eventLoading, setEventLoading] = useState(true);
 
@@ -92,6 +96,7 @@ export const EventRegistrationsPage: React.FC = () => {
   });
   const [bulkDeleteLoading, setBulkDeleteLoading] = useState(false);
   const [bulkStatusLoading, setBulkStatusLoading] = useState(false);
+  const [bulkAttendanceLoading, setBulkAttendanceLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
   const selectedIds =
@@ -256,6 +261,33 @@ export const EventRegistrationsPage: React.FC = () => {
     }
   };
 
+  const handleBulkAttendanceChange = async (attendance: "DEFAULT" | "PRESENT" | "ABSENT") => {
+    if (selectedIds.length === 0) return;
+    setBulkAttendanceLoading(true);
+    try {
+      await Promise.all(
+        selectedIds.map((regId) =>
+          updateRegistrationAsync({
+            resource: "event-registrations",
+            id: regId,
+            values: { attendance },
+          }),
+        ),
+      );
+      const label = attendance === "DEFAULT" ? "Default" : attendance === "PRESENT" ? "Present" : "Absent";
+      open?.({ type: "success", message: `Updated ${selectedIds.length} participant(s) attendance to ${label}` });
+      setRowSelectionModel({ type: "include", ids: new Set() });
+      refetchRegistrations?.();
+    } catch (err) {
+      open?.({
+        type: "error",
+        message: (err as any)?.message ?? "Failed to update attendance",
+      });
+    } finally {
+      setBulkAttendanceLoading(false);
+    }
+  };
+
   const columns = React.useMemo<GridColDef[]>(
     () => [
       {
@@ -273,6 +305,35 @@ export const EventRegistrationsPage: React.FC = () => {
         minWidth: 200,
         valueGetter: (_value, row: EventRegistrationRow) =>
           row.member?.email ?? "—",
+      },
+      {
+        field: "attendance",
+        headerName: "Attendance",
+        width: 160,
+        align: "center",
+        headerAlign: "center",
+        renderCell: ({ value }) => {
+          const a = String(value ?? "DEFAULT");
+          if (a === "PRESENT") {
+            return (
+              <Typography sx={{ fontWeight: 900, color: "success.main", textAlign: "center" }}>
+                ✓
+              </Typography>
+            );
+          }
+          if (a === "ABSENT") {
+            return (
+              <Typography sx={{ fontWeight: 900, color: "error.main", textAlign: "center" }}>
+                ✕
+              </Typography>
+            );
+          }
+          return (
+            <Typography sx={{ fontWeight: 900, color: "grey.600", textAlign: "center" }}>
+              -
+            </Typography>
+          );
+        },
       },
       {
         field: "teamName",
@@ -359,47 +420,50 @@ export const EventRegistrationsPage: React.FC = () => {
         filterable: false,
         align: "center",
         headerAlign: "center",
-        renderCell: ({ row }: { row: EventRegistrationRow }) => (
-          <Box sx={{ width: "100%", height: "100%", display: "flex", justifyContent: "center", alignItems: "center" }}>
-            <Stack direction="row" spacing={1} flexWrap="wrap" justifyContent="center" useFlexGap>
-              <Button
-                size="small"
-                variant="outlined"
-                onClick={() => handleStatusChange(row.id, "PENDING")}
-                sx={{ color: "grey.800", borderColor: "grey.600" }}
-              >
-                Pending
-              </Button>
-              <Button
-                size="small"
-                variant="contained"
-                color="success"
-                onClick={() => handleStatusChange(row.id, "APPROVED")}
-              >
-                Approve
-              </Button>
-              <Button
-                size="small"
-                variant="contained"
-                color="warning"
-                onClick={() => handleStatusChange(row.id, "WAITING_LIST")}
-              >
-                Waitlist
-              </Button>
-              <Button
-                size="small"
-                variant="contained"
-                color="error"
-                onClick={() => handleStatusChange(row.id, "REJECTED")}
-              >
-                Reject
-              </Button>
-            </Stack>
-          </Box>
-        ),
+        renderCell: ({ row }: { row: EventRegistrationRow }) => {
+          if (isCoach) return null;
+          return (
+            <Box sx={{ width: "100%", height: "100%", display: "flex", justifyContent: "center", alignItems: "center" }}>
+              <Stack direction="row" spacing={1} flexWrap="wrap" justifyContent="center" useFlexGap>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  onClick={() => handleStatusChange(row.id, "PENDING")}
+                  sx={{ color: "grey.800", borderColor: "grey.600" }}
+                >
+                  Pending
+                </Button>
+                <Button
+                  size="small"
+                  variant="contained"
+                  color="success"
+                  onClick={() => handleStatusChange(row.id, "APPROVED")}
+                >
+                  Approve
+                </Button>
+                <Button
+                  size="small"
+                  variant="contained"
+                  color="warning"
+                  onClick={() => handleStatusChange(row.id, "WAITING_LIST")}
+                >
+                  Waitlist
+                </Button>
+                <Button
+                  size="small"
+                  variant="contained"
+                  color="error"
+                  onClick={() => handleStatusChange(row.id, "REJECTED")}
+                >
+                  Reject
+                </Button>
+              </Stack>
+            </Box>
+          );
+        },
       },
     ],
-    [approvedCount, rows, event?.capacity],
+    [approvedCount, rows, event?.capacity, isCoach],
   );
   const gridPrefs = useGridPreferences("event-registrations-list", columns);
 
@@ -477,111 +541,184 @@ export const EventRegistrationsPage: React.FC = () => {
     <List
       title="Event Registrations"
       headerButtons={
-        <Stack
-          direction={isMobileToolbar ? "column" : "row"}
-          spacing={2}
-          alignItems={isMobileToolbar ? "stretch" : "center"}
-          flexWrap="wrap"
-          sx={{ width: isMobileToolbar ? "100%" : "auto" }}
-        >
-          <Button
-            component={RouterLink}
-            to="/events"
-            variant="outlined"
-            color="primary"
-            fullWidth={isMobileToolbar}
+          <Stack
+            direction="column"
+            spacing={1.5}
+            alignItems="stretch"
+            sx={{ width: isMobileToolbar ? "100%" : "auto" }}
           >
-            Back to events
-          </Button>
-          <Button
-            variant="contained"
-            size="small"
-            onClick={() => setAddOpen(true)}
-            disabled={registrationsLoading}
-            fullWidth={isMobileToolbar}
-          >
-            Add participant
-          </Button>
-          {selectedCount > 0 && (
-            <>
-              <Typography variant="body2" color="text.secondary">
-                {selectedCount} selected
-              </Typography>
-              <Button
-                variant="contained"
-                size="small"
-                color="success"
-                onClick={() => handleBulkStatusChange("APPROVED")}
-                disabled={bulkStatusLoading || bulkDeleteLoading}
+            {!isCoach && (
+              <Stack
+                direction={isMobileToolbar ? "column" : "row"}
+                spacing={1}
+                alignItems={isMobileToolbar ? "stretch" : "center"}
+                flexWrap="wrap"
               >
-                All Approve
-              </Button>
-              <Button
-                variant="contained"
-                size="small"
-                color="warning"
-                onClick={() => handleBulkStatusChange("WAITING_LIST")}
-                disabled={bulkStatusLoading || bulkDeleteLoading}
-              >
-                All Waitlist
-              </Button>
-              <Button
-                variant="contained"
-                size="small"
-                color="error"
-                onClick={() => handleBulkStatusChange("REJECTED")}
-                disabled={bulkStatusLoading || bulkDeleteLoading}
-              >
-                All Reject
-              </Button>
-              <Button
-                variant="outlined"
-                size="small"
-                color="error"
-                onClick={handleBulkDelete}
-                disabled={bulkDeleteLoading || bulkStatusLoading}
-              >
-                {bulkDeleteLoading ? "Removing…" : "Delete selected"}
-              </Button>
-            </>
-          )}
-          {event && (
+                <Button
+                  component={RouterLink}
+                  to="/events"
+                  variant="outlined"
+                  color="primary"
+                  fullWidth={isMobileToolbar}
+                  sx={{ whiteSpace: "nowrap" }}
+                >
+                  Back to events
+                </Button>
+                <Button
+                  variant="contained"
+                  size="small"
+                  onClick={() => setAddOpen(true)}
+                  disabled={registrationsLoading}
+                  fullWidth={isMobileToolbar}
+                  sx={{ whiteSpace: "nowrap" }}
+                >
+                  Add participant
+                </Button>
+              </Stack>
+            )}
+
+            {!isCoach && selectedCount > 0 && (
+              <Stack direction="row" spacing={0.75} flexWrap="wrap" alignItems="center">
+                <Typography variant="body2" color="text.secondary" sx={{ mr: 0.5, fontWeight: 600 }}>
+                  {selectedCount} selected
+                </Typography>
+                <Button
+                  variant="contained"
+                  size="small"
+                  color="success"
+                  onClick={() => handleBulkStatusChange("APPROVED")}
+                  disabled={bulkStatusLoading || bulkDeleteLoading}
+                  sx={{ px: { xs: 1, sm: 1.25 }, fontSize: { xs: "0.75rem", sm: "0.8125rem" } }}
+                >
+                  All Approve
+                </Button>
+                <Button
+                  variant="contained"
+                  size="small"
+                  color="warning"
+                  onClick={() => handleBulkStatusChange("WAITING_LIST")}
+                  disabled={bulkStatusLoading || bulkDeleteLoading}
+                  sx={{ px: { xs: 1, sm: 1.25 }, fontSize: { xs: "0.75rem", sm: "0.8125rem" } }}
+                >
+                  All Waitlist
+                </Button>
+                <Button
+                  variant="contained"
+                  size="small"
+                  color="error"
+                  onClick={() => handleBulkStatusChange("REJECTED")}
+                  disabled={bulkStatusLoading || bulkDeleteLoading}
+                  sx={{ px: { xs: 1, sm: 1.25 }, fontSize: { xs: "0.75rem", sm: "0.8125rem" } }}
+                >
+                  All Reject
+                </Button>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  color="error"
+                  onClick={handleBulkDelete}
+                  disabled={bulkDeleteLoading || bulkStatusLoading}
+                  sx={{ px: { xs: 1, sm: 1.25 }, fontSize: { xs: "0.75rem", sm: "0.8125rem" } }}
+                >
+                  {bulkDeleteLoading ? "Removing…" : "Delete"}
+                </Button>
+              </Stack>
+            )}
+
             <Box
-              component="form"
-              onSubmit={handleCapacitySubmit}
               sx={{
-                display: "flex",
-                flexDirection: isMobileToolbar ? "column" : "row",
-                alignItems: isMobileToolbar ? "stretch" : "center",
-                gap: 1,
-                flexWrap: "wrap",
-                width: isMobileToolbar ? "100%" : "auto",
+                border: "2px solid",
+                borderColor: "divider",
+                borderRadius: 1,
+                p: 1,
               }}
             >
-              <Typography variant="body2" color="text.secondary">
-                Capacity:
-              </Typography>
-              <TextField
-                size="small"
-                type="number"
-                inputProps={{ min: 0 }}
-                value={capacityInput}
-                onChange={(e) => setCapacityInput(e.target.value)}
-                sx={{ width: isMobileToolbar ? "100%" : 80 }}
-                disabled={capacitySaving}
-              />
-              <Button
-                type="submit"
-                size="small"
-                variant="outlined"
-                disabled={capacitySaving}
-                fullWidth={isMobileToolbar}
-              >
-                {capacitySaving ? "Saving…" : "Set capacity"}
-              </Button>
+              <Stack direction="row" spacing={0.75} flexWrap="wrap" alignItems="center" justifyContent="space-between">
+                <Typography variant="body2" sx={{ fontWeight: 800 }}>
+                  Attendance
+                </Typography>
+                {selectedCount > 0 && !isCoach && (
+                  <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 700 }}>
+                    for {selectedCount} member(s)
+                  </Typography>
+                )}
+              </Stack>
+              <Stack direction="row" spacing={0.75} flexWrap="wrap" alignItems="center" sx={{ mt: 0.75 }}>
+                <Button
+                  variant="contained"
+                  size="small"
+                  color="success"
+                  onClick={() => handleBulkAttendanceChange("PRESENT")}
+                  disabled={selectedCount === 0 || bulkAttendanceLoading}
+                  sx={{ px: { xs: 1, sm: 1.25 }, fontSize: { xs: "0.75rem", sm: "0.8125rem" } }}
+                >
+                  Present ✓
+                </Button>
+                <Button
+                  variant="contained"
+                  size="small"
+                  color="error"
+                  onClick={() => handleBulkAttendanceChange("ABSENT")}
+                  disabled={selectedCount === 0 || bulkAttendanceLoading}
+                  sx={{ px: { xs: 1, sm: 1.25 }, fontSize: { xs: "0.75rem", sm: "0.8125rem" } }}
+                >
+                  Absent ✕
+                </Button>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={() => handleBulkAttendanceChange("DEFAULT")}
+                  disabled={selectedCount === 0 || bulkAttendanceLoading}
+                  sx={{
+                    px: { xs: 1, sm: 1.25 },
+                    fontSize: { xs: "0.75rem", sm: "0.8125rem" },
+                    borderColor: "grey.500",
+                    color: "grey.700",
+                    fontWeight: 700,
+                  }}
+                >
+                  Default
+                </Button>
+              </Stack>
             </Box>
-          )}
-        </Stack>
+
+            {!isCoach && event && (
+              <Box
+                component="form"
+                onSubmit={handleCapacitySubmit}
+                sx={{
+                  display: "flex",
+                  flexDirection: isMobileToolbar ? "column" : "row",
+                  alignItems: isMobileToolbar ? "stretch" : "center",
+                  gap: 1,
+                  flexWrap: "wrap",
+                  width: isMobileToolbar ? "100%" : "auto",
+                }}
+              >
+                <Typography variant="body2" color="text.secondary">
+                  Capacity:
+                </Typography>
+                <TextField
+                  size="small"
+                  type="number"
+                  inputProps={{ min: 0 }}
+                  value={capacityInput}
+                  onChange={(e) => setCapacityInput(e.target.value)}
+                  sx={{ width: isMobileToolbar ? "100%" : 80 }}
+                  disabled={capacitySaving}
+                />
+                <Button
+                  type="submit"
+                  size="small"
+                  variant="outlined"
+                  disabled={capacitySaving}
+                  fullWidth={isMobileToolbar}
+                >
+                  {capacitySaving ? "Saving…" : "Set capacity"}
+                </Button>
+              </Box>
+            )}
+          </Stack>
       }
     >
       {event && (
@@ -618,14 +755,16 @@ export const EventRegistrationsPage: React.FC = () => {
                     ${priceDollarsForDisplay.toFixed(2)}
                   </Box>
                 </Typography>
-                <IconButton
-                  component={RouterLink}
-                  to={`/events/${event.id}`}
-                  size="small"
-                  aria-label="Edit event price"
-                >
-                  <EditOutlinedIcon fontSize="small" />
-                </IconButton>
+                {!isCoach && (
+                  <IconButton
+                    component={RouterLink}
+                    to={`/events/${event.id}`}
+                    size="small"
+                    aria-label="Edit event price"
+                  >
+                    <EditOutlinedIcon fontSize="small" />
+                  </IconButton>
+                )}
               </Stack>
             );
           })()}

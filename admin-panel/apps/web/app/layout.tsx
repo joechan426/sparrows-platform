@@ -4,6 +4,7 @@ import "./globals.css";
 import { AuthProvider } from "@/lib/auth-context";
 import { Nav } from "@/components/nav";
 import { NavRefreshProvider } from "@/lib/nav-refresh-context";
+import { AnnouncementsProvider } from "@/lib/announcements-context";
 import { PwaStatusBanner } from "@/components/pwa-status-banner";
 import { PullToRefresh } from "@/components/pull-to-refresh";
 
@@ -53,10 +54,12 @@ export default function RootLayout({
       <body className={`${geistSans.variable} ${geistMono.variable}`}>
         <AuthProvider>
           <NavRefreshProvider>
-            <PullToRefresh />
-            <Nav />
-            <PwaStatusBanner />
-            <main className="main-with-nav">{children}</main>
+            <AnnouncementsProvider>
+              <PullToRefresh />
+              <Nav />
+              <PwaStatusBanner />
+              <main className="main-with-nav">{children}</main>
+            </AnnouncementsProvider>
           </NavRefreshProvider>
         </AuthProvider>
       </body>

@@ -76,9 +76,13 @@ struct APICalendarEvent: Codable {
     let capacity: Int?
     /// Count of APPROVED registrations (from list/detail API).
     let approvedCount: Int?
+    /// Count of WAITING_LIST registrations.
+    let waitlistedCount: Int?
+    /// Count of PENDING registrations.
+    let pendingCount: Int?
 
     enum CodingKeys: String, CodingKey {
-        case id, title, startAt, endAt, description, location, sportType, eventType, registrationOpen, capacity, approvedCount
+        case id, title, startAt, endAt, description, location, sportType, eventType, registrationOpen, capacity, approvedCount, waitlistedCount, pendingCount
     }
 
     init(from decoder: Decoder) throws {
@@ -94,6 +98,8 @@ struct APICalendarEvent: Codable {
         registrationOpen = try c.decodeIfPresent(Bool.self, forKey: .registrationOpen) ?? false
         capacity = try c.decodeIfPresent(Int.self, forKey: .capacity)
         approvedCount = try c.decodeIfPresent(Int.self, forKey: .approvedCount)
+        waitlistedCount = try c.decodeIfPresent(Int.self, forKey: .waitlistedCount)
+        pendingCount = try c.decodeIfPresent(Int.self, forKey: .pendingCount)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -109,6 +115,8 @@ struct APICalendarEvent: Codable {
         try c.encode(registrationOpen, forKey: .registrationOpen)
         try c.encodeIfPresent(capacity, forKey: .capacity)
         try c.encodeIfPresent(approvedCount, forKey: .approvedCount)
+        try c.encodeIfPresent(waitlistedCount, forKey: .waitlistedCount)
+        try c.encodeIfPresent(pendingCount, forKey: .pendingCount)
     }
 }
 
@@ -131,6 +139,14 @@ struct APIMemberRegistration: Codable {
     let teamName: String?
     let createdAt: String
     let event: APICalendarEvent?
+}
+
+struct APIAnnouncement: Codable, Identifiable {
+    let id: String
+    let message: String
+    let createdAt: String
+    let createdByAdminId: String?
+    let createdByUserName: String?
 }
 
 // MARK: - Errors
@@ -382,5 +398,21 @@ enum CalendarEventsAPI {
         }
 
         return try JSONDecoder().decode(CheckoutResponse.self, from: data)
+    }
+}
+
+// MARK: - Announcements API
+enum AnnouncementsAPI {
+    static func list(start: Int, end: Int) async throws -> (items: [APIAnnouncement], total: Int) {
+        let safeStart = max(0, start)
+        let safeEnd = max(safeStart + 1, end)
+        let url = URL(string: "\(SparrowsAPI.apiBase)/announcements?_start=\(safeStart)&_end=\(safeEnd)")!
+        var req = URLRequest(url: url)
+        let (data, res) = try await SparrowsAPI.data(for: req)
+        let code = res.statusCode
+        if code != 200 { throw SparrowsAPIError.httpStatus(code, nil) }
+        let items = try JSONDecoder().decode([APIAnnouncement].self, from: data)
+        let total = Int(res.value(forHTTPHeaderField: "X-Total-Count") ?? "") ?? items.count
+        return (items, total)
     }
 }
