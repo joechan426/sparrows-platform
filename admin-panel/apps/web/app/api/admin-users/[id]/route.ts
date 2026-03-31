@@ -54,11 +54,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       if (!viewerMayManageAdminUsers) {
         return corsJson(req, { message: "Forbidden" }, { status: 403 });
       }
-      if (
-        (viewer.role === "SUPER_MANAGER" || viewer.role === "MANAGER") &&
-        admin.role !== "MANAGER"
-      ) {
-        return corsJson(req, { message: "You may only view Manager accounts" }, { status: 403 });
+      if (viewer.role === "SUPER_MANAGER" || viewer.role === "MANAGER") {
+        if (admin.role !== "MANAGER" && admin.role !== "COACH") {
+          return corsJson(req, { message: "You may only view Manager/Coach accounts" }, { status: 403 });
+        }
       }
     }
 
@@ -87,7 +86,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   }
 }
 
-// PATCH /api/admin-users/:id — SUPER_MANAGER + ADMIN_USERS: Manager permissions only; ADMIN: full;
+// PATCH /api/admin-users/:id — SUPER_MANAGER + ADMIN_USERS: Manager/Coach permissions only; ADMIN: full;
 // Managers / Super Managers may PATCH only their own userName / newPassword without ADMIN_USERS (profile).
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const result = await requireAdminAuth(req, "any");
@@ -159,8 +158,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     }
 
     if (viewer.role === "SUPER_MANAGER" || viewer.role === "MANAGER") {
-      if (target.role !== "MANAGER") {
-        return corsJson(req, { message: "You may only edit Manager accounts" }, { status: 403 });
+      if (target.role !== "MANAGER" && target.role !== "COACH") {
+        return corsJson(req, { message: "You may only edit Manager/Coach accounts" }, { status: 403 });
       }
       if (!Array.isArray(data.permissions)) {
         return corsJson(req, { message: "Super Manager can only update permissions" }, { status: 400 });

@@ -316,22 +316,28 @@ export const EventRegistrationsPage: React.FC = () => {
           const a = String(value ?? "DEFAULT");
           if (a === "PRESENT") {
             return (
-              <Typography sx={{ fontWeight: 900, color: "success.main", textAlign: "center" }}>
-                ✓
-              </Typography>
+              <Box sx={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <Typography sx={{ fontWeight: 900, color: "success.main", textAlign: "center", lineHeight: 1 }}>
+                  ✓
+                </Typography>
+              </Box>
             );
           }
           if (a === "ABSENT") {
             return (
-              <Typography sx={{ fontWeight: 900, color: "error.main", textAlign: "center" }}>
-                ✕
-              </Typography>
+              <Box sx={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <Typography sx={{ fontWeight: 900, color: "error.main", textAlign: "center", lineHeight: 1 }}>
+                  ✕
+                </Typography>
+              </Box>
             );
           }
           return (
-            <Typography sx={{ fontWeight: 900, color: "grey.600", textAlign: "center" }}>
-              -
-            </Typography>
+            <Box sx={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Typography sx={{ fontWeight: 900, color: "grey.600", textAlign: "center", lineHeight: 1 }}>
+                -
+              </Typography>
+            </Box>
           );
         },
       },

@@ -196,12 +196,12 @@ export const AdminUserEdit: React.FC = () => {
           }
         />
         {(role === "MANAGER" || role === "SUPER_MANAGER" || role === "COACH") &&
-          (isAdmin || (isSuperManagerViewer && record?.role === "MANAGER")) && (
+          (isAdmin || (isSuperManagerViewer && (record?.role === "MANAGER" || record?.role === "COACH"))) && (
           <FormControl component="fieldset">
             <InputLabel shrink>Page permissions (Manager / Super Manager)</InputLabel>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
               Choose which sections this user can access (including Payment profiles and Payments).{" "}
-              {isSuperManagerViewer ? "Super Managers can edit Managers only." : "Only Admins can edit roles."}
+              {isSuperManagerViewer ? "Super Managers can edit Managers/Coaches only." : "Only Admins can edit roles."}
             </Typography>
             <FormGroup row sx={{ pt: 1 }}>
               {MODULES.map((m) => (

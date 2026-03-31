@@ -15,6 +15,8 @@ export type GoogleICSEvent = {
   registrationOpen: false;
 };
 
+const DEFAULT_ICS_TIME_ZONE = "Australia/Sydney";
+
 function unfoldLines(text: string): string[] {
   const lines = text.split(/\r?\n/);
   const result: string[] = [];
@@ -29,9 +31,67 @@ function unfoldLines(text: string): string[] {
   return result;
 }
 
+function getTZIdFromKey(key: string): string | null {
+  const m = key.match(/TZID=([^;:]+)/i);
+  return m?.[1] ?? null;
+}
+
+function getFormatterParts(date: Date, timeZone: string): Record<string, number> {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).formatToParts(date);
+
+  const out: Record<string, number> = {};
+  for (const p of parts) {
+    if (p.type === "literal") continue;
+    if (["year", "month", "day", "hour", "minute", "second"].includes(p.type)) {
+      out[p.type] = parseInt(p.value, 10);
+    }
+  }
+  return out;
+}
+
+/**
+ * Convert a wall-clock date-time in a specific IANA timezone into UTC Date.
+ * We iterate a few times to converge around DST transitions.
+ */
+function zonedDateTimeToUTC(
+  year: number,
+  month: number,
+  day: number,
+  hour: number,
+  minute: number,
+  second: number,
+  timeZone: string
+): Date {
+  const targetUTC = Date.UTC(year, month - 1, day, hour, minute, second);
+  let guess = targetUTC;
+  for (let i = 0; i < 4; i += 1) {
+    const p = getFormatterParts(new Date(guess), timeZone);
+    const observedUTC = Date.UTC(
+      p.year ?? year,
+      (p.month ?? month) - 1,
+      p.day ?? day,
+      p.hour ?? hour,
+      p.minute ?? minute,
+      p.second ?? second,
+    );
+    guess += targetUTC - observedUTC;
+  }
+  return new Date(guess);
+}
+
 function parseICSDate(key: string, value: string): Date | null {
+  const compact = value.replace(/\s/g, "");
   if (key.includes("VALUE=DATE")) {
-    const m = value.match(/^(\d{4})(\d{2})(\d{2})/);
+    const m = compact.match(/^(\d{4})(\d{2})(\d{2})/);
     const year = m?.[1];
     const month = m?.[2];
     const day = m?.[3];
@@ -40,8 +100,8 @@ function parseICSDate(key: string, value: string): Date | null {
     }
     return null;
   }
-  if (value.endsWith("Z")) {
-    const m = value.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})/);
+  if (compact.endsWith("Z")) {
+    const m = compact.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})/);
     const year = m?.[1];
     const month = m?.[2];
     const day = m?.[3];
@@ -62,8 +122,17 @@ function parseICSDate(key: string, value: string): Date | null {
     }
     return null;
   }
-  const date = new Date(value.replace(/(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})/, "$1-$2-$3T$4:$5:$6"));
-  return isNaN(date.getTime()) ? null : date;
+
+  const m = compact.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})$/);
+  if (!m) return null;
+  const year = parseInt(m[1]!, 10);
+  const month = parseInt(m[2]!, 10);
+  const day = parseInt(m[3]!, 10);
+  const hour = parseInt(m[4]!, 10);
+  const minute = parseInt(m[5]!, 10);
+  const second = parseInt(m[6]!, 10);
+  const tzId = getTZIdFromKey(key) ?? DEFAULT_ICS_TIME_ZONE;
+  return zonedDateTimeToUTC(year, month, day, hour, minute, second, tzId);
 }
 
 function inferSportType(title: string): string {

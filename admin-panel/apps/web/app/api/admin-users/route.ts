@@ -18,7 +18,7 @@ const PERMISSION_MODULE_VALUES = [
   "PAYMENTS",
 ] as const;
 
-// GET /api/admin-users — ADMIN: all users; SUPER_MANAGER + ADMIN_USERS: Managers only
+// GET /api/admin-users — ADMIN: all users; SUPER_MANAGER + ADMIN_USERS: Managers/Coaches only
 export async function GET(req: NextRequest) {
   const result = await requireAdminAuth(req, "any");
   if (!result.ok) return withCors(req, result.response);
@@ -28,7 +28,10 @@ export async function GET(req: NextRequest) {
   }
   try {
     const users = await prisma.adminUser.findMany({
-      where: viewer.role === "ADMIN" ? undefined : { role: "MANAGER" },
+      where:
+        viewer.role === "ADMIN"
+          ? undefined
+          : { role: { in: ["MANAGER", "COACH"] } },
       orderBy: { createdAt: "desc" },
       select: { ...adminUserPublicSelect },
     });
@@ -67,12 +70,18 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST /api/admin-users — create user (ADMIN only)
+// POST /api/admin-users — create user
 export async function POST(req: NextRequest) {
   const result = await requireAdminAuth(req, "any");
   if (!result.ok) return withCors(req, result.response);
-  if (result.admin.role !== "ADMIN") {
-    return corsJson(req, { message: "Only Admin can create admin users" }, { status: 403 });
+  const viewer = result.admin;
+  const viewerMayManageAdminUsers =
+    viewer.role === "ADMIN" || viewer.permissions.includes("ADMIN_USERS");
+  if (!viewerMayManageAdminUsers) {
+    return corsJson(req, { message: "Forbidden" }, { status: 403 });
+  }
+  if (viewer.role !== "ADMIN" && viewer.role !== "SUPER_MANAGER") {
+    return corsJson(req, { message: "Only Admin or Super Manager can create admin users" }, { status: 403 });
   }
   try {
     const body = await req.json().catch(() => ({}));
@@ -85,11 +94,19 @@ export async function POST(req: NextRequest) {
       body.role === "COACH"
         ? body.role
         : "MANAGER";
-    const permissions: (typeof PERMISSION_MODULE_VALUES)[number][] = Array.isArray(body.permissions)
+    if (viewer.role === "SUPER_MANAGER" && role !== "MANAGER" && role !== "COACH") {
+      return corsJson(req, { message: "Super Manager may only create Manager or Coach users" }, { status: 403 });
+    }
+
+    const permissionsIncoming: (typeof PERMISSION_MODULE_VALUES)[number][] = Array.isArray(body.permissions)
       ? body.permissions.filter((p: string): p is (typeof PERMISSION_MODULE_VALUES)[number] =>
           (PERMISSION_MODULE_VALUES as readonly string[]).includes(p),
         )
       : [];
+    const permissions =
+      viewer.role === "SUPER_MANAGER"
+        ? permissionsIncoming.filter((m) => m !== "ADMIN_USERS")
+        : permissionsIncoming;
 
     if (!userName || !password) {
       return corsJson(req, { message: "User name and password are required" }, { status: 400 });

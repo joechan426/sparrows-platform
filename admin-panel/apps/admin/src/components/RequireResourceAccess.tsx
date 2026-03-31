@@ -41,7 +41,7 @@ export function RequireResourceAccess({ children }: { children: React.ReactNode 
 
   let allowed = true;
   if (isAdminUsersCreatePath(pathname)) {
-    allowed = admin?.role === "ADMIN";
+    allowed = admin?.role === "ADMIN" || admin?.role === "SUPER_MANAGER";
   } else {
     const resource = getResourceForPath(pathname);
     allowed =

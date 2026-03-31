@@ -12,6 +12,7 @@ import {
   Checkbox,
   Typography,
 } from "@mui/material";
+import { getStoredAdmin } from "../../lib/admin-auth";
 import { validateAdminPassword } from "../../lib/password-rules";
 
 const MODULES = [
@@ -44,6 +45,9 @@ export const AdminUserCreate: React.FC = () => {
 
   const role = watch("role");
   const permissions = watch("permissions") ?? [];
+  const currentAdmin = getStoredAdmin();
+  const isAdminViewer = currentAdmin?.role === "ADMIN";
+  const isSuperManagerViewer = currentAdmin?.role === "SUPER_MANAGER";
   const password = watch("password");
   const passwordValidation = typeof password === "string" && password.length > 0 ? validateAdminPassword(password) : null;
   const passwordError = passwordValidation && !passwordValidation.ok ? passwordValidation.message : (errors?.password?.message as string);
@@ -83,9 +87,9 @@ export const AdminUserCreate: React.FC = () => {
             }
           >
             <MenuItem value="MANAGER">Manager</MenuItem>
-            <MenuItem value="SUPER_MANAGER">Super Manager</MenuItem>
+            {isAdminViewer && <MenuItem value="SUPER_MANAGER">Super Manager</MenuItem>}
             <MenuItem value="COACH">Coach</MenuItem>
-            <MenuItem value="ADMIN">Admin</MenuItem>
+            {isAdminViewer && <MenuItem value="ADMIN">Admin</MenuItem>}
           </Select>
         </FormControl>
         {(role === "MANAGER" || role === "SUPER_MANAGER" || role === "COACH") && (
@@ -105,20 +109,27 @@ export const AdminUserCreate: React.FC = () => {
                 />
               ))}
             </FormGroup>
-            <Box sx={{ pt: 1.5, mt: 1, borderTop: 1, borderColor: "divider" }}>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
-                Admin-only modules — only an Admin can grant these when creating an account.
+            {isAdminViewer && (
+              <Box sx={{ pt: 1.5, mt: 1, borderTop: 1, borderColor: "divider" }}>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
+                  Admin-only modules — only an Admin can grant these when creating an account.
+                </Typography>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={permissions.includes("ADMIN_USERS")}
+                      onChange={() => handlePermissionToggle("ADMIN_USERS")}
+                    />
+                  }
+                  label="Admin users"
+                />
+              </Box>
+            )}
+            {isSuperManagerViewer && (
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                Super Managers can create Manager/Coach users and set page permissions.
               </Typography>
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={permissions.includes("ADMIN_USERS")}
-                    onChange={() => handlePermissionToggle("ADMIN_USERS")}
-                  />
-                }
-                label="Admin users"
-              />
-            </Box>
+            )}
           </FormControl>
         )}
       </Box>

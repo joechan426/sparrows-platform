@@ -53,6 +53,7 @@ export const AdminUserList: React.FC = () => {
   const stored = getStoredAdmin();
   const selfId = stored?.id;
   const isAdminViewer = stored?.role === "ADMIN";
+  const isSuperManagerViewer = stored?.role === "SUPER_MANAGER";
 
   const handleDeleteConfirm = async () => {
     if (selectedIds.length === 0) return;
@@ -169,7 +170,7 @@ export const AdminUserList: React.FC = () => {
       title="Admin users"
       headerButtons={
         <Stack direction="row" spacing={1} flexWrap="wrap" alignItems="center">
-          {isAdminViewer && <CreateButton>Create Admin user</CreateButton>}
+          {(isAdminViewer || isSuperManagerViewer) && <CreateButton>Create Admin user</CreateButton>}
           {isAdminViewer && (
             <Button
               variant="outlined"
