@@ -1375,6 +1375,23 @@ input[type="password"] {
   margin: 0 0 0.5rem;
   color: #000;
 }
+.event-detail-payment-fee {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+  color: #000;
+}
+.event-detail-payment-fee-label {
+  font-weight: 500;
+  color: rgba(0, 0, 0, 0.65);
+}
+.event-detail-payment-fee-amount {
+  font-weight: 700;
+}
+.event-detail-payment-loading {
+  margin: 0;
+  font-size: 0.9rem;
+  color: rgba(0, 0, 0, 0.55);
+}
 
 /* Embedded web pages (Shop, Videos, Ongoing Tournament) */
 .embed-page {

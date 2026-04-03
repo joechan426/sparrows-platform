@@ -30,6 +30,20 @@ function isSpecial(event: CalendarEvent): boolean {
   return t === "SPECIAL" || t === "SPECIAL_EVENT" || title.includes("cup");
 }
 
+/** Shown while payment buttons load and after; null if not a priced event. */
+function formatPaidEventFee(ev: CalendarEvent): string | null {
+  if (!ev.isPaid) return null;
+  const cents = ev.priceCents ?? 0;
+  if (cents <= 0) return null;
+  const ccy = (ev.currency ?? "AUD").toUpperCase();
+  const amount = cents / 100;
+  try {
+    return new Intl.NumberFormat("en-AU", { style: "currency", currency: ccy }).format(amount);
+  } catch {
+    return `${ccy} ${amount.toFixed(2)}`;
+  }
+}
+
 type Props = {
   event: CalendarEvent;
   member: Member | null;
@@ -72,6 +86,7 @@ export function EventDetail({ event, member, onClose, onRegistered, infoOnly = f
 
   const special = isSpecial(eventData);
   const requiresPayment = Boolean(eventData.isPaid && (eventData.priceCents ?? 0) > 0);
+  const paidFeeLabel = requiresPayment ? formatPaidEventFee(eventData) : null;
 
   async function handleCheckout(provider: "stripe" | "paypal") {
     setError("");
@@ -231,8 +246,14 @@ export function EventDetail({ event, member, onClose, onRegistered, infoOnly = f
                 {requiresPayment && (
                   <div className="field">
                     <label>Payment method</label>
+                    {paidFeeLabel != null && (
+                      <p className="event-detail-payment-fee" aria-live="polite">
+                        <span className="event-detail-payment-fee-label">Fee: </span>
+                        <strong className="event-detail-payment-fee-amount">{paidFeeLabel}</strong>
+                      </p>
+                    )}
                     {paymentMethodsLoading ? (
-                      <p>Loading payment method...</p>
+                      <p className="event-detail-payment-loading">Loading payment methods…</p>
                     ) : (
                       <>
                         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
