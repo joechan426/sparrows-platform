@@ -233,7 +233,7 @@ export function EventDetail({ event, member, onClose, onRegistered, infoOnly = f
                           {eventData.stripeCheckoutAvailable && (
                             <button
                               type="button"
-                              className="btn-primary"
+                              className="btn-checkout-stripe"
                               disabled={checkoutLoadingProvider !== null}
                               onClick={() => void handleCheckout("stripe")}
                             >
@@ -243,7 +243,7 @@ export function EventDetail({ event, member, onClose, onRegistered, infoOnly = f
                           {eventData.paypalCheckoutAvailable && (
                             <button
                               type="button"
-                              className="btn-primary"
+                              className="btn-checkout-paypal"
                               disabled={checkoutLoadingProvider !== null}
                               onClick={() => void handleCheckout("paypal")}
                             >

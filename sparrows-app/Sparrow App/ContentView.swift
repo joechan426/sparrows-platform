@@ -318,6 +318,7 @@ final class MemberProfileStore: ObservableObject {
 struct ContentView: View {
     private let announcementsSeenAtKey = "sparrows.announcements.seenAt"
     private let lastNotifiedAnnouncementIdKey = "sparrows.announcements.lastNotifiedId"
+    @Environment(\.scenePhase) private var scenePhase
     @State private var selectedTab: AppTab = .calendar
     @State private var webViewPreloader = WebViewPreloader()
     @StateObject private var calendarViewModel = SportsCalendarViewModel()
@@ -348,7 +349,18 @@ struct ContentView: View {
 
     private var announcementsSeenAt: Date {
         let stored = UserDefaults.standard.string(forKey: announcementsSeenAtKey) ?? ""
-        return ISO8601DateFormatter().date(from: stored) ?? .distantPast
+        if stored.isEmpty { return .distantPast }
+        return parseAnnouncementISO8601(stored)
+    }
+
+    /// Parses API/stored ISO-8601 timestamps (with or without fractional seconds).
+    private func parseAnnouncementISO8601(_ raw: String) -> Date {
+        let withFrac = ISO8601DateFormatter()
+        withFrac.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let d = withFrac.date(from: raw) { return d }
+        let basic = ISO8601DateFormatter()
+        basic.formatOptions = [.withInternetDateTime]
+        return basic.date(from: raw) ?? .distantPast
     }
 
     private func requestAnnouncementNotificationPermission() {
@@ -358,13 +370,15 @@ struct ContentView: View {
     private func showAnnouncementNotification(message: String) {
         let content = UNMutableNotificationContent()
         content.title = "New announcement"
-        content.body = message
+        let maxLen = 200
+        let body = message.count > maxLen ? String(message.prefix(maxLen)) + "…" : message
+        content.body = body
         content.sound = .default
         content.userInfo = ["sparrowsNotificationType": "announcement"]
         let request = UNNotificationRequest(
             identifier: UUID().uuidString,
             content: content,
-            trigger: UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
+            trigger: UNTimeIntervalNotificationTrigger(timeInterval: 0.15, repeats: false)
         )
         UNUserNotificationCenter.current().add(request)
     }
@@ -384,7 +398,7 @@ struct ContentView: View {
             let latest = try await AnnouncementsAPI.list(start: 0, end: 50).items
             let seenAt = announcementsSeenAt
             let unread = latest.filter { item in
-                (ISO8601DateFormatter().date(from: item.createdAt) ?? .distantPast) > seenAt
+                parseAnnouncementISO8601(item.createdAt) > seenAt
             }.count
 
             if let newest = latest.first, unread > 0 {
@@ -441,7 +455,12 @@ struct ContentView: View {
             .task(id: memberStore.memberId) {
                 await refreshAnnouncementUnreadCount()
             }
-            .onReceive(Timer.publish(every: 30, tolerance: 5, on: .main, in: .common).autoconnect()) { _ in
+            .onChange(of: scenePhase) { newPhase in
+                if newPhase == .active {
+                    Task { await refreshAnnouncementUnreadCount() }
+                }
+            }
+            .onReceive(Timer.publish(every: 12, tolerance: 3, on: .main, in: .common).autoconnect()) { _ in
                 Task { await refreshAnnouncementUnreadCount() }
             }
             .onOpenURL { url in
@@ -527,6 +546,9 @@ struct ContentView: View {
         tabTransitionDirection = transitionDirection(from: selectedTab, to: tab)
         withAnimation(.easeInOut(duration: 0.22)) {
             selectedTab = tab
+        }
+        if tab == .myProfile {
+            Task { await refreshAnnouncementUnreadCount() }
         }
         applyLabelVisibilityRule(userActivity: false)
     }
@@ -2389,11 +2411,23 @@ private struct MyProfileView: View {
 
                                 VStack(alignment: .leading, spacing: 12) {
                                     HStack(spacing: 10) {
-                                        Image("SparrowsLogo")
-                                            .resizable()
-                                            .scaledToFill()
-                                            .frame(width: 36, height: 36)
-                                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                        ZStack(alignment: .topTrailing) {
+                                            Image("SparrowsLogo")
+                                                .resizable()
+                                                .scaledToFill()
+                                                .frame(width: 36, height: 36)
+                                                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                            if announcementsUnreadCount > 0 {
+                                                Text("\(announcementsUnreadCount)")
+                                                    .font(.caption2)
+                                                    .fontWeight(.bold)
+                                                    .foregroundStyle(.white)
+                                                    .padding(.horizontal, 5)
+                                                    .padding(.vertical, 1)
+                                                    .background(Capsule().fill(Color.red))
+                                                    .offset(x: 10, y: -8)
+                                            }
+                                        }
 
                                         Text(memberStore.hasProfile && !memberStore.preferredName.isEmpty ? "Hello \(memberStore.preferredName)" : "My Profile")
                                             .font(.title3)
@@ -4275,6 +4309,10 @@ private final class WebViewPreloader {
 /// Calendar list row: time only — centered, saturated dark blue with white outline ring.
 private struct CalendarEventTimeLabel: View {
     let text: String
+    var lineLimit: Int = 2
+    /// Smaller fonts fit the narrow grid time column; default matches the cup / multi-line row.
+    var font: Font = .title2
+    var minimumScaleFactor: CGFloat = 0.75
     private static let outlineOffsets: [(CGFloat, CGFloat)] = {
         var o: [(CGFloat, CGFloat)] = []
         for r: CGFloat in [1, 2] {
@@ -4294,20 +4332,20 @@ private struct CalendarEventTimeLabel: View {
             ForEach(0..<Self.outlineOffsets.count, id: \.self) { i in
                 let o = Self.outlineOffsets[i]
                 Text(text)
-                    .font(.title2)
+                    .font(font)
                     .fontWeight(.bold)
                     .foregroundColor(.white)
                     .offset(x: o.0, y: o.1)
             }
             Text(text)
-                .font(.title2)
+                .font(font)
                 .fontWeight(.bold)
                 .foregroundColor(Self.fillColor)
         }
         .compositingGroup()
         .multilineTextAlignment(.center)
-        .lineLimit(2)
-        .minimumScaleFactor(0.75)
+        .lineLimit(lineLimit)
+        .minimumScaleFactor(minimumScaleFactor)
         .fixedSize(horizontal: false, vertical: true)
     }
 }
@@ -4334,16 +4372,36 @@ private struct SportsCalendarView: View {
     @State private var optimisticPendingEventIds: Set<String> = []
     private let todayHighlightColor = Color.orange
     private let selectedDateHighlightColor = Color(red: 0.0, green: 0.45, blue: 0.2)
-    private let compactCalendarHeight: CGFloat = 296
     private let minimumListSectionHeight: CGFloat = 156
+
+    /// Split list area height: **60%** normal events, **40%** “What happens NEXT” (of space below the `listMidGap`). Uses measured height so no gap above the tab bar.
+    private static func splitCalendarListHeights(available: CGFloat, listMidGap: CGFloat, minimumNormal: CGFloat) -> (CGFloat, CGFloat) {
+        let a = max(0, available)
+        guard a > listMidGap + 1 else {
+            return (max(0, a - listMidGap), 0)
+        }
+        let inner = a - listMidGap
+        let minSpecial: CGFloat = 88
+
+        var normal = floor(inner * 0.6)
+        var special = inner - normal
+        if normal < minimumNormal {
+            normal = minimumNormal
+            special = inner - normal
+        }
+        if special < minSpecial {
+            special = minSpecial
+            normal = max(0, inner - special)
+            if normal < minimumNormal {
+                normal = minimumNormal
+                special = max(minSpecial, inner - normal)
+            }
+        }
+        return (normal, special)
+    }
 
     var body: some View {
         GeometryReader { geo in
-            let staticTopArea: CGFloat = 44 + 56 + 22 + compactCalendarHeight + 28
-            let spacingAndPadding: CGFloat = 40
-            let remaining = geo.size.height - staticTopArea - spacingAndPadding
-            let sectionHeight = max(minimumListSectionHeight, floor(remaining / 2))
-
             VStack(spacing: 4) {
                 sportFilters
                 monthHeader
@@ -4352,10 +4410,23 @@ private struct SportsCalendarView: View {
                     .padding(.top, 6)
                     .padding(.bottom, 6)
                 calendarColorLegend
-                eventsList(sectionHeight: sectionHeight)
+
+                GeometryReader { listGeo in
+                    let listMidGap: CGFloat = 6
+                    let h = listGeo.size.height
+                    let (normalH, specialH) = Self.splitCalendarListHeights(
+                        available: h,
+                        listMidGap: listMidGap,
+                        minimumNormal: minimumListSectionHeight
+                    )
+                    eventsList(normalHeight: normalH, specialHeight: specialH)
+                        .frame(width: listGeo.size.width, height: h, alignment: .top)
+                }
+                .frame(maxHeight: .infinity)
             }
             .padding(.horizontal, 12)
             .padding(.top, 0)
+            .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
             .background(.background)
             .task {
                 await viewModel.loadEventsIfNeeded()
@@ -4799,10 +4870,10 @@ private struct SportsCalendarView: View {
         return parts.joined(separator: " · ")
     }
 
-    private func eventsList(sectionHeight: CGFloat) -> some View {
+    private func eventsList(normalHeight: CGFloat, specialHeight: CGFloat) -> some View {
         VStack(spacing: 6) {
-            generalEventsSection(height: sectionHeight)
-            whatHappensNextSection(height: sectionHeight)
+            generalEventsSection(height: normalHeight)
+            whatHappensNextSection(height: specialHeight)
         }
         .padding(.bottom, 0)
         .frame(maxWidth: .infinity)
@@ -4847,13 +4918,18 @@ private struct SportsCalendarView: View {
                                         } label: {
                                             VStack(spacing: 2) {
                                                 Spacer(minLength: 0)
-                                                CalendarEventTimeLabel(text: viewModel.eventTimeText(for: event))
+                                                CalendarEventTimeLabel(
+                                                    text: viewModel.eventStartTimeOnlyText(for: event),
+                                                    lineLimit: 1,
+                                                    font: .headline,
+                                                    minimumScaleFactor: 0.6
+                                                )
                                                 Spacer(minLength: 0)
                                             }
                                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                                         }
                                         .buttonStyle(.plain)
-                                        .gridCellColumns(3)
+                                        .gridCellColumns(2)
 
                                         Button {
                                             eventInfoEvent = event
@@ -4881,7 +4957,7 @@ private struct SportsCalendarView: View {
                                             .frame(maxWidth: .infinity, alignment: .leading)
                                         }
                                         .buttonStyle(.plain)
-                                        .gridCellColumns(6)
+                                        .gridCellColumns(8)
 
                                         Group {
                                             if let status = effectiveStatus {
@@ -4928,10 +5004,11 @@ private struct SportsCalendarView: View {
                                                     .frame(minWidth: 1, minHeight: 36)
                                             }
                                         }
-                                        .gridCellColumns(3)
+                                        .gridCellColumns(2)
                                     }
                                 }
                                 .padding(8)
+                                .frame(maxWidth: .infinity)
                                 .background(
                                     RoundedRectangle(cornerRadius: 10, style: .continuous)
                                         .fill(Color(uiColor: .secondarySystemBackground))
@@ -4939,6 +5016,7 @@ private struct SportsCalendarView: View {
                             }
                         }
                     }
+                    .padding(.horizontal, 10)
                 }
                 .coordinateSpace(name: "calendarListScroll")
                 .refreshable {
@@ -4960,6 +5038,7 @@ private struct SportsCalendarView: View {
                     onScrollStateChange(true, false)
                 }
             }
+            .padding(.horizontal, -12)
             .background(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .fill(Color(uiColor: .systemBackground))
@@ -4973,7 +5052,10 @@ private struct SportsCalendarView: View {
     }
 
     private func whatHappensNextSection(height: CGFloat) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
+        // Inset from yellow/orange card edge to inner content (~16pt is iOS default margin; 14h / 12v keeps type clear of stroke).
+        let specialCardContentInset = EdgeInsets(top: 12, leading: 14, bottom: 12, trailing: 14)
+
+        return VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
                 Image(systemName: "sparkles")
                     .font(.headline)
@@ -4987,6 +5069,8 @@ private struct SportsCalendarView: View {
                 LazyVStack(alignment: .leading, spacing: 8) {
                     if viewModel.upcomingCupEvents.isEmpty {
                         Text("Hold tight! The next event is on the way.")
+                            .font(.subheadline)
+                            .foregroundStyle(Color.black.opacity(0.75))
                             .frame(maxWidth: .infinity, alignment: .leading)
                     } else {
                         ForEach(viewModel.upcomingCupEvents) { event in
@@ -4996,106 +5080,121 @@ private struct SportsCalendarView: View {
                             let joinHint = calendarParticipantCountHintText(for: event)
 
                             Grid(horizontalSpacing: 8, verticalSpacing: 6) {
-                                GridRow(alignment: .center) {
-                                    Button {
-                                        eventInfoEvent = event
-                                    } label: {
-                                        VStack(spacing: 4) {
-                                            Spacer(minLength: 0)
-                                            CalendarEventTimeLabel(text: viewModel.eventTimeText(for: event))
-                                            Text(viewModel.eventDateOnlyText(for: event))
-                                                .font(.caption2)
-                                                .fontWeight(.semibold)
-                                                .foregroundStyle(Color.black.opacity(0.55))
+                            GridRow(alignment: .center) {
+                                Button {
+                                    eventInfoEvent = event
+                                } label: {
+                                    VStack(spacing: 4) {
+                                        Spacer(minLength: 0)
+                                        CalendarEventTimeLabel(
+                                            text: viewModel.eventStartTimeOnlyText(for: event),
+                                            lineLimit: 1,
+                                            font: .headline,
+                                            minimumScaleFactor: 0.6
+                                        )
+                                        VStack(spacing: 1) {
+                                            Text(viewModel.eventSpecialListDateLine(for: event))
+                                                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                                                .foregroundStyle(Color.black.opacity(0.58))
                                                 .multilineTextAlignment(.center)
-                                            Spacer(minLength: 0)
+                                                .lineLimit(1)
+                                                .minimumScaleFactor(0.65)
+                                            Text(viewModel.eventSpecialListWeekdayLine(for: event))
+                                                .font(.system(size: 12, weight: .medium, design: .rounded))
+                                                .foregroundStyle(Color.black.opacity(0.52))
+                                                .multilineTextAlignment(.center)
+                                                .lineLimit(1)
+                                                .minimumScaleFactor(0.65)
+                                        }
+                                        Spacer(minLength: 0)
+                                    }
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                }
+                                .buttonStyle(.plain)
+                                .gridCellColumns(2)
+
+                                Button {
+                                    eventInfoEvent = event
+                                } label: {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(event.title)
+                                            .font(.subheadline)
+                                            .fontWeight(.bold)
+                                            .foregroundStyle(Color.black)
+                                            .lineLimit(4)
+                                            .fixedSize(horizontal: false, vertical: true)
+                                        Text(calendarRowMetaSubtitle(for: event, includeLocation: true))
+                                            .font(.caption)
+                                            .foregroundStyle(Color.black.opacity(0.55))
+                                            .lineLimit(3)
+                                            .fixedSize(horizontal: false, vertical: true)
+                                        if (event.waitlistedCount ?? 0) > 0 || (event.pendingCount ?? 0) > 0 {
+                                            CalendarQueueHintView(
+                                                waitlisted: event.waitlistedCount ?? 0,
+                                                requested: event.pendingCount ?? 0
+                                            )
+                                            .padding(.top, 2)
+                                        }
+                                    }
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+                                }
+                                .buttonStyle(.plain)
+                                .gridCellColumns(8)
+
+                                Group {
+                                    if let status = effectiveStatus {
+                                        VStack(spacing: 6) {
+                                            Text(RegistrationStatusStyle.displayText(status))
+                                                .font(.caption)
+                                                .fontWeight(.medium)
+                                                .foregroundStyle(.white)
+                                                .padding(.horizontal, 10)
+                                                .padding(.vertical, 4)
+                                                .background(Capsule().fill(RegistrationStatusStyle.color(status)))
+                                                .frame(minWidth: 88, minHeight: 36)
+                                            if let joinHint {
+                                                Text(joinHint)
+                                                    .font(.caption2)
+                                                    .fontWeight(.semibold)
+                                                    .foregroundStyle(Color(red: 0.11, green: 0.37, blue: 0.13))
+                                                    .multilineTextAlignment(.center)
+                                                    .fixedSize(horizontal: false, vertical: true)
+                                            }
                                         }
                                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                    }
-                                    .buttonStyle(.plain)
-                                    .gridCellColumns(3)
-
-                                    Button {
-                                        eventInfoEvent = event
-                                    } label: {
-                                        VStack(alignment: .leading, spacing: 4) {
-                                            Text(event.title)
-                                                .font(.subheadline)
-                                                .fontWeight(.bold)
-                                                .foregroundStyle(Color.black)
-                                                .lineLimit(4)
-                                                .fixedSize(horizontal: false, vertical: true)
-                                            Text(calendarRowMetaSubtitle(for: event, includeLocation: true))
-                                                .font(.caption)
-                                                .foregroundStyle(Color.black.opacity(0.55))
-                                                .lineLimit(3)
-                                                .fixedSize(horizontal: false, vertical: true)
-                                            if (event.waitlistedCount ?? 0) > 0 || (event.pendingCount ?? 0) > 0 {
-                                                CalendarQueueHintView(
-                                                    waitlisted: event.waitlistedCount ?? 0,
-                                                    requested: event.pendingCount ?? 0
-                                                )
-                                                .padding(.top, 2)
+                                    } else if isRegisterableDatabaseCalendarEvent(event) {
+                                        VStack(spacing: 6) {
+                                            Button("Register") {
+                                                registerEvent = event
+                                            }
+                                            .buttonStyle(.borderedProminent)
+                                            .font(.subheadline.bold())
+                                            .frame(minWidth: 88, minHeight: 36)
+                                            .disabled((event.registrationOpen ?? false) == false)
+                                            if let joinHint {
+                                                Text(joinHint)
+                                                    .font(.caption2)
+                                                    .fontWeight(.semibold)
+                                                    .foregroundStyle(Color(red: 0.11, green: 0.37, blue: 0.13))
+                                                    .multilineTextAlignment(.center)
+                                                    .fixedSize(horizontal: false, vertical: true)
                                             }
                                         }
-                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                    } else {
+                                        Color.clear
+                                            .frame(minWidth: 1, minHeight: 36)
                                     }
-                                    .buttonStyle(.plain)
-                                    .gridCellColumns(6)
-
-                                    Group {
-                                        if let status = effectiveStatus {
-                                            VStack(spacing: 6) {
-                                                Text(RegistrationStatusStyle.displayText(status))
-                                                    .font(.caption)
-                                                    .fontWeight(.medium)
-                                                    .foregroundStyle(.white)
-                                                    .padding(.horizontal, 10)
-                                                    .padding(.vertical, 4)
-                                                    .background(Capsule().fill(RegistrationStatusStyle.color(status)))
-                                                    .frame(minWidth: 88, minHeight: 36)
-                                                if let joinHint {
-                                                    Text(joinHint)
-                                                        .font(.caption2)
-                                                        .fontWeight(.semibold)
-                                                        .foregroundStyle(Color(red: 0.11, green: 0.37, blue: 0.13))
-                                                        .multilineTextAlignment(.center)
-                                                        .fixedSize(horizontal: false, vertical: true)
-                                                }
-                                            }
-                                            .frame(maxWidth: .infinity)
-                                        } else if isRegisterableDatabaseCalendarEvent(event) {
-                                            VStack(spacing: 6) {
-                                                Button("Register") {
-                                                    registerEvent = event
-                                                }
-                                                .buttonStyle(.borderedProminent)
-                                                .font(.subheadline.bold())
-                                                .frame(minWidth: 88, minHeight: 36)
-                                                .disabled((event.registrationOpen ?? false) == false)
-                                                if let joinHint {
-                                                    Text(joinHint)
-                                                        .font(.caption2)
-                                                        .fontWeight(.semibold)
-                                                        .foregroundStyle(Color(red: 0.11, green: 0.37, blue: 0.13))
-                                                        .multilineTextAlignment(.center)
-                                                        .fixedSize(horizontal: false, vertical: true)
-                                                }
-                                            }
-                                            .frame(maxWidth: .infinity)
-                                        } else {
-                                            Color.clear
-                                                .frame(minWidth: 1, minHeight: 36)
-                                        }
-                                    }
-                                    .gridCellColumns(3)
                                 }
+                                .gridCellColumns(2)
                             }
-                            .padding(8)
-                            .background(
-                                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                    .fill(Color.white.opacity(0.7))
-                            )
+                        }
+                        .padding(8)
+                        .frame(maxWidth: .infinity)
+                        .background(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .fill(Color.white.opacity(0.7))
+                        )
                         }
                     }
                 }
@@ -5108,7 +5207,8 @@ private struct SportsCalendarView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(10)
+        .padding(specialCardContentInset)
+        .padding(.horizontal, -12)
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .fill(
@@ -5170,6 +5270,12 @@ private struct SportsCalendarView: View {
     }
 }
 
+/// Brand colours for checkout CTAs (approximate Stripe / PayPal primary blues; no logo assets in bundle).
+private enum PaymentCheckoutButtonStyle {
+    static let stripe = Color(red: 99 / 255, green: 91 / 255, blue: 1)
+    static let paypal = Color(red: 0, green: 113 / 255, blue: 186 / 255)
+}
+
 private struct RegisterEventSheet: View {
     let event: CalendarEvent
     @ObservedObject var memberStore: MemberProfileStore
@@ -5193,6 +5299,22 @@ private struct RegisterEventSheet: View {
     @State private var registerError: String?
     @State private var isRegistering = false
     @State private var registerSuccess = false
+    @State private var eventDetail: APICalendarEvent?
+    @State private var isLoadingEventDetail = false
+    /// True after `.task` finishes (or skips) so we do not show "no checkout" before the first fetch.
+    @State private var didFinishEventDetailFetch = false
+
+    private var isPaidEvent: Bool {
+        eventDetail?.isPaid == true && (eventDetail?.priceCents ?? 0) > 0
+    }
+
+    private var canPayStripe: Bool {
+        isPaidEvent && eventDetail?.stripeCheckoutAvailable == true
+    }
+
+    private var canPayPayPal: Bool {
+        isPaidEvent && eventDetail?.paypalCheckoutAvailable == true
+    }
 
     var body: some View {
         NavigationStack {
@@ -5253,20 +5375,87 @@ private struct RegisterEventSheet: View {
                                     TextField("Team name", text: $teamName)
                                         .textFieldStyle(.roundedBorder)
                                 }
+                                if isPaidEvent, let cents = eventDetail?.priceCents, cents > 0 {
+                                    let ccy = eventDetail?.currency ?? "AUD"
+                                    let amt = String(format: "%.2f", Double(cents) / 100)
+                                    Text("Price: \(ccy) $\(amt)")
+                                        .font(.subheadline)
+                                        .fontWeight(.semibold)
+                                        .padding(.top, 2)
+                                }
                                 if let err = registerError {
                                     Text(err)
                                         .font(.caption)
                                         .foregroundStyle(.red)
                                 }
-                                Button {
-                                    Task { await submitRegistration() }
-                                } label: {
-                                    Text(isRegistering ? "Registering…" : "Register")
-                                        .frame(maxWidth: .infinity)
-                                        .padding(.vertical, 10)
+
+                                if isLoadingEventDetail, !event.id.hasPrefix("ics-") {
+                                    HStack(spacing: 8) {
+                                        ProgressView()
+                                        Text("Loading payment options…")
+                                            .font(.subheadline)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    .padding(.top, 6)
+                                } else if canPayStripe || canPayPayPal {
+                                    VStack(spacing: 10) {
+                                        if canPayStripe {
+                                            Button {
+                                                Task { await openCheckout(provider: "stripe") }
+                                            } label: {
+                                                Text("Pay with Stripe")
+                                                    .font(.headline)
+                                                    .fontWeight(.semibold)
+                                                    .frame(maxWidth: .infinity)
+                                                    .padding(.vertical, 14)
+                                                    .foregroundStyle(.white)
+                                                    .background(
+                                                        PaymentCheckoutButtonStyle.stripe,
+                                                        in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                                    )
+                                            }
+                                            .buttonStyle(.plain)
+                                            .disabled(isRegistering || !hasMinimumFieldsForCheckout)
+                                            .accessibilityLabel("Pay with Stripe")
+                                        }
+                                        if canPayPayPal {
+                                            Button {
+                                                Task { await openCheckout(provider: "paypal") }
+                                            } label: {
+                                                Text("Pay with PayPal")
+                                                    .font(.headline)
+                                                    .fontWeight(.semibold)
+                                                    .frame(maxWidth: .infinity)
+                                                    .padding(.vertical, 14)
+                                                    .foregroundStyle(.white)
+                                                    .background(
+                                                        PaymentCheckoutButtonStyle.paypal,
+                                                        in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                                    )
+                                            }
+                                            .buttonStyle(.plain)
+                                            .disabled(isRegistering || !hasMinimumFieldsForCheckout)
+                                            .accessibilityLabel("Pay with PayPal")
+                                        }
+                                    }
+                                    .padding(.top, 4)
+                                } else {
+                                    if isPaidEvent, !canPayStripe, !canPayPayPal, didFinishEventDetailFetch, !event.id.hasPrefix("ics-") {
+                                        Text("This event requires payment, but online checkout is not available right now. Please contact the organiser.")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                            .padding(.top, 4)
+                                    }
+                                    Button {
+                                        Task { await submitRegistration() }
+                                    } label: {
+                                        Text(isRegistering ? "Registering…" : "Register")
+                                            .frame(maxWidth: .infinity)
+                                            .padding(.vertical, 10)
+                                    }
+                                    .buttonStyle(.borderedProminent)
+                                    .disabled(isRegistering || !hasMinimumFieldsForCheckout)
                                 }
-                                .buttonStyle(.borderedProminent)
-                                .disabled(isRegistering || preferredNameInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || (isSpecial && teamName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty))
                             }
                             .padding(.top, 4)
                         }
@@ -5288,6 +5477,72 @@ private struct RegisterEventSheet: View {
                 preferredNameInput = memberStore.preferredName
                 emailInput = memberStore.email
             }
+            .task(id: event.id) {
+                guard registrationActionsAllowed else { return }
+                if event.id.hasPrefix("ics-") {
+                    eventDetail = nil
+                    didFinishEventDetailFetch = true
+                    return
+                }
+                isLoadingEventDetail = true
+                defer {
+                    isLoadingEventDetail = false
+                    didFinishEventDetailFetch = true
+                }
+                if let d = try? await CalendarEventsAPI.get(id: event.id) {
+                    eventDetail = d
+                }
+            }
+        }
+    }
+
+    /// Name + team (if special) required; email optional at button level (backend may enforce).
+    private var hasMinimumFieldsForCheckout: Bool {
+        !preferredNameInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && (!isSpecial || !teamName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+    }
+
+    private func openCheckout(provider: String) async {
+        guard registrationOpen, memberStore.hasProfile else { return }
+        let name = preferredNameInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        let em = emailInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        if name.isEmpty {
+            registerError = "Preferred name is required."
+            return
+        }
+        if isSpecial, teamName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            registerError = "Team name is required for this event."
+            return
+        }
+        isRegistering = true
+        registerError = nil
+        defer { isRegistering = false }
+        let trimmedTeam = teamName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let checkoutTeamName = isSpecial ? (trimmedTeam.isEmpty ? nil : trimmedTeam) : nil
+        do {
+            let res = try await CalendarEventsAPI.checkout(
+                eventId: event.id,
+                provider: provider,
+                preferredName: name,
+                email: em,
+                teamName: checkoutTeamName,
+                appReturn: true
+            )
+            guard let url = URL(string: res.url) else {
+                registerError = "Invalid checkout URL"
+                return
+            }
+            dismiss()
+            onOpenCheckout(url)
+        } catch let err as SparrowsAPIError {
+            switch err {
+            case .httpStatus(_, let msg):
+                registerError = msg ?? "Checkout failed."
+            default:
+                registerError = err.localizedDescription
+            }
+        } catch {
+            registerError = "Unable to start checkout."
         }
     }
 
@@ -5697,6 +5952,11 @@ private final class SportsCalendarViewModel: ObservableObject {
         return "\(dayFormatter.string(from: event.startDate)) - \(dayFormatter.string(from: event.endDate))"
     }
 
+    /// Start time only (e.g. `4:30 pm`) for compact list rows — same timezone/locale as `eventTimeText`.
+    func eventStartTimeOnlyText(for event: CalendarEvent) -> String {
+        formatter("h:mm a").string(from: event.startDate)
+    }
+
     func eventDateTimeDetailText(for event: CalendarEvent) -> String {
         let dayFormatter = formatter("EEE, MMM d, yyyy")
         let timeFormatter = formatter("h:mm a")
@@ -5710,6 +5970,16 @@ private final class SportsCalendarViewModel: ObservableObject {
 
     func eventDateOnlyText(for event: CalendarEvent) -> String {
         formatter("EEE, MMM d, yyyy").string(from: event.startDate)
+    }
+
+    /// “What happens NEXT” list: first line under the time — date only (no weekday).
+    func eventSpecialListDateLine(for event: CalendarEvent) -> String {
+        formatter("MMM d, yyyy").string(from: event.startDate)
+    }
+
+    /// “What happens NEXT” list: second line — weekday only.
+    func eventSpecialListWeekdayLine(for event: CalendarEvent) -> String {
+        formatter("EEE").string(from: event.startDate)
     }
 
     func firstDescriptionParagraph(for event: CalendarEvent) -> String? {

@@ -80,9 +80,16 @@ struct APICalendarEvent: Codable {
     let waitlistedCount: Int?
     /// Count of PENDING registrations.
     let pendingCount: Int?
+    /// Present on GET `/calendar-events/:id` (optional on list).
+    let isPaid: Bool?
+    let priceCents: Int?
+    let currency: String?
+    let stripeCheckoutAvailable: Bool?
+    let paypalCheckoutAvailable: Bool?
 
     enum CodingKeys: String, CodingKey {
         case id, title, startAt, endAt, description, location, sportType, eventType, registrationOpen, capacity, approvedCount, waitlistedCount, pendingCount
+        case isPaid, priceCents, currency, stripeCheckoutAvailable, paypalCheckoutAvailable
     }
 
     init(from decoder: Decoder) throws {
@@ -100,6 +107,11 @@ struct APICalendarEvent: Codable {
         approvedCount = try c.decodeIfPresent(Int.self, forKey: .approvedCount)
         waitlistedCount = try c.decodeIfPresent(Int.self, forKey: .waitlistedCount)
         pendingCount = try c.decodeIfPresent(Int.self, forKey: .pendingCount)
+        isPaid = try c.decodeIfPresent(Bool.self, forKey: .isPaid)
+        priceCents = try c.decodeIfPresent(Int.self, forKey: .priceCents)
+        currency = try c.decodeIfPresent(String.self, forKey: .currency)
+        stripeCheckoutAvailable = try c.decodeIfPresent(Bool.self, forKey: .stripeCheckoutAvailable)
+        paypalCheckoutAvailable = try c.decodeIfPresent(Bool.self, forKey: .paypalCheckoutAvailable)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -117,6 +129,11 @@ struct APICalendarEvent: Codable {
         try c.encodeIfPresent(approvedCount, forKey: .approvedCount)
         try c.encodeIfPresent(waitlistedCount, forKey: .waitlistedCount)
         try c.encodeIfPresent(pendingCount, forKey: .pendingCount)
+        try c.encodeIfPresent(isPaid, forKey: .isPaid)
+        try c.encodeIfPresent(priceCents, forKey: .priceCents)
+        try c.encodeIfPresent(currency, forKey: .currency)
+        try c.encodeIfPresent(stripeCheckoutAvailable, forKey: .stripeCheckoutAvailable)
+        try c.encodeIfPresent(paypalCheckoutAvailable, forKey: .paypalCheckoutAvailable)
     }
 }
 
