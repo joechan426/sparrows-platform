@@ -129,7 +129,8 @@ export const EventList: React.FC = () => {
 
   const dataGrid = useDataGrid<CalendarEventRow>({
     resource: "calendar-events",
-    pagination: { current: 1, pageSize: 500 } as any,
+    // MUI X DataGrid (MIT) caps pageSize at 100; higher values throw at runtime.
+    pagination: { current: 1, pageSize: 100 } as any,
   });
   const { dataGridProps } = dataGrid;
   const refetchList = (dataGrid as any)?.tableQueryResult?.refetch as (() => Promise<unknown>) | undefined;
