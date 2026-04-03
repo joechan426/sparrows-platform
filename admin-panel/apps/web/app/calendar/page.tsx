@@ -6,6 +6,7 @@ import { useAuth } from "@/lib/auth-context";
 import type { CalendarEvent, MemberRegistration } from "@/lib/api";
 import dynamic from "next/dynamic";
 import { useNavRefresh } from "@/lib/nav-refresh-context";
+import { calendarRegistrationHint } from "@/lib/calendar-registration-hint";
 
 const EventDetail = dynamic(
   () => import("@/components/event-detail").then((m) => m.EventDetail),
@@ -53,11 +54,21 @@ function statusText(s: string): string {
 }
 
 function JoinHint({ event }: { event: CalendarEvent }) {
-  const approved = event.approvedCount ?? 0;
-  if (approved <= 0) return null;
+  const hint = calendarRegistrationHint(event);
+  if (hint.kind === "none") return null;
+  if (hint.kind === "capacity") {
+    return (
+      <span
+        className="calendar-capacity-hint"
+        aria-label={`${hint.approved} approved of ${hint.capacity} spaces`}
+      >
+        {hint.approved} / {hint.capacity}
+      </span>
+    );
+  }
   return (
-    <span className="calendar-approved-hint calendar-joined-hint" aria-label={`Approved participants: ${approved}`}>
-      {approved} Joined
+    <span className="calendar-approved-hint calendar-joined-hint" aria-label={`Approved participants: ${hint.count}`}>
+      {hint.count} Joined
     </span>
   );
 }

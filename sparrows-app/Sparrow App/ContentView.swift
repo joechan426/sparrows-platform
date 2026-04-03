@@ -1785,12 +1785,50 @@ private func isRegisterableDatabaseCalendarEvent(_ event: CalendarEvent) -> Bool
     !event.id.hasPrefix("ics-")
 }
 
-/// Neon-backed events only; shown in right-side action column.
-private func calendarParticipantCountHintText(for event: CalendarEvent) -> String? {
-    guard isRegisterableDatabaseCalendarEvent(event) else { return nil }
-    let approved = event.approvedCount ?? 0
-    guard approved > 0 else { return nil }
-    return "\(approved) Joined"
+/// #7a5f06 — deep yellow–brown for approved/capacity pill (matches sparrowsweb).
+private let kCalendarCapacityHintFill = Color(red: 122 / 255, green: 95 / 255, blue: 6 / 255)
+
+/// Right column under Register / status: unlimited shows green "N Joined"; capped events show approved/capacity on a dark yellow rounded rect.
+private struct CalendarEventParticipantHintView: View {
+    let event: CalendarEvent
+
+    private var capacityPair: (approved: Int, cap: Int)? {
+        guard isRegisterableDatabaseCalendarEvent(event),
+              let cap = event.capacity, cap > 0
+        else { return nil }
+        return ((event.approvedCount ?? 0), cap)
+    }
+
+    var body: some View {
+        Group {
+            if let pair = capacityPair {
+                Text("\(pair.approved) / \(pair.cap)")
+                    .font(.caption2)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(kCalendarCapacityHintFill)
+                    )
+                    .multilineTextAlignment(.center)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+            } else if isRegisterableDatabaseCalendarEvent(event) {
+                let approved = event.approvedCount ?? 0
+                if approved > 0 {
+                    Text("\(approved) Joined")
+                        .font(.caption2)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(Color(red: 0.11, green: 0.37, blue: 0.13))
+                        .multilineTextAlignment(.center)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
+                }
+            }
+        }
+    }
 }
 
 private struct CalendarQueueHintView: View {
@@ -4335,19 +4373,48 @@ private struct CalendarEventTimeLabel: View {
                     .font(font)
                     .fontWeight(.bold)
                     .foregroundColor(.white)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(lineLimit)
+                    .minimumScaleFactor(minimumScaleFactor)
+                    .frame(maxWidth: .infinity)
                     .offset(x: o.0, y: o.1)
             }
             Text(text)
                 .font(font)
                 .fontWeight(.bold)
                 .foregroundColor(Self.fillColor)
+                .multilineTextAlignment(.center)
+                .lineLimit(lineLimit)
+                .minimumScaleFactor(minimumScaleFactor)
+                .frame(maxWidth: .infinity)
         }
+        .frame(maxWidth: .infinity)
         .compositingGroup()
-        .multilineTextAlignment(.center)
-        .lineLimit(lineLimit)
-        .minimumScaleFactor(minimumScaleFactor)
         .fixedSize(horizontal: false, vertical: true)
     }
+}
+
+/// Largest single-line font size (rounded bold) so `text` fits in `maxWidth`; aligns with `CalendarEventTimeLabel` scaling.
+private func fittedRoundedBoldTimeFontSize(
+    for text: String,
+    maxWidth: CGFloat,
+    maxSize: CGFloat = 28,
+    minSize: CGFloat = 10
+) -> CGFloat {
+    guard maxWidth > 1, !text.isEmpty else { return min(minSize, maxSize) }
+    var size = maxSize
+    let floor = minSize
+    while size >= floor {
+        let base = UIFont.systemFont(ofSize: size, weight: .bold)
+        let desc = base.fontDescriptor.withDesign(.rounded) ?? base.fontDescriptor
+        let font = UIFont(descriptor: desc, size: size)
+        let w = (text as NSString).size(withAttributes: [.font: font]).width
+        if w <= maxWidth {
+            return size
+        }
+        size -= 0.5
+    }
+    return floor
 }
 
 private struct SportsCalendarView: View {
@@ -4374,7 +4441,7 @@ private struct SportsCalendarView: View {
     private let selectedDateHighlightColor = Color(red: 0.0, green: 0.45, blue: 0.2)
     private let minimumListSectionHeight: CGFloat = 156
 
-    /// Split list area height: **60%** normal events, **40%** “What happens NEXT” (of space below the `listMidGap`). Uses measured height so no gap above the tab bar.
+    /// Split list area height: **50%** normal events, **50%** “What happens NEXT” (of space below the `listMidGap`). Uses measured height so no gap above the tab bar.
     private static func splitCalendarListHeights(available: CGFloat, listMidGap: CGFloat, minimumNormal: CGFloat) -> (CGFloat, CGFloat) {
         let a = max(0, available)
         guard a > listMidGap + 1 else {
@@ -4383,7 +4450,7 @@ private struct SportsCalendarView: View {
         let inner = a - listMidGap
         let minSpecial: CGFloat = 88
 
-        var normal = floor(inner * 0.6)
+        var normal = floor(inner * 0.5)
         var special = inner - normal
         if normal < minimumNormal {
             normal = minimumNormal
@@ -4910,7 +4977,6 @@ private struct SportsCalendarView: View {
                                 let myRegistration = calendarRegistrations.first(where: { $0.event?.id == event.id })
                                 let optimisticPending = optimisticPendingEventIds.contains(event.id)
                                 let effectiveStatus: String? = myRegistration?.status ?? (optimisticPending ? "PENDING" : nil)
-                                let joinHint = calendarParticipantCountHintText(for: event)
                                 Grid(horizontalSpacing: 8, verticalSpacing: 6) {
                                     GridRow(alignment: .center) {
                                         Button {
@@ -4970,14 +5036,7 @@ private struct SportsCalendarView: View {
                                                         .padding(.vertical, 4)
                                                         .background(Capsule().fill(RegistrationStatusStyle.color(status)))
                                                         .frame(minWidth: 88, minHeight: 36)
-                                                    if let joinHint {
-                                                        Text(joinHint)
-                                                            .font(.caption2)
-                                                            .fontWeight(.semibold)
-                                                            .foregroundStyle(Color(red: 0.11, green: 0.37, blue: 0.13))
-                                                            .multilineTextAlignment(.center)
-                                                            .fixedSize(horizontal: false, vertical: true)
-                                                    }
+                                                    CalendarEventParticipantHintView(event: event)
                                                 }
                                                 .frame(maxWidth: .infinity)
                                             } else if isRegisterableDatabaseCalendarEvent(event) {
@@ -4989,14 +5048,7 @@ private struct SportsCalendarView: View {
                                                     .font(.subheadline.bold())
                                                     .frame(minWidth: 88, minHeight: 36)
                                                     .disabled((event.registrationOpen ?? false) == false)
-                                                    if let joinHint {
-                                                        Text(joinHint)
-                                                            .font(.caption2)
-                                                            .fontWeight(.semibold)
-                                                            .foregroundStyle(Color(red: 0.11, green: 0.37, blue: 0.13))
-                                                            .multilineTextAlignment(.center)
-                                                            .fixedSize(horizontal: false, vertical: true)
-                                                    }
+                                                    CalendarEventParticipantHintView(event: event)
                                                 }
                                                 .frame(maxWidth: .infinity)
                                             } else {
@@ -5052,8 +5104,8 @@ private struct SportsCalendarView: View {
     }
 
     private func whatHappensNextSection(height: CGFloat) -> some View {
-        // Inset from yellow/orange card edge to inner content (~16pt is iOS default margin; 14h / 12v keeps type clear of stroke).
-        let specialCardContentInset = EdgeInsets(top: 12, leading: 14, bottom: 12, trailing: 14)
+        // Keep vertical insets modest; leading/trailing were 42 (legacy ×3 of 14) and read much thicker than top/bottom — halved to align with user expectation.
+        let specialCardContentInset = EdgeInsets(top: 12, leading: 21, bottom: 12, trailing: 21)
 
         return VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
@@ -5077,38 +5129,54 @@ private struct SportsCalendarView: View {
                             let myRegistration = calendarRegistrations.first(where: { $0.event?.id == event.id })
                             let optimisticPending = optimisticPendingEventIds.contains(event.id)
                             let effectiveStatus: String? = myRegistration?.status ?? (optimisticPending ? "PENDING" : nil)
-                            let joinHint = calendarParticipantCountHintText(for: event)
 
                             Grid(horizontalSpacing: 8, verticalSpacing: 6) {
                             GridRow(alignment: .center) {
                                 Button {
                                     eventInfoEvent = event
                                 } label: {
-                                    VStack(spacing: 4) {
-                                        Spacer(minLength: 0)
-                                        CalendarEventTimeLabel(
-                                            text: viewModel.eventStartTimeOnlyText(for: event),
-                                            lineLimit: 1,
-                                            font: .headline,
-                                            minimumScaleFactor: 0.6
+                                    GeometryReader { geo in
+                                        let timeText = viewModel.eventStartTimeOnlyText(for: event)
+                                        let colW = max(0, geo.size.width - 2)
+                                        let timeFont = fittedRoundedBoldTimeFontSize(
+                                            for: timeText,
+                                            maxWidth: colW,
+                                            maxSize: 28,
+                                            minSize: 28 * 0.35
                                         )
-                                        VStack(spacing: 1) {
-                                            Text(viewModel.eventSpecialListDateLine(for: event))
-                                                .font(.system(size: 12, weight: .semibold, design: .rounded))
-                                                .foregroundStyle(Color.black.opacity(0.58))
-                                                .multilineTextAlignment(.center)
-                                                .lineLimit(1)
-                                                .minimumScaleFactor(0.65)
-                                            Text(viewModel.eventSpecialListWeekdayLine(for: event))
-                                                .font(.system(size: 12, weight: .medium, design: .rounded))
-                                                .foregroundStyle(Color.black.opacity(0.52))
-                                                .multilineTextAlignment(.center)
-                                                .lineLimit(1)
-                                                .minimumScaleFactor(0.65)
+                                        let subSize = max(8, timeFont * 0.8)
+                                        VStack {
+                                            Spacer(minLength: 0)
+                                            VStack(alignment: .center, spacing: 4) {
+                                                CalendarEventTimeLabel(
+                                                    text: timeText,
+                                                    lineLimit: 1,
+                                                    font: .system(size: timeFont, weight: .bold, design: .rounded),
+                                                    minimumScaleFactor: 1
+                                                )
+                                                .frame(maxWidth: .infinity)
+                                                VStack(alignment: .center, spacing: 2) {
+                                                    Text(viewModel.eventSpecialListDateLine(for: event))
+                                                        .font(.system(size: subSize, weight: .semibold, design: .rounded))
+                                                        .foregroundStyle(Color.black.opacity(0.58))
+                                                        .multilineTextAlignment(.center)
+                                                        .lineLimit(1)
+                                                        .minimumScaleFactor(0.75)
+                                                        .frame(maxWidth: .infinity)
+                                                    Text(viewModel.eventSpecialListWeekdayLine(for: event))
+                                                        .font(.system(size: subSize, weight: .medium, design: .rounded))
+                                                        .foregroundStyle(Color.black.opacity(0.52))
+                                                        .multilineTextAlignment(.center)
+                                                        .lineLimit(1)
+                                                        .minimumScaleFactor(0.75)
+                                                        .frame(maxWidth: .infinity)
+                                                }
+                                                .frame(maxWidth: .infinity)
+                                            }
+                                            Spacer(minLength: 0)
                                         }
-                                        Spacer(minLength: 0)
+                                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                                     }
-                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                                 }
                                 .buttonStyle(.plain)
                                 .gridCellColumns(2)
@@ -5121,7 +5189,7 @@ private struct SportsCalendarView: View {
                                             .font(.subheadline)
                                             .fontWeight(.bold)
                                             .foregroundStyle(Color.black)
-                                            .lineLimit(4)
+                                            .lineLimit(2)
                                             .fixedSize(horizontal: false, vertical: true)
                                         Text(calendarRowMetaSubtitle(for: event, includeLocation: true))
                                             .font(.caption)
@@ -5139,7 +5207,7 @@ private struct SportsCalendarView: View {
                                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
                                 }
                                 .buttonStyle(.plain)
-                                .gridCellColumns(8)
+                                .gridCellColumns(6)
 
                                 Group {
                                     if let status = effectiveStatus {
@@ -5152,14 +5220,7 @@ private struct SportsCalendarView: View {
                                                 .padding(.vertical, 4)
                                                 .background(Capsule().fill(RegistrationStatusStyle.color(status)))
                                                 .frame(minWidth: 88, minHeight: 36)
-                                            if let joinHint {
-                                                Text(joinHint)
-                                                    .font(.caption2)
-                                                    .fontWeight(.semibold)
-                                                    .foregroundStyle(Color(red: 0.11, green: 0.37, blue: 0.13))
-                                                    .multilineTextAlignment(.center)
-                                                    .fixedSize(horizontal: false, vertical: true)
-                                            }
+                                            CalendarEventParticipantHintView(event: event)
                                         }
                                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                                     } else if isRegisterableDatabaseCalendarEvent(event) {
@@ -5171,14 +5232,7 @@ private struct SportsCalendarView: View {
                                             .font(.subheadline.bold())
                                             .frame(minWidth: 88, minHeight: 36)
                                             .disabled((event.registrationOpen ?? false) == false)
-                                            if let joinHint {
-                                                Text(joinHint)
-                                                    .font(.caption2)
-                                                    .fontWeight(.semibold)
-                                                    .foregroundStyle(Color(red: 0.11, green: 0.37, blue: 0.13))
-                                                    .multilineTextAlignment(.center)
-                                                    .fixedSize(horizontal: false, vertical: true)
-                                            }
+                                            CalendarEventParticipantHintView(event: event)
                                         }
                                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                                     } else {
@@ -5189,7 +5243,8 @@ private struct SportsCalendarView: View {
                                 .gridCellColumns(2)
                             }
                         }
-                        .padding(8)
+                        .padding(.vertical, 8)
+                        .padding(.horizontal, 2)
                         .frame(maxWidth: .infinity)
                         .background(
                             RoundedRectangle(cornerRadius: 10, style: .continuous)
@@ -5549,19 +5604,37 @@ private struct RegisterEventSheet: View {
     @ViewBuilder
     private var registrationStatusBlock: some View {
         let openText = registrationOpen ? "Open" : "Closed"
-        let hint = calendarParticipantCountHintText(for: event)
+        let approved = event.approvedCount ?? 0
+        let capacityValue = event.capacity
+        let hasCapacity = isRegisterableDatabaseCalendarEvent(event) && capacityValue != nil && (capacityValue ?? 0) > 0
+        let cap = capacityValue ?? 0
+        let showJoined = isRegisterableDatabaseCalendarEvent(event) && !hasCapacity && approved > 0
         VStack(alignment: .leading, spacing: 4) {
             Text("Registration")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            HStack(alignment: .firstTextBaseline, spacing: 0) {
+            HStack(alignment: .center, spacing: 0) {
                 Text(openText)
                     .font(.body)
-                if let hint {
+                if hasCapacity {
                     Text(verbatim: " · ")
                         .font(.body)
                         .foregroundStyle(.secondary)
-                    Text(hint)
+                    Text("\(approved) / \(cap)")
+                        .font(.body)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .fill(kCalendarCapacityHintFill)
+                        )
+                } else if showJoined {
+                    Text(verbatim: " · ")
+                        .font(.body)
+                        .foregroundStyle(.secondary)
+                    Text("\(approved) Joined")
                         .font(.body)
                         .fontWeight(.semibold)
                         .foregroundStyle(.secondary)
@@ -5972,9 +6045,9 @@ private final class SportsCalendarViewModel: ObservableObject {
         formatter("EEE, MMM d, yyyy").string(from: event.startDate)
     }
 
-    /// “What happens NEXT” list: first line under the time — date only (no weekday).
+    /// “What happens NEXT” list: first line under the time — month + day only (e.g. `Apr 30`).
     func eventSpecialListDateLine(for event: CalendarEvent) -> String {
-        formatter("MMM d, yyyy").string(from: event.startDate)
+        formatter("MMM d").string(from: event.startDate)
     }
 
     /// “What happens NEXT” list: second line — weekday only.

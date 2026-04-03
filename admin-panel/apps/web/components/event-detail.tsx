@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import type { CalendarEvent, Member } from "@/lib/api";
 import { apiCalendarEvent, apiCreateEventCheckout, apiRegisterForEvent } from "@/lib/api";
-import { approvedRegistrationHint } from "@/lib/calendar-registration-hint";
+import { calendarRegistrationHint } from "@/lib/calendar-registration-hint";
 
 const SYDNEY_TIME_ZONE = "Australia/Sydney";
 function formatDate(d: string): string {
@@ -41,7 +41,7 @@ type Props = {
 
 export function EventDetail({ event, member, onClose, onRegistered, infoOnly = false }: Props) {
   const [eventData, setEventData] = useState<CalendarEvent>(event);
-  const joinHint = approvedRegistrationHint(eventData);
+  const registrationHint = calendarRegistrationHint(eventData);
   const [preferredName, setPreferredName] = useState(member?.preferredName ?? "");
   const [email, setEmail] = useState(member?.email ?? "");
   const [teamName, setTeamName] = useState("");
@@ -166,10 +166,16 @@ export function EventDetail({ event, member, onClose, onRegistered, infoOnly = f
           <dt>Registration</dt>
           <dd>
             {eventData.registrationOpen ? "Open" : "Closed"}
-            {joinHint ? (
+            {registrationHint.kind !== "none" ? (
               <>
                 {" · "}
-                <span className="event-detail-join-hint">{joinHint}</span>
+                {registrationHint.kind === "joined" ? (
+                  <span className="event-detail-join-hint">{registrationHint.count} Joined</span>
+                ) : (
+                  <span className="event-detail-capacity-hint">
+                    {registrationHint.approved} / {registrationHint.capacity}
+                  </span>
+                )}
               </>
             ) : null}
           </dd>

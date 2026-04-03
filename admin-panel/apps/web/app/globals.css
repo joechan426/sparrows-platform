@@ -1163,6 +1163,19 @@ input[type="password"] {
   color: #1b5e20;
   font-weight: 700;
 }
+.calendar-capacity-hint {
+  display: inline-block;
+  background: #7a5f06;
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.75rem;
+  line-height: 1.2;
+  padding: 4px 10px;
+  border-radius: 8px;
+  text-align: center;
+  max-width: 100%;
+  white-space: nowrap;
+}
 .calendar-event-actions-spacer {
   display: block;
   min-width: 72px;
@@ -1346,6 +1359,16 @@ input[type="password"] {
 .event-detail-join-hint {
   font-weight: 600;
   color: rgba(0, 0, 0, 0.6);
+}
+.event-detail-capacity-hint {
+  display: inline-block;
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: #fff;
+  background: #7a5f06;
+  padding: 3px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
 }
 .event-detail-form-title {
   font-size: 1rem;
