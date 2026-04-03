@@ -77,29 +77,35 @@ export const EventList: React.FC = () => {
   const isCoach = storedAdmin?.role === "COACH";
 
   const SYDNEY_TIME_ZONE = "Australia/Sydney";
+  const formatPartsAU = (d: Date, opts: Intl.DateTimeFormatOptions) => {
+    // Some browsers can throw RangeError for unsupported/unknown time zones.
+    // Fall back to the device's local timezone rather than crashing the whole page.
+    try {
+      return new Intl.DateTimeFormat("en-AU", { ...opts, timeZone: SYDNEY_TIME_ZONE }).formatToParts(d);
+    } catch {
+      return new Intl.DateTimeFormat("en-AU", opts).formatToParts(d);
+    }
+  };
   const sydneyMonthYearKey = (d: Date) => {
-    const dtf = new Intl.DateTimeFormat("en-AU", {
-      timeZone: SYDNEY_TIME_ZONE,
-      year: "numeric",
-      month: "2-digit",
-    });
-    const parts = dtf.formatToParts(d);
-    const year = parts.find((p) => p.type === "year")?.value;
-    const month = parts.find((p) => p.type === "month")?.value;
-    return year && month ? `${year}-${month}` : "";
+    try {
+      const parts = formatPartsAU(d, { year: "numeric", month: "2-digit" });
+      const year = parts.find((p) => p.type === "year")?.value;
+      const month = parts.find((p) => p.type === "month")?.value;
+      return year && month ? `${year}-${month}` : "";
+    } catch {
+      return "";
+    }
   };
   const sydneyDateKey = (d: Date) => {
-    const dtf = new Intl.DateTimeFormat("en-AU", {
-      timeZone: SYDNEY_TIME_ZONE,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    });
-    const parts = dtf.formatToParts(d);
-    const year = parts.find((p) => p.type === "year")?.value;
-    const month = parts.find((p) => p.type === "month")?.value;
-    const day = parts.find((p) => p.type === "day")?.value;
-    return year && month && day ? `${year}-${month}-${day}` : "";
+    try {
+      const parts = formatPartsAU(d, { year: "numeric", month: "2-digit", day: "2-digit" });
+      const year = parts.find((p) => p.type === "year")?.value;
+      const month = parts.find((p) => p.type === "month")?.value;
+      const day = parts.find((p) => p.type === "day")?.value;
+      return year && month && day ? `${year}-${month}-${day}` : "";
+    } catch {
+      return "";
+    }
   };
 
   const sydneyMonthLabel = (monthYearKey: string) => {
@@ -110,11 +116,11 @@ export const EventList: React.FC = () => {
     if (!Number.isFinite(yyyy) || !Number.isFinite(mm)) return monthYearKey;
     const date = new Date(yyyy, mm - 1, 1);
     if (Number.isNaN(date.getTime())) return monthYearKey;
-    return new Intl.DateTimeFormat("en-AU", {
-      timeZone: SYDNEY_TIME_ZONE,
-      month: "long",
-      year: "numeric",
-    }).format(date);
+    try {
+      return new Intl.DateTimeFormat("en-AU", { timeZone: SYDNEY_TIME_ZONE, month: "long", year: "numeric" }).format(date);
+    } catch {
+      return new Intl.DateTimeFormat("en-AU", { month: "long", year: "numeric" }).format(date);
+    }
   };
 
   const nowSydney = new Date();
@@ -361,19 +367,23 @@ export const EventList: React.FC = () => {
   const filteredListRows = React.useMemo(() => {
     const q = listSearchQuery.trim().toLowerCase();
     return listRows.filter((row) => {
-      // Month filter based on `startAt` (Sydney timezone).
-      if (selectedMonthKey) {
-        const d = new Date(row.startAt);
-        if (Number.isNaN(d.getTime())) return false;
-        if (sydneyMonthYearKey(d) !== selectedMonthKey) return false;
-      }
+      try {
+        // Month filter based on `startAt` (Sydney timezone).
+        if (selectedMonthKey) {
+          const d = new Date(row.startAt);
+          if (Number.isNaN(d.getTime())) return false;
+          if (sydneyMonthYearKey(d) !== selectedMonthKey) return false;
+        }
 
-      if (!q) return true;
-      return (
-        (row.title ?? "").toLowerCase().includes(q) ||
-        (row.sportType ?? "").toLowerCase().includes(q) ||
-        (row.eventType ?? "").toLowerCase().includes(q)
-      );
+        if (!q) return true;
+        return (
+          (row.title ?? "").toLowerCase().includes(q) ||
+          (row.sportType ?? "").toLowerCase().includes(q) ||
+          (row.eventType ?? "").toLowerCase().includes(q)
+        );
+      } catch {
+        return false;
+      }
     });
   }, [listRows, listSearchQuery, selectedMonthKey]);
 
