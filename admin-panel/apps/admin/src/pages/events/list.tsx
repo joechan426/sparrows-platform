@@ -9,9 +9,6 @@ import Typography from "@mui/material/Typography";
 import Switch from "@mui/material/Switch";
 import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
-import FormControl from "@mui/material/FormControl";
-import InputLabel from "@mui/material/InputLabel";
-import Select from "@mui/material/Select";
 import MenuItem from "@mui/material/MenuItem";
 import Dialog from "@mui/material/Dialog";
 import DialogTitle from "@mui/material/DialogTitle";
@@ -70,6 +67,24 @@ function getEventType(summary: string): string {
   return t.includes("cup") ? "SPECIAL" : "NORMAL";
 }
 
+/** YYYY-MM for `input type="month"`, using Sydney calendar month (matches event filtering). */
+function currentSydneyMonthYyyyMm(): string {
+  const d = new Date();
+  try {
+    const parts = new Intl.DateTimeFormat("en-AU", {
+      timeZone: "Australia/Sydney",
+      year: "numeric",
+      month: "2-digit",
+    }).formatToParts(d);
+    const y = parts.find((p) => p.type === "year")?.value;
+    const m = parts.find((p) => p.type === "month")?.value;
+    if (y && m) return `${y}-${m}`;
+  } catch {
+    // fall through
+  }
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
 export const EventList: React.FC = () => {
   const navigate = useNavigate();
   const { open: openNotification } = useNotification();
@@ -108,23 +123,7 @@ export const EventList: React.FC = () => {
     }
   };
 
-  const sydneyMonthLabel = (monthYearKey: string) => {
-    const m = monthYearKey.match(/^(\d{4})-(\d{2})$/);
-    if (!m) return monthYearKey;
-    const yyyy = Number(m[1]);
-    const mm = Number(m[2]);
-    if (!Number.isFinite(yyyy) || !Number.isFinite(mm)) return monthYearKey;
-    const date = new Date(yyyy, mm - 1, 1);
-    if (Number.isNaN(date.getTime())) return monthYearKey;
-    try {
-      return new Intl.DateTimeFormat("en-AU", { timeZone: SYDNEY_TIME_ZONE, month: "long", year: "numeric" }).format(date);
-    } catch {
-      return new Intl.DateTimeFormat("en-AU", { month: "long", year: "numeric" }).format(date);
-    }
-  };
-
   const nowSydney = new Date();
-  const defaultMonthKey = sydneyMonthYearKey(nowSydney);
   const todayKeySydney = sydneyDateKey(nowSydney);
 
   const dataGrid = useDataGrid<CalendarEventRow>({
@@ -152,7 +151,8 @@ export const EventList: React.FC = () => {
   const [bulkActionLoading, setBulkActionLoading] = useState(false);
   const [listSearchQuery, setListSearchQuery] = useState("");
   const [importSearchQuery, setImportSearchQuery] = useState("");
-  const [selectedMonthKey, setSelectedMonthKey] = useState<string>(defaultMonthKey);
+  const [monthFilter, setMonthFilter] = useState<string>(() => currentSydneyMonthYyyyMm());
+  const [showAllEvents, setShowAllEvents] = useState(false);
 
   const selectedIds = rowSelectionModel.type === "include" ? Array.from(rowSelectionModel.ids) as string[] : [];
   const selectedCount = rowSelectionModel.type === "include" ? rowSelectionModel.ids.size : 0;
@@ -353,27 +353,14 @@ export const EventList: React.FC = () => {
 
   const listRows = (dataGridProps.rows ?? []) as CalendarEventRow[];
 
-  const monthOptions = React.useMemo(() => {
-    const keys = new Set<string>();
-    for (const row of listRows) {
-      if (!row.startAt) continue;
-      const d = new Date(row.startAt);
-      if (Number.isNaN(d.getTime())) continue;
-      const k = sydneyMonthYearKey(d);
-      if (k) keys.add(k);
-    }
-    return Array.from(keys).sort((a, b) => (a < b ? 1 : -1));
-  }, [listRows]);
-
   const filteredListRows = React.useMemo(() => {
     const q = listSearchQuery.trim().toLowerCase();
     return listRows.filter((row) => {
       try {
-        // Month filter based on `startAt` (Sydney timezone).
-        if (selectedMonthKey) {
+        if (!showAllEvents && monthFilter) {
           const d = new Date(row.startAt);
           if (Number.isNaN(d.getTime())) return false;
-          if (sydneyMonthYearKey(d) !== selectedMonthKey) return false;
+          if (sydneyMonthYearKey(d) !== monthFilter) return false;
         }
 
         if (!q) return true;
@@ -386,7 +373,7 @@ export const EventList: React.FC = () => {
         return false;
       }
     });
-  }, [listRows, listSearchQuery, selectedMonthKey]);
+  }, [listRows, listSearchQuery, monthFilter, showAllEvents]);
 
   const columns = React.useMemo<GridColDef[]>(
     () => [
@@ -597,25 +584,6 @@ export const EventList: React.FC = () => {
                   Create event
                 </Button>
               </Stack>
-              <Stack direction="row" spacing={2} alignItems="center" sx={{ flexWrap: "wrap" }}>
-                <FormControl size="small" sx={{ minWidth: 240 }}>
-                  <InputLabel id="events-month-select-label">Month</InputLabel>
-                  <Select
-                    labelId="events-month-select-label"
-                    label="Month"
-                    value={selectedMonthKey || monthOptions[0] || ""}
-                    onChange={(e) => setSelectedMonthKey(String(e.target.value))}
-                  >
-                    {[selectedMonthKey, ...monthOptions.filter((k) => k !== selectedMonthKey)]
-                      .filter(Boolean)
-                      .map((k) => (
-                      <MenuItem key={k} value={k as string}>
-                        {sydneyMonthLabel(k)}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Stack>
               {selectedCount > 0 && (
                 <Stack direction="row" spacing={1} flexWrap="wrap" alignItems="center">
                   <Typography variant="body2" color="text.secondary" sx={{ ml: { sm: 1 } }}>
@@ -646,6 +614,44 @@ export const EventList: React.FC = () => {
           )
         }
       >
+        <Stack spacing={2} sx={{ mb: 1 }}>
+          <Stack
+            direction={{ xs: "column", sm: "row" }}
+            spacing={2}
+            alignItems={{ xs: "stretch", sm: "center" }}
+            flexWrap="wrap"
+          >
+            <TextField
+              select
+              size="small"
+              label="Period"
+              value={showAllEvents ? "all" : "month"}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (v === "all") setShowAllEvents(true);
+                else {
+                  setShowAllEvents(false);
+                  if (!monthFilter) setMonthFilter(currentSydneyMonthYyyyMm());
+                }
+              }}
+              sx={{ minWidth: 220, width: { xs: "100%", sm: "auto" } }}
+            >
+              <MenuItem value="month">Single month</MenuItem>
+              <MenuItem value="all">All events</MenuItem>
+            </TextField>
+            {!showAllEvents && (
+              <TextField
+                type="month"
+                size="small"
+                label="Month"
+                value={monthFilter}
+                onChange={(e) => setMonthFilter(e.target.value)}
+                InputLabelProps={{ shrink: true }}
+                sx={{ minWidth: 200, width: { xs: "100%", sm: "auto" } }}
+              />
+            )}
+          </Stack>
+        </Stack>
         <TextField
           size="small"
           placeholder="Search event & sport…"
