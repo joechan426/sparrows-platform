@@ -9,6 +9,10 @@ import Typography from "@mui/material/Typography";
 import Switch from "@mui/material/Switch";
 import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
+import FormControl from "@mui/material/FormControl";
+import InputLabel from "@mui/material/InputLabel";
+import Select from "@mui/material/Select";
+import MenuItem from "@mui/material/MenuItem";
 import Dialog from "@mui/material/Dialog";
 import DialogTitle from "@mui/material/DialogTitle";
 import DialogContent from "@mui/material/DialogContent";
@@ -71,8 +75,50 @@ export const EventList: React.FC = () => {
   const { open: openNotification } = useNotification();
   const storedAdmin = getStoredAdmin();
   const isCoach = storedAdmin?.role === "COACH";
+
+  const SYDNEY_TIME_ZONE = "Australia/Sydney";
+  const sydneyMonthYearKey = (d: Date) => {
+    const dtf = new Intl.DateTimeFormat("en-AU", {
+      timeZone: SYDNEY_TIME_ZONE,
+      year: "numeric",
+      month: "2-digit",
+    });
+    const parts = dtf.formatToParts(d);
+    const year = parts.find((p) => p.type === "year")?.value;
+    const month = parts.find((p) => p.type === "month")?.value;
+    return year && month ? `${year}-${month}` : "";
+  };
+  const sydneyDateKey = (d: Date) => {
+    const dtf = new Intl.DateTimeFormat("en-AU", {
+      timeZone: SYDNEY_TIME_ZONE,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
+    const parts = dtf.formatToParts(d);
+    const year = parts.find((p) => p.type === "year")?.value;
+    const month = parts.find((p) => p.type === "month")?.value;
+    const day = parts.find((p) => p.type === "day")?.value;
+    return year && month && day ? `${year}-${month}-${day}` : "";
+  };
+
+  const sydneyMonthLabel = (monthYearKey: string) => {
+    const [yyyy, mm] = monthYearKey.split("-");
+    const date = new Date(Number(yyyy), Number(mm) - 1, 1);
+    return new Intl.DateTimeFormat("en-AU", {
+      timeZone: SYDNEY_TIME_ZONE,
+      month: "long",
+      year: "numeric",
+    }).format(date);
+  };
+
+  const nowSydney = new Date();
+  const defaultMonthKey = sydneyMonthYearKey(nowSydney);
+  const todayKeySydney = sydneyDateKey(nowSydney);
+
   const dataGrid = useDataGrid<CalendarEventRow>({
     resource: "calendar-events",
+    pagination: { current: 1, pageSize: 500 } as any,
   });
   const { dataGridProps } = dataGrid;
   const refetchList = (dataGrid as any)?.tableQueryResult?.refetch as (() => Promise<unknown>) | undefined;
@@ -94,6 +140,7 @@ export const EventList: React.FC = () => {
   const [bulkActionLoading, setBulkActionLoading] = useState(false);
   const [listSearchQuery, setListSearchQuery] = useState("");
   const [importSearchQuery, setImportSearchQuery] = useState("");
+  const [selectedMonthKey, setSelectedMonthKey] = useState<string>(defaultMonthKey);
 
   const selectedIds = rowSelectionModel.type === "include" ? Array.from(rowSelectionModel.ids) as string[] : [];
   const selectedCount = rowSelectionModel.type === "include" ? rowSelectionModel.ids.size : 0;
@@ -293,16 +340,37 @@ export const EventList: React.FC = () => {
   };
 
   const listRows = (dataGridProps.rows ?? []) as CalendarEventRow[];
+
+  const monthOptions = React.useMemo(() => {
+    const keys = new Set<string>();
+    for (const row of listRows) {
+      if (!row.startAt) continue;
+      const d = new Date(row.startAt);
+      if (Number.isNaN(d.getTime())) continue;
+      const k = sydneyMonthYearKey(d);
+      if (k) keys.add(k);
+    }
+    return Array.from(keys).sort((a, b) => (a < b ? 1 : -1));
+  }, [listRows]);
+
   const filteredListRows = React.useMemo(() => {
     const q = listSearchQuery.trim().toLowerCase();
-    if (!q) return listRows;
-    return listRows.filter(
-      (row) =>
+    return listRows.filter((row) => {
+      // Month filter based on `startAt` (Sydney timezone).
+      if (selectedMonthKey) {
+        const d = new Date(row.startAt);
+        if (Number.isNaN(d.getTime())) return false;
+        if (sydneyMonthYearKey(d) !== selectedMonthKey) return false;
+      }
+
+      if (!q) return true;
+      return (
         (row.title ?? "").toLowerCase().includes(q) ||
         (row.sportType ?? "").toLowerCase().includes(q) ||
-        (row.eventType ?? "").toLowerCase().includes(q),
-    );
-  }, [listRows, listSearchQuery]);
+        (row.eventType ?? "").toLowerCase().includes(q)
+      );
+    });
+  }, [listRows, listSearchQuery, selectedMonthKey]);
 
   const columns = React.useMemo<GridColDef[]>(
     () => [
@@ -314,7 +382,7 @@ export const EventList: React.FC = () => {
         align: "left",
         renderCell: ({ row }) => (
           <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
-            <Link to={`/events/${row.id}`} style={{ textDecoration: "none", width: "100%" }}>
+            <Link to={`/events/${row.id}/registrations`} style={{ textDecoration: "none", width: "100%" }}>
               <Typography color="primary" sx={{ fontWeight: 500, textAlign: "left", width: "100%" }}>
                 {row.title ?? "-"}
               </Typography>
@@ -513,6 +581,25 @@ export const EventList: React.FC = () => {
                   Create event
                 </Button>
               </Stack>
+              <Stack direction="row" spacing={2} alignItems="center" sx={{ flexWrap: "wrap" }}>
+                <FormControl size="small" sx={{ minWidth: 240 }}>
+                  <InputLabel id="events-month-select-label">Month</InputLabel>
+                  <Select
+                    labelId="events-month-select-label"
+                    label="Month"
+                    value={selectedMonthKey || monthOptions[0] || ""}
+                    onChange={(e) => setSelectedMonthKey(String(e.target.value))}
+                  >
+                    {[selectedMonthKey, ...monthOptions.filter((k) => k !== selectedMonthKey)]
+                      .filter(Boolean)
+                      .map((k) => (
+                      <MenuItem key={k} value={k as string}>
+                        {sydneyMonthLabel(k)}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Stack>
               {selectedCount > 0 && (
                 <Stack direction="row" spacing={1} flexWrap="wrap" alignItems="center">
                   <Typography variant="body2" color="text.secondary" sx={{ ml: { sm: 1 } }}>
@@ -557,6 +644,11 @@ export const EventList: React.FC = () => {
           columns={gridPrefs.columns}
           autoHeight
           getRowId={(row: CalendarEventRow) => row.id}
+          getRowClassName={(params) => {
+            const row = params.row as CalendarEventRow;
+            const k = row.startAt ? sydneyDateKey(new Date(row.startAt)) : "";
+            return k && k === todayKeySydney ? "event-row-today-highlight" : "";
+          }}
           checkboxSelection={!isCoach}
           disableRowSelectionExcludeModel
           rowSelectionModel={rowSelectionModel}
@@ -567,6 +659,12 @@ export const EventList: React.FC = () => {
           sx={{
             "& .MuiDataGrid-row:nth-of-type(even)": {
               backgroundColor: "action.hover",
+            },
+            "& .event-row-today-highlight": {
+              backgroundColor: "#f2c94c !important",
+              "&:hover": {
+                backgroundColor: "#f2c94c !important",
+              },
             },
           }}
         />
