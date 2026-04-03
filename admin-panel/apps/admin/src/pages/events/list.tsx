@@ -103,8 +103,13 @@ export const EventList: React.FC = () => {
   };
 
   const sydneyMonthLabel = (monthYearKey: string) => {
-    const [yyyy, mm] = monthYearKey.split("-");
-    const date = new Date(Number(yyyy), Number(mm) - 1, 1);
+    const m = monthYearKey.match(/^(\d{4})-(\d{2})$/);
+    if (!m) return monthYearKey;
+    const yyyy = Number(m[1]);
+    const mm = Number(m[2]);
+    if (!Number.isFinite(yyyy) || !Number.isFinite(mm)) return monthYearKey;
+    const date = new Date(yyyy, mm - 1, 1);
+    if (Number.isNaN(date.getTime())) return monthYearKey;
     return new Intl.DateTimeFormat("en-AU", {
       timeZone: SYDNEY_TIME_ZONE,
       month: "long",
@@ -645,9 +650,13 @@ export const EventList: React.FC = () => {
           autoHeight
           getRowId={(row: CalendarEventRow) => row.id}
           getRowClassName={(params) => {
-            const row = params.row as CalendarEventRow;
-            const k = row.startAt ? sydneyDateKey(new Date(row.startAt)) : "";
-            return k && k === todayKeySydney ? "event-row-today-highlight" : "";
+            try {
+              const row = params.row as CalendarEventRow;
+              const k = row.startAt ? sydneyDateKey(new Date(row.startAt)) : "";
+              return k && k === todayKeySydney ? "event-row-today-highlight" : "";
+            } catch {
+              return "";
+            }
           }}
           checkboxSelection={!isCoach}
           disableRowSelectionExcludeModel
