@@ -71,7 +71,7 @@
       margin-bottom: 20px;
     }
     .logo-group {
-      display: flex;
+      display: none;
       align-items: center;
       gap: 10px;
     }
@@ -82,7 +82,7 @@
       filter: drop-shadow(0 6px 10px rgba(18, 196, 160, 0.28));
     }
     .tournament-logo-group {
-      display: flex;
+      display: none;
       flex-direction: column;
       align-items: flex-start;
       gap: 8px;
@@ -1259,8 +1259,8 @@
 
       function getTournamentCardLogo(name) {
         return /pickleball/i.test(name)
-          ? "content/img/pickleball.png"
-          : "content/img/volleyball.png";
+          ? "images/pickleball.png"
+          : "images/volleyball.png";
       }
 
       function renderTournaments(normalized) {
