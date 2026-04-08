@@ -282,6 +282,11 @@
       background: rgba(255, 209, 102, 0.35);
       box-shadow: 0 0 8px rgba(255, 209, 102, 0.55);
     }
+    .match-result.highlight {
+      background: rgba(255, 209, 102, 0.2);
+      border-radius: 8px;
+      padding: 3px 5px;
+    }
     .division {
       display: inline-block;
       background: linear-gradient(120deg, rgba(18, 196, 160, 0.28), rgba(255, 111, 97, 0.28));
@@ -304,7 +309,7 @@
       width: var(--loading-sprite-size, 88px);
       height: var(--loading-sprite-size, 88px);
       display: block;
-      background-image: url('/images/spritesheet.png');
+      background-image: url('content/img/spritesheet.png');
       background-repeat: no-repeat;
       background-size: calc(var(--loading-sprite-size, 88px) * 3) var(--loading-sprite-size, 88px);
       background-position: 0 0;
@@ -516,6 +521,57 @@
       margin-bottom: 5px;
       color: #0f7a67;
     }
+    .ranking-switch-wrap {
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .ranking-switch-label {
+      font-size: 14px;
+      font-weight: 600;
+      color: #0f7a67;
+    }
+    .ranking-switch-control {
+      position: relative;
+      width: 48px;
+      height: 26px;
+      display: inline-block;
+    }
+    .ranking-switch-control input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+      position: absolute;
+    }
+    .ranking-switch-slider {
+      position: absolute;
+      inset: 0;
+      border-radius: 999px;
+      background: linear-gradient(120deg, #0c4f8f, #08386a);
+      cursor: pointer;
+      transition: background 0.2s ease;
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+    }
+    .ranking-switch-slider::before {
+      content: "";
+      position: absolute;
+      left: 3px;
+      top: 3px;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: #fffaf2;
+      transition: transform 0.2s ease;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.25);
+    }
+    .ranking-switch-control input:checked + .ranking-switch-slider {
+      background: linear-gradient(120deg, #12c4a0, #0f9a7f);
+    }
+    .ranking-switch-control input:checked + .ranking-switch-slider::before {
+      transform: translateX(22px);
+    }
     .finals-toggle-wrap {
       margin-bottom: 10px;
     }
@@ -693,21 +749,6 @@
       background: rgba(18, 196, 160, 0.6);
     }
 
-    .bracket-gallery {
-      display: flex;
-      flex-direction: column;
-      gap: 18px;
-      align-items: center;
-      margin-bottom: 20px;
-    }
-    .bracket-gallery img {
-      width: 100%;
-      max-width: 1200px;
-      height: auto;
-      border-radius: 16px;
-      box-shadow: 0 12px 24px rgba(12, 83, 40, 0.2), 0 8px 20px rgba(255, 159, 112, 0.18);
-    }
-
     @media (max-width: 600px) {
       .site-header {
         flex-direction: column;
@@ -859,6 +900,20 @@
 <body>
   <div id="tournamentPage" class="tournament-page">
     <div class="tournament-page-inner">
+      <div class="tournament-logo-group">
+        <div class="tournament-logo-row">
+          <a class="tournament-logo-link" href="https://sparrowsvolleyball.com.au/">
+            <img src="content/img/sparrow.png" alt="Sparrows Volleyball holiday logo" class="tournament-logo" />
+          </a>
+          <a class="tournament-logo-link" href="https://sparrowsvolleyball.com.au/">
+            <img src="content/img/logo.png" alt="Sparrows Volleyball logo" class="tournament-logo" />
+          </a>
+          <a class="tournament-logo-link" href="https://sparrowsvolleyball.com.au/">
+            <img src="content/img/pickleball.png" alt="Pickleball logo" class="tournament-logo" />
+          </a>
+        </div>
+        <div class="tournament-logo-text">Sparrows Tournament Live Results</div>
+      </div>
       <h1 class="tournament-title">Select a tournament</h1>
       <p class="tournament-subtitle">Choose which event you want to view / submit results for.</p>
       <div id="tournamentList" class="tournament-list"></div>
@@ -869,6 +924,14 @@
   <div id="appPage" style="display:none;">
 
   <div class="site-header">
+    <div class="logo-group">
+      <a href="https://sparrowsvolleyball.com.au/">
+        <img src="content/img/sparrow.png" alt="Sparrow" class="logo" />
+      </a>
+      <a href="https://sparrowsvolleyball.com.au/">
+        <img id="siteSportLogo" src="content/img/logo.png" alt="Logo" class="logo" />
+      </a>
+    </div>
     <div class="header-text">
       <h1></h1>
       <p class="description">
@@ -889,7 +952,6 @@
     <div class="tab-secondary">
       <button id='scheduleTab' class='active' onclick="showTab('schedule')">Schedule</button>
       <button id='liveTab' onclick="handleLiveTabClick()">Live results</button>
-      <button id='bracketsTab' onclick="showTab('brackets')">Tournament Brackets</button>
     </div>
   </div>
   <div id="scheduleSection">
@@ -914,13 +976,6 @@
     <button id="combineViewBtn">Combine Divisions Table View</button>
     <div id="divisionContent"></div>
   </div>
-  <div id="bracketsSection" style="display:none;">
-    <div class="bracket-gallery">
-      <img src="content/img/Tournament_Brackets_1.png" alt="Tournament bracket 1">
-      <img src="content/img/Tournament_Brackets_2.png" alt="Tournament bracket 2">
-      <img src="content/img/Tournament_Brackets_3.png" alt="Tournament bracket 3">
-    </div>
-  </div>
 
   <script>
     let scheduleData = {};
@@ -928,7 +983,6 @@
     let teamColorMap = {};
     let divisionColorMap = {};
     let highlightedTeamKey = null;
-    const bracketsEnabled = false;
     const colorPalette = [
       '#ff1744', '#008142', '#2979ff', '#ff9100', '#d500f9',
       '#f50057', '#651fff', '#00bfa5', '#ccbb00', '#459810',
@@ -937,11 +991,9 @@
     const apiUrl = "https://script.google.com/macros/s/AKfycbwnepQmr17n-HfyRJozYlrFiCLbytZ7iDYszrCDANdenKKRbKvKdrHUTApe1ZbO4A/exec";
 
     let currentTournament = "";
-    const LAST_TOURNAMENT_SESSION_KEY = "sparrows:last-tournament";
-    const TOURNAMENT_META_CACHE_KEY = "sparrows:tournament-meta:v1";
     const tournamentMetaCache = {};
-    const SCHEDULE_CACHE_TTL_MS = 30 * 1000;
-    const LIVE_RESULTS_CACHE_TTL_MS = 15 * 1000;
+    const SCHEDULE_CACHE_TTL_MS = 5 * 60 * 1000;
+    const LIVE_RESULTS_CACHE_TTL_MS = 10 * 1000;
 
     function isLunarCupTournament(name) {
       return typeof name === "string" && /lunar cup/i.test(name.trim());
@@ -999,8 +1051,8 @@
       const logo = document.getElementById("siteSportLogo");
       if (!logo) return;
       logo.src = isPickleballTournament(tournamentName)
-        ? "/images/pickleball.png"
-        : "/images/volleyball.png";
+        ? "content/img/pickleball.png"
+        : "content/img/logo.png";
     }
 
     function setLunarCupTheme(isActive) {
@@ -1097,35 +1149,6 @@
       history.replaceState({}, "", newUrl);
     }
 
-    function readLastTournamentFromSession() {
-      if (typeof sessionStorage === "undefined") return null;
-      try {
-        const value = sessionStorage.getItem(LAST_TOURNAMENT_SESSION_KEY);
-        return value ? value.trim() : null;
-      } catch (err) {
-        console.warn("Failed to read last tournament from sessionStorage", err);
-        return null;
-      }
-    }
-
-    function writeLastTournamentToSession(name) {
-      if (typeof sessionStorage === "undefined") return;
-      try {
-        if (name) sessionStorage.setItem(LAST_TOURNAMENT_SESSION_KEY, name);
-      } catch (err) {
-        console.warn("Failed to write last tournament to sessionStorage", err);
-      }
-    }
-
-    function clearLastTournamentFromSession() {
-      if (typeof sessionStorage === "undefined") return;
-      try {
-        sessionStorage.removeItem(LAST_TOURNAMENT_SESSION_KEY);
-      } catch (err) {
-        console.warn("Failed to clear last tournament from sessionStorage", err);
-      }
-    }
-
     function normalizeTournamentEntry(entry) {
       if (typeof entry === "string") {
         return { name: entry, subtitle: "", drawLink: "" };
@@ -1161,40 +1184,7 @@
       })?.[1] || null;
     }
 
-    function readTournamentMetaCache() {
-      if (typeof localStorage === "undefined") return {};
-      try {
-        const raw = localStorage.getItem(TOURNAMENT_META_CACHE_KEY);
-        if (!raw) return {};
-        const parsed = JSON.parse(raw);
-        return parsed && typeof parsed === "object" ? parsed : {};
-      } catch (err) {
-        console.warn("Failed to read tournament meta cache", err);
-        return {};
-      }
-    }
-
-    function writeTournamentMetaCache() {
-      if (typeof localStorage === "undefined") return;
-      try {
-        localStorage.setItem(TOURNAMENT_META_CACHE_KEY, JSON.stringify(tournamentMetaCache));
-      } catch (err) {
-        console.warn("Failed to write tournament meta cache", err);
-      }
-    }
-
-    function setTournamentMeta(name, meta) {
-      if (!name) return;
-      const prev = tournamentMetaCache[name] || {};
-      tournamentMetaCache[name] = {
-        subtitle: typeof meta.subtitle === "string" ? meta.subtitle : (prev.subtitle || ""),
-        drawLink: typeof meta.drawLink === "string" ? meta.drawLink : (prev.drawLink || "")
-      };
-      writeTournamentMetaCache();
-    }
-
     function getTournamentDrawLink(name) {
-      if (!name) return "";
       return tournamentMetaCache[name]?.drawLink || "";
     }
 
@@ -1233,12 +1223,12 @@
     }
 
     async function fetchTournamentMeta(name) {
-      if (tournamentMetaCache[name] && tournamentMetaCache[name].drawLink) return tournamentMetaCache[name];
+      if (tournamentMetaCache[name]) return tournamentMetaCache[name];
       const res = await fetch(`${apiUrl}?tournament=${encodeURIComponent(name)}`, { cache: "no-store" });
       const json = await res.json();
       const subtitle = (json.webSubtitleLine1 || "").trim();
       const drawLink = typeof json.drawLink === "string" ? json.drawLink.trim() : "";
-      setTournamentMeta(name, { subtitle, drawLink });
+      tournamentMetaCache[name] = { subtitle, drawLink };
       return tournamentMetaCache[name];
     }
 
@@ -1269,8 +1259,8 @@
 
       function getTournamentCardLogo(name) {
         return /pickleball/i.test(name)
-          ? "/images/pickleball.png"
-          : "/images/volleyball.png";
+          ? "content/img/pickleball.png"
+          : "content/img/volleyball.png";
       }
 
       function renderTournaments(normalized) {
@@ -1291,7 +1281,7 @@
           const subtitleEl = card.querySelector(".tournament-card-subtitle");
           if (subtitle) {
             subtitleEl.textContent = subtitle;
-            setTournamentMeta(name, { subtitle, drawLink });
+            tournamentMetaCache[name] = { subtitle, drawLink };
           } else {
             subtitleEl.textContent = " ";
             fetchTournamentMeta(name).then(meta => {
@@ -1363,7 +1353,6 @@
     async function enterTournament(name, { showLoader = true } = {}) {
       currentTournament = name;
       updateTournamentInUrl(name);
-      writeLastTournamentToSession(name);
       setLunarCupTheme(isLunarCupTournament(name));
       updateSpecialTournamentButtons(name);
       updateSiteSportLogo(name);
@@ -1380,6 +1369,7 @@
       liveResults = {};
       currentDivision = null;
       combinedDivisions = null;
+      pickleballRankingView = 'team';
       hideNonFinalsMatches = false;
       finalsVisibilityPreference = null;
       liveResultsLoadingPromise = null;
@@ -1410,7 +1400,6 @@
       if (!btn) return;
       btn.addEventListener("click", async () => {
         updateTournamentInUrl(null);
-        clearLastTournamentFromSession();
         showTournamentPage();
         await loadTournamentList();
       });
@@ -1474,27 +1463,11 @@
         courtMapBtn.addEventListener("click", openCourtMapPopup);
       }
     }
-    if (!bracketsEnabled) {
-      const bracketsTab = document.getElementById("bracketsTab");
-      const bracketsSection = document.getElementById("bracketsSection");
-      if (bracketsTab) {
-        bracketsTab.style.display = "none";
-        bracketsTab.setAttribute("aria-hidden", "true");
-        bracketsTab.setAttribute("tabindex", "-1");
-      }
-      if (bracketsSection) {
-        bracketsSection.setAttribute("hidden", "true");
-      }
-    }
-
     function showTab(tab) {
-      if (tab === "brackets" && !bracketsEnabled) tab = "schedule";
       document.getElementById("scheduleSection").style.display = tab === "schedule" ? "block" : "none";
       document.getElementById("liveResultsSection").style.display = tab === "live" ? "block" : "none";
-      document.getElementById("bracketsSection").style.display = tab === "brackets" ? "block" : "none";
       document.getElementById("scheduleTab").classList.toggle("active", tab === "schedule");
       document.getElementById("liveTab").classList.toggle("active", tab === "live");
-      document.getElementById("bracketsTab").classList.toggle("active", tab === "brackets");
       if (tab === "live") {
         ensureLiveResultsLoaded();
         startLiveResultsAutoRefresh();
@@ -1507,7 +1480,6 @@
     function handleLiveTabClick() {
       const liveSectionVisible = document.getElementById("liveResultsSection").style.display === "block";
       if (liveSectionVisible && currentTournament && !liveResultsLoadingPromise) {
-        showLiveResultsLoading("Loading live results...");
         clearLiveResultsCache(currentTournament);
         liveResultsLoadingPromise = fetchResults(currentTournament, { allowCache: false, forceRefresh: true })
           .catch(err => {
@@ -1624,6 +1596,115 @@
       return sanitized || 'Main Division';
     }
 
+    function splitPlayers(value) {
+      return String(value || '')
+        .split(', ')
+        .map(name => name.trim())
+        .filter(Boolean);
+    }
+
+    function getPlayerEntryKey(playerName, teamName) {
+      return `${normalizeName(playerName)}::${normalizeName(teamName)}`;
+    }
+
+    function getMatchHighlightKeys(match) {
+      const keys = new Set();
+      const teamAKey = normalizeName(match.team);
+      const teamBKey = normalizeName(match.opponent);
+      if (teamAKey) keys.add(teamAKey);
+      if (teamBKey) keys.add(teamBKey);
+      splitPlayers(match.team1_players).forEach(player => {
+        keys.add(getPlayerEntryKey(player, match.team));
+      });
+      splitPlayers(match.team2_players).forEach(player => {
+        keys.add(getPlayerEntryKey(player, match.opponent));
+      });
+      return [...keys];
+    }
+
+    function hasPlayerRankingData(schedule) {
+      for (const date in schedule || {}) {
+        for (const match of (schedule[date] || [])) {
+          if (String(match.team1_players || '').trim() || String(match.team2_players || '').trim()) {
+            return true;
+          }
+        }
+      }
+      return false;
+    }
+
+    function computePlayerStandings(schedule) {
+      const statsMap = {};
+      for (const date in schedule || {}) {
+        if (isFinalsDateLabel(date)) continue;
+        (schedule[date] || []).forEach(match => {
+          const aScores = (match.scores && match.scores.a) || [];
+          const bScores = (match.scores && match.scores.b) || [];
+          if (!aScores.length && !bScores.length) return;
+
+          let swA = 0, swB = 0, sd = 0;
+          let pointsA = 0, pointsB = 0;
+          const len = Math.max(aScores.length, bScores.length);
+          for (let i = 0; i < len; i++) {
+            const sa = parseInt(aScores[i], 10);
+            const sb = parseInt(bScores[i], 10);
+            if (!Number.isNaN(sa)) pointsA += sa;
+            if (!Number.isNaN(sb)) pointsB += sb;
+            const winnerDelta = getSetWinnerDelta(sa, sb, match.origDivision || match.division);
+            if (winnerDelta === 1) swA++;
+            else if (winnerDelta === -1) swB++;
+            else if (winnerDelta === 0) sd++;
+          }
+
+          const teamAPlayers = [...new Set(splitPlayers(match.team1_players))];
+          const teamBPlayers = [...new Set(splitPlayers(match.team2_players))];
+          const attachStats = (playerName, teamName, wins, losses, draws, pointsWon, pointsLost) => {
+            const key = getPlayerEntryKey(playerName, teamName);
+            if (!statsMap[key]) {
+              statsMap[key] = {
+                key,
+                playerName,
+                teamName,
+                wins: 0,
+                losses: 0,
+                draws: 0,
+                pointsWon: 0,
+                pointsLost: 0
+              };
+            }
+            statsMap[key].wins += wins;
+            statsMap[key].losses += losses;
+            statsMap[key].draws += draws;
+            statsMap[key].pointsWon += pointsWon;
+            statsMap[key].pointsLost += pointsLost;
+          };
+
+          teamAPlayers.forEach(player => attachStats(player, match.team, swA, swB, sd, pointsA, pointsB));
+          teamBPlayers.forEach(player => attachStats(player, match.opponent, swB, swA, sd, pointsB, pointsA));
+        });
+      }
+
+      const rows = Object.values(statsMap).map(row => ({
+        ...row,
+        pointDiff: row.pointsWon - row.pointsLost
+      }));
+      rows.sort((a, b) =>
+        b.wins - a.wins ||
+        b.pointDiff - a.pointDiff ||
+        a.playerName.localeCompare(b.playerName, undefined, { sensitivity: 'base' }) ||
+        a.teamName.localeCompare(b.teamName, undefined, { sensitivity: 'base' })
+      );
+      rows.forEach((row, i) => {
+        if (i === 0) {
+          row.rank = 1;
+          return;
+        }
+        const prev = rows[i - 1];
+        row.rank = (row.wins === prev.wins && row.pointDiff === prev.pointDiff) ? prev.rank : i + 1;
+      });
+      return rows;
+    }
+
     function computeStandings(schedule, { excludeFinalsDates = false } = {}) {
       const divStats = {};
       for (const date in schedule || {}) {
@@ -1729,11 +1810,18 @@
 
     function normalizeSchedule(rawSchedule, { includeRowIndex = false } = {}) {
       const output = {};
+      const pickleballMode = usePickleballRules();
       if (Array.isArray(rawSchedule)) {
         rawSchedule.forEach((match, idx) => {
           if (!match) return;
           const dateKey = match.date || match.matchDate || 'Unknown Date';
           const entry = { ...match };
+          if (pickleballMode) {
+            entry.team1_players = String(entry.division || '').trim();
+            entry.team2_players = String(entry.dutyTeam || '').trim();
+            entry.division = 'Main Division';
+            entry.dutyTeam = '';
+          }
           entry.division = normalizeDivisionName(entry.division);
           entry.dutyTeam = entry.dutyTeam || '';
           if (includeRowIndex) entry.rowIndex = idx;
@@ -1749,6 +1837,12 @@
             .map((m, i) => {
               if (!m) return null;
               const entry = { ...m };
+              if (pickleballMode) {
+                entry.team1_players = String(entry.division || '').trim();
+                entry.team2_players = String(entry.dutyTeam || '').trim();
+                entry.division = 'Main Division';
+                entry.dutyTeam = '';
+              }
               entry.division = normalizeDivisionName(entry.division);
               entry.dutyTeam = entry.dutyTeam || '';
               if (includeRowIndex && entry.rowIndex === undefined) entry.rowIndex = i;
@@ -1764,14 +1858,6 @@
       if (!json || typeof json !== "object") return;
       scheduleData = {};
       teamNameMap = {};
-
-      if (currentTournament) {
-        setTournamentMeta(currentTournament, {
-          subtitle: (json.webSubtitleLine1 || "").trim(),
-          drawLink: typeof json.drawLink === "string" ? json.drawLink.trim() : ""
-        });
-        updateSpecialTournamentButtons(currentTournament);
-      }
 
       const headerEl = document.querySelector('#appPage .header-text h1');
       if (json.webHeader && headerEl) {
@@ -1846,11 +1932,16 @@
     let liveResults = {};
     let currentDivision = null;
     let combinedDivisions = null;
+    let pickleballRankingView = 'team';
     let hideNonFinalsMatches = false;
     let finalsVisibilityPreference = null;
     let liveResultsLoadingPromise = null;
     let liveResultsRefreshTimer = null;
-    const LIVE_RESULTS_REFRESH_MS = 15 * 1000;
+    const LIVE_RESULTS_REFRESH_ACTIVE_MS = 10 * 1000;
+
+    function isLiveResultsTabActive() {
+      return document.getElementById("liveResultsSection").style.display === "block";
+    }
 
     function showLiveResultsLoading(message = "Loading live results...") {
       const container = document.getElementById('divisionContent');
@@ -1897,14 +1988,29 @@
 
     function startLiveResultsAutoRefresh() {
       stopLiveResultsAutoRefresh();
-      if (!currentTournament) return;
+      if (!currentTournament || document.hidden) return;
       liveResultsRefreshTimer = setInterval(() => {
-        if (document.getElementById("liveResultsSection").style.display !== "block") return;
+        if (document.hidden) return;
+        if (!isLiveResultsTabActive()) return;
         if (liveResultsLoadingPromise) return;
         fetchResults(currentTournament, { allowCache: false, forceRefresh: true }).catch(err => {
           console.error("Failed to auto refresh live results", err);
         });
-      }, LIVE_RESULTS_REFRESH_MS);
+      }, LIVE_RESULTS_REFRESH_ACTIVE_MS);
+    }
+
+    function handleVisibilityChange() {
+      if (document.hidden) {
+        stopLiveResultsAutoRefresh();
+        return;
+      }
+      if (!isLiveResultsTabActive() || !currentTournament) return;
+      if (!liveResultsLoadingPromise) {
+        fetchResults(currentTournament, { allowCache: false, forceRefresh: true }).catch(err => {
+          console.error("Failed to refresh live results after page became visible", err);
+        });
+      }
+      startLiveResultsAutoRefresh();
     }
 
     function applyLiveResultsPayload(payload, tournamentName) {
@@ -2055,7 +2161,7 @@
       if (!data) { container.innerHTML = ''; return; }
 
       if (/finals/i.test(div)) {
-        let html = '<div class="auto-renew-note">Table auto refresh every 15 sec</div>' +
+        let html = '<div class="auto-renew-note">Table auto refresh every 10 sec (foreground only)</div>' +
           buildFinalsBracket(div);
         container.innerHTML = html;
         document.querySelectorAll('#divisionTabs button').forEach(btn => btn.classList.remove('active'));
@@ -2071,7 +2177,7 @@
       const standingsForDivision = ((computeStandings(liveResults.schedule || {}, { excludeFinalsDates: true }) || {})[div] || {}).standings || [];
 
       const pickleballMode = usePickleballRules();
-      let html = '<div class="auto-renew-note">Table auto refresh every 15 sec</div>' +
+      let html = '<div class="auto-renew-note">Table auto refresh every 10 sec (foreground only)</div>' +
         '<table class="ranking-table"><thead><tr>' +
         (pickleballMode
           ? '<th>#</th><th>Team</th><th>W</th><th>L</th><th>D</th><th>PW</th><th>PL</th><th>PD</th>'
@@ -2191,10 +2297,17 @@
       highlightedTeamKey = teamKey;
       document.querySelectorAll('.team-color.highlight').forEach(e => e.classList.remove('highlight'));
       document.querySelectorAll('.ranking-table tr.highlight').forEach(e => e.classList.remove('highlight'));
+      document.querySelectorAll('.match-result.highlight').forEach(e => e.classList.remove('highlight'));
       if (!teamKey) return;
       document.querySelectorAll(`.team-color[data-team="${teamKey}"]`).forEach(e => e.classList.add('highlight'));
       const row = document.querySelector(`.ranking-table tr[data-team="${teamKey}"]`);
       if (row) row.classList.add('highlight');
+      document.querySelectorAll('.match-result[data-highlight-keys]').forEach(matchEl => {
+        const keys = String(matchEl.dataset.highlightKeys || '').split('|').filter(Boolean);
+        if (keys.includes(teamKey)) {
+          matchEl.classList.add('highlight');
+        }
+      });
     }
 
     function openCombineDivisionsPopup() {
@@ -2257,21 +2370,42 @@
       if (!data) { container.innerHTML = ''; return; }
 
       const pickleballMode = usePickleballRules();
-      let html = '<div class="auto-renew-note">Table auto refresh every 15 sec</div>' +
+      const canShowPlayerRanking = pickleballMode && hasPlayerRankingData(schedule);
+      const playerStandings = canShowPlayerRanking ? computePlayerStandings(schedule) : [];
+      if (!canShowPlayerRanking) {
+        pickleballRankingView = 'team';
+      }
+      const showPlayerRanking = pickleballMode && canShowPlayerRanking && pickleballRankingView === 'player';
+      const rankingRows = showPlayerRanking ? playerStandings : data.standings;
+
+      let html = '';
+      if (canShowPlayerRanking) {
+        const checkedAttr = showPlayerRanking ? 'checked' : '';
+        html += `<div class="ranking-switch-wrap">
+          <label class="ranking-switch-control" for="pickleballRankingSwitch">
+            <input type="checkbox" id="pickleballRankingSwitch" ${checkedAttr}>
+            <span class="ranking-switch-slider"></span>
+          </label>
+          <span class="ranking-switch-label">Show player ranking</span>
+        </div>`;
+      }
+      html += '<div class="auto-renew-note">Table auto refresh every 10 sec (foreground only)</div>' +
         '<table class="ranking-table"><thead><tr>' +
         (pickleballMode
-          ? '<th>#</th><th>Team</th><th>W</th><th>L</th><th>D</th><th>PW</th><th>PL</th><th>PD</th>'
+          ? `<th>#</th><th>${showPlayerRanking ? 'Participant' : 'Team'}</th><th>W</th><th>L</th><th>D</th><th>PW</th><th>PL</th><th>PD</th>`
           : '<th>#</th><th>Team</th><th>W</th><th>L</th><th>D</th><th>SW</th><th>SL</th><th>Set%</th><th>PW</th><th>PL</th><th>Pts%</th>') +
         '</tr></thead><tbody>';
-      data.standings.forEach(row => {
-        const nameKey = normalizeName(row.team);
-        const displayName = teamNameMap[nameKey] || row.team;
+      rankingRows.forEach(row => {
+        const nameKey = showPlayerRanking ? row.key : normalizeName(row.team);
+        const displayName = showPlayerRanking
+          ? `${row.playerName} (${row.teamName})`
+          : (teamNameMap[nameKey] || row.team);
         const setPct = row.setsWon + row.setsLost > 0 ?
           (row.setsWon / (row.setsWon + row.setsLost) * 100).toFixed(1) : '0';
         const scorePct = row.pointsWon + row.pointsLost > 0 ?
           (row.pointsWon / (row.pointsWon + row.pointsLost) * 100).toFixed(1) : '0';
         const pointDiff = row.pointsWon - row.pointsLost;
-        const color = getTeamColor(displayName);
+        const color = getTeamColor(showPlayerRanking ? row.teamName : displayName);
         html += `<tr data-team="${nameKey}"><td>${row.rank}</td><td><span class="team-color team-entry" data-team="${nameKey}" style="color:${color}">${displayName}</span></td><td>${row.wins}</td><td>${row.losses}</td><td>${row.draws}</td>` +
           (pickleballMode
             ? `<td>${row.pointsWon}</td><td>${row.pointsLost}</td><td>${pointDiff}</td>`
@@ -2279,7 +2413,7 @@
           '</tr>';
       });
       html += '</tbody></table>';
-      html += '<div class="auto-renew-note">Click your team name for highlights viewing</div>';
+      html += `<div class="auto-renew-note">Click your ${showPlayerRanking ? 'participant' : 'team'} name for highlights viewing</div>`;
       const hasFinalsDate = Object.keys(schedule).some(date => isFinalsDateLabel(date));
       if (!hasFinalsDate) {
         hideNonFinalsMatches = false;
@@ -2342,7 +2476,8 @@
               ? ''
               : ` <span class="division">${match.origDivision}</span>`;
 
-          html += `<div class="match-result">` +
+          const matchKeys = getMatchHighlightKeys(match).join('|');
+          html += `<div class="match-result" data-highlight-keys="${matchKeys}">` +
             `<div class="match-header"><span class="${teamAClasses}" data-team="${keyA}" style="color:${colorA}">${teamALabel}</span>` +
             ` <span class="set-count">${swA}-${swB}</span> ` +
             `<span class="${teamBClasses}" data-team="${keyB}" style="color:${colorB}">${teamBLabel}</span>` +
@@ -2365,6 +2500,13 @@
         finalsToggleBtn.addEventListener('click', () => {
           hideNonFinalsMatches = !hideNonFinalsMatches;
           finalsVisibilityPreference = hideNonFinalsMatches;
+          showCombinedDivisions(divList);
+        });
+      }
+      const rankingSwitch = document.getElementById('pickleballRankingSwitch');
+      if (rankingSwitch) {
+        rankingSwitch.addEventListener('change', () => {
+          pickleballRankingView = rankingSwitch.checked ? 'player' : 'team';
           showCombinedDivisions(divList);
         });
       }
@@ -2910,31 +3052,16 @@
     document.getElementById("dateFilter").addEventListener("change", filterResults);
     document.getElementById("combineViewBtn").addEventListener("click", openCombineDivisionsPopup);
     window.addEventListener("DOMContentLoaded", async () => {
-      Object.assign(tournamentMetaCache, readTournamentMetaCache());
       bindBackButton();
       bindSpecialTournamentButtons();
+      document.addEventListener("visibilitychange", handleVisibilityChange);
       const urlParams = new URLSearchParams(window.location.search);
       const initialTournament = urlParams.get("tournament");
-      const rememberedTournament = readLastTournamentFromSession();
-      const preferredTournament = initialTournament || rememberedTournament;
 
-      if (preferredTournament) {
+      if (initialTournament) {
         showLoading("Loading tournament...");
         try {
-          await enterTournament(preferredTournament, { showLoader: false });
-        } catch (err) {
-          console.warn("Preferred tournament is invalid, fallback to default tournament.", err);
-          clearLastTournamentFromSession();
-          showTournamentPage();
-          const listRes = await fetch(`${apiUrl}?action=listTournaments`, { cache: "no-store" });
-          const listJson = await listRes.json();
-          const names = Array.isArray(listJson && listJson.tournaments) ? listJson.tournaments : [];
-          const fallbackTournament = (listJson && listJson.defaultTournament) || names[0] || null;
-          if (fallbackTournament) {
-            await enterTournament(fallbackTournament, { showLoader: false });
-          } else {
-            await loadTournamentList({ showLoader: false });
-          }
+          await enterTournament(initialTournament, { showLoader: false });
         } finally {
           hideLoading();
         }
