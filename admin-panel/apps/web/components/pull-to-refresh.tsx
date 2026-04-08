@@ -40,7 +40,7 @@ function isDisabledStartTarget(target: EventTarget | null): boolean {
 }
 
 /**
- * Mobile / tablet: pull down while scrolled to top → reload current page (app-like).
+ * Mobile / tablet: pull down while scrolled to top → soft-refresh list data on current page.
  */
 export function PullToRefresh() {
   const [enabled, setEnabled] = useState(false);
@@ -111,7 +111,8 @@ export function PullToRefresh() {
       }
       if (p >= THRESHOLD_PX) {
         setRefreshing(true);
-        window.location.reload();
+        window.dispatchEvent(new CustomEvent("sparrows:soft-refresh"));
+        window.setTimeout(() => setRefreshing(false), 500);
       }
     };
 

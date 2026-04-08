@@ -50,6 +50,27 @@ export const AdminUserList: React.FC = () => {
   const selectedIds =
     rowSelectionModel.type === "include" ? Array.from(rowSelectionModel.ids as Set<string>) : [];
 
+  React.useEffect(() => {
+    const refresh = () => {
+      invalidate({ resource: "admin-users", invalidates: ["list", "many", "detail"] });
+      void refetchAdminUsersList?.();
+    };
+    const onSoftRefresh = () => refresh();
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    window.addEventListener("sparrows:soft-refresh", onSoftRefresh);
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", onVisibility);
+    const timer = window.setInterval(refresh, 20000);
+    return () => {
+      window.removeEventListener("sparrows:soft-refresh", onSoftRefresh);
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.clearInterval(timer);
+    };
+  }, [invalidate, refetchAdminUsersList]);
+
   const stored = getStoredAdmin();
   const selfId = stored?.id;
   const isAdminViewer = stored?.role === "ADMIN";
@@ -186,15 +207,17 @@ export const AdminUserList: React.FC = () => {
         </Stack>
       }
     >
-      <SaasDataGrid
-        {...dataGridProps}
-        columns={columns}
-        autoHeight
-        checkboxSelection={isAdminViewer}
-        disableRowSelectionOnClick
-        rowSelectionModel={rowSelectionModel}
-        onRowSelectionModelChange={setRowSelectionModel}
-      />
+      <Box sx={{ height: { xs: "calc(100dvh - 330px)", md: "calc(100dvh - 280px)" }, minHeight: 300 }}>
+        <SaasDataGrid
+          {...dataGridProps}
+          columns={columns}
+          checkboxSelection={isAdminViewer}
+          disableRowSelectionOnClick
+          rowSelectionModel={rowSelectionModel}
+          onRowSelectionModelChange={setRowSelectionModel}
+          sx={{ height: "100%" }}
+        />
+      </Box>
       <Dialog open={deleteOpen} onClose={() => !deleteLoading && setDeleteOpen(false)}>
         <DialogTitle>Delete admin user{selectedIds.length === 1 ? "" : "s"}?</DialogTitle>
         <DialogContent>

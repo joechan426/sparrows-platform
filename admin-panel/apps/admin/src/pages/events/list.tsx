@@ -162,6 +162,27 @@ export const EventList: React.FC = () => {
     if (isCoach) setRowSelectionModel({ type: "include", ids: new Set<string>() });
   }, [isCoach]);
 
+  React.useEffect(() => {
+    const refresh = () => {
+      invalidate({ resource: "calendar-events", invalidates: ["list", "many", "detail"] });
+      void refetchList?.();
+    };
+    const onSoftRefresh = () => refresh();
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    window.addEventListener("sparrows:soft-refresh", onSoftRefresh);
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", onVisibility);
+    const timer = window.setInterval(refresh, 20000);
+    return () => {
+      window.removeEventListener("sparrows:soft-refresh", onSoftRefresh);
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.clearInterval(timer);
+    };
+  }, [invalidate, refetchList]);
+
   const handleBulkOpenRegistration = async () => {
     if (selectedIds.length === 0) return;
     setBulkActionLoading(true);
@@ -660,40 +681,47 @@ export const EventList: React.FC = () => {
           sx={{ mb: 1, width: { xs: "100%", sm: "auto" }, minWidth: { xs: 0, sm: 220 } }}
           slotProps={{ input: { startAdornment: <InputAdornment position="start">Search</InputAdornment> } }}
         />
-        <SaasDataGrid
-          {...dataGridProps}
-          rows={filteredListRows}
-          columns={gridPrefs.columns}
-          autoHeight
-          getRowId={(row: CalendarEventRow) => row.id}
-          getRowClassName={(params) => {
-            try {
-              const row = params.row as CalendarEventRow;
-              const k = row.startAt ? sydneyDateKey(new Date(row.startAt)) : "";
-              return k && k === todayKeySydney ? "event-row-today-highlight" : "";
-            } catch {
-              return "";
-            }
-          }}
-          checkboxSelection={!isCoach}
-          disableRowSelectionExcludeModel
-          rowSelectionModel={rowSelectionModel}
-          onRowSelectionModelChange={(newModel) => setRowSelectionModel(newModel)}
-          columnVisibilityModel={gridPrefs.columnVisibilityModel}
-          onColumnVisibilityModelChange={gridPrefs.onColumnVisibilityModelChange}
-          onColumnWidthChange={gridPrefs.onColumnWidthChange}
+        <Box
           sx={{
-            "& .MuiDataGrid-row:nth-of-type(even)": {
-              backgroundColor: "action.hover",
-            },
-            "& .event-row-today-highlight": {
-              backgroundColor: "#f2c94c !important",
-              "&:hover": {
-                backgroundColor: "#f2c94c !important",
-              },
-            },
+            height: { xs: "calc(100dvh - 430px)", md: "calc(100dvh - 360px)" },
+            minHeight: 300,
           }}
-        />
+        >
+          <SaasDataGrid
+            {...dataGridProps}
+            rows={filteredListRows}
+            columns={gridPrefs.columns}
+            getRowId={(row: CalendarEventRow) => row.id}
+            getRowClassName={(params) => {
+              try {
+                const row = params.row as CalendarEventRow;
+                const k = row.startAt ? sydneyDateKey(new Date(row.startAt)) : "";
+                return k && k === todayKeySydney ? "event-row-today-highlight" : "";
+              } catch {
+                return "";
+              }
+            }}
+            checkboxSelection={!isCoach}
+            disableRowSelectionExcludeModel
+            rowSelectionModel={rowSelectionModel}
+            onRowSelectionModelChange={(newModel) => setRowSelectionModel(newModel)}
+            columnVisibilityModel={gridPrefs.columnVisibilityModel}
+            onColumnVisibilityModelChange={gridPrefs.onColumnVisibilityModelChange}
+            onColumnWidthChange={gridPrefs.onColumnWidthChange}
+            sx={{
+              height: "100%",
+              "& .MuiDataGrid-row:nth-of-type(even)": {
+                backgroundColor: "action.hover",
+              },
+              "& .event-row-today-highlight": {
+                backgroundColor: "#f2c94c !important",
+                "&:hover": {
+                  backgroundColor: "#f2c94c !important",
+                },
+              },
+            }}
+          />
+        </Box>
       </List>
       <Dialog
         open={importDialogOpen}

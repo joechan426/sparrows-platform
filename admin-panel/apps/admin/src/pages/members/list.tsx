@@ -68,6 +68,27 @@ export const MemberList: React.FC = () => {
     setRowSelectionModel({ type: "include", ids: new Set<string>() });
   }, [isCoach]);
 
+  React.useEffect(() => {
+    const refresh = () => {
+      invalidate({ resource: "members", invalidates: ["list", "many", "detail"] });
+      void refetchMembersList?.();
+    };
+    const onSoftRefresh = () => refresh();
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    window.addEventListener("sparrows:soft-refresh", onSoftRefresh);
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", onVisibility);
+    const timer = window.setInterval(refresh, 20000);
+    return () => {
+      window.removeEventListener("sparrows:soft-refresh", onSoftRefresh);
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.clearInterval(timer);
+    };
+  }, [invalidate, refetchMembersList]);
+
   const handleResetPasswordSubmit = async () => {
     setResetPwError("");
     if (resetPwPassword.length < 6) {
@@ -235,21 +256,23 @@ export const MemberList: React.FC = () => {
           </>
         )}
       </Box>
-      <SaasDataGrid
-        {...dataGridProps}
-        columns={gridPrefs.columns}
-        autoHeight
-        checkboxSelection={!isCoach}
-        rowSelectionModel={rowSelectionModel}
-        onRowSelectionModelChange={setRowSelectionModel}
-        columnVisibilityModel={gridPrefs.columnVisibilityModel}
-        onColumnVisibilityModelChange={gridPrefs.onColumnVisibilityModelChange}
-        onColumnWidthChange={gridPrefs.onColumnWidthChange}
-        onRowClick={(params) => navigate(`/members/${params.id}`)}
-        sx={{
-          "& .MuiDataGrid-row": { cursor: "pointer" },
-        }}
-      />
+      <Box sx={{ height: { xs: "calc(100dvh - 380px)", md: "calc(100dvh - 320px)" }, minHeight: 300 }}>
+        <SaasDataGrid
+          {...dataGridProps}
+          columns={gridPrefs.columns}
+          checkboxSelection={!isCoach}
+          rowSelectionModel={rowSelectionModel}
+          onRowSelectionModelChange={setRowSelectionModel}
+          columnVisibilityModel={gridPrefs.columnVisibilityModel}
+          onColumnVisibilityModelChange={gridPrefs.onColumnVisibilityModelChange}
+          onColumnWidthChange={gridPrefs.onColumnWidthChange}
+          onRowClick={(params) => navigate(`/members/${params.id}`)}
+          sx={{
+            height: "100%",
+            "& .MuiDataGrid-row": { cursor: "pointer" },
+          }}
+        />
+      </Box>
       <Dialog open={resetPwOpen} onClose={() => !resetPwLoading && setResetPwOpen(false)}>
         <DialogTitle>Reset password</DialogTitle>
         <DialogContent>

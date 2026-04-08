@@ -88,6 +88,26 @@ export const PaymentRevenueListPage: React.FC = () => {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    const refresh = () => {
+      void load();
+    };
+    const onSoftRefresh = () => refresh();
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    window.addEventListener("sparrows:soft-refresh", onSoftRefresh);
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", onVisibility);
+    const timer = window.setInterval(refresh, 20000);
+    return () => {
+      window.removeEventListener("sparrows:soft-refresh", onSoftRefresh);
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.clearInterval(timer);
+    };
+  }, [load]);
+
   const stats = useMemo(() => {
     const eventIds = new Set(rows.map((r) => r.eventId));
     const memberIds = new Set(rows.map((r) => r.memberId));
@@ -348,7 +368,7 @@ export const PaymentRevenueListPage: React.FC = () => {
         </Stack>
       </Stack>
 
-      <Box sx={{ position: "relative" }}>
+      <Box sx={{ position: "relative", height: { xs: "calc(100dvh - 470px)", md: "calc(100dvh - 380px)" }, minHeight: 300 }}>
         {loading && (
           <Box sx={{ position: "absolute", right: 8, top: -40, zIndex: 1 }}>
             <CircularProgress size={22} />
@@ -358,12 +378,12 @@ export const PaymentRevenueListPage: React.FC = () => {
           rows={rows}
           columns={gridPrefs.columns}
           loading={loading}
-          autoHeight
           getRowId={(r) => r.id}
           columnVisibilityModel={gridPrefs.columnVisibilityModel}
           onColumnVisibilityModelChange={gridPrefs.onColumnVisibilityModelChange}
           onColumnWidthChange={gridPrefs.onColumnWidthChange}
           disableRowSelectionOnClick
+          sx={{ height: "100%" }}
         />
       </Box>
     </List>

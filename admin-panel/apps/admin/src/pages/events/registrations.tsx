@@ -478,6 +478,26 @@ export const EventRegistrationsPage: React.FC = () => {
     else setCapacityInput("");
   }, [event?.capacity]);
 
+  useEffect(() => {
+    const refresh = () => {
+      void refetchRegistrations?.();
+    };
+    const onSoftRefresh = () => refresh();
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    window.addEventListener("sparrows:soft-refresh", onSoftRefresh);
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", onVisibility);
+    const timer = window.setInterval(refresh, 20000);
+    return () => {
+      window.removeEventListener("sparrows:soft-refresh", onSoftRefresh);
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.clearInterval(timer);
+    };
+  }, [refetchRegistrations]);
+
   const handleCapacitySubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!id) return;
@@ -805,20 +825,22 @@ export const EventRegistrationsPage: React.FC = () => {
         </Typography>
       </Stack>
 
-      <SaasDataGrid
-        rows={filteredRows}
-        columns={gridPrefs.columns}
-        autoHeight
-        loading={registrationsLoading}
-        getRowId={(row: EventRegistrationRow) => row.id}
-        checkboxSelection
-        disableRowSelectionExcludeModel
-        rowSelectionModel={rowSelectionModel}
-        onRowSelectionModelChange={(model) => setRowSelectionModel(model)}
-        columnVisibilityModel={gridPrefs.columnVisibilityModel}
-        onColumnVisibilityModelChange={gridPrefs.onColumnVisibilityModelChange}
-        onColumnWidthChange={gridPrefs.onColumnWidthChange}
-      />
+      <Box sx={{ height: { xs: "calc(100dvh - 540px)", md: "calc(100dvh - 430px)" }, minHeight: 300 }}>
+        <SaasDataGrid
+          rows={filteredRows}
+          columns={gridPrefs.columns}
+          loading={registrationsLoading}
+          getRowId={(row: EventRegistrationRow) => row.id}
+          checkboxSelection
+          disableRowSelectionExcludeModel
+          rowSelectionModel={rowSelectionModel}
+          onRowSelectionModelChange={(model) => setRowSelectionModel(model)}
+          columnVisibilityModel={gridPrefs.columnVisibilityModel}
+          onColumnVisibilityModelChange={gridPrefs.onColumnVisibilityModelChange}
+          onColumnWidthChange={gridPrefs.onColumnWidthChange}
+          sx={{ height: "100%" }}
+        />
+      </Box>
       <Dialog open={addOpen} onClose={() => !adding && setAddOpen(false)}>
         <DialogTitle>Add participant</DialogTitle>
         <Box component="form" onSubmit={handleAddSubmit}>

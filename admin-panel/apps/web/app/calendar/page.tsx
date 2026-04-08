@@ -462,6 +462,15 @@ export default function CalendarPage() {
   }
 
   if (error) return <div className="page-content page-error">{error}</div>;
+  useEffect(() => {
+    const onSoftRefresh = () => {
+      refreshCalendarInBackground();
+      if (member?.id) refreshRegistrationsInBackground(member.id);
+    };
+    window.addEventListener("sparrows:soft-refresh", onSoftRefresh);
+    return () => window.removeEventListener("sparrows:soft-refresh", onSoftRefresh);
+  }, [member?.id, refreshCalendarInBackground, refreshRegistrationsInBackground]);
+
   if (isInitialLoading) {
     return (
       <div className="page-loading">
@@ -555,7 +564,8 @@ export default function CalendarPage() {
       {/* Events on selected date */}
       <section className="calendar-section">
         <h2 className="calendar-section-title">Events on {selectedDateTitle}</h2>
-        <div className="calendar-events-list">
+        <div className="calendar-list-scroll calendar-list-scroll-day">
+          <div className="calendar-events-list">
           {filteredEventsForSelectedDate.length === 0 ? (
             <p className="calendar-empty">No matching events on {selectedDateTitle}.</p>
           ) : (
@@ -571,6 +581,7 @@ export default function CalendarPage() {
               />
             ))
           )}
+          </div>
         </div>
       </section>
 
@@ -579,10 +590,11 @@ export default function CalendarPage() {
         <h2 className="what-next-title">
           <span className="what-next-icon">✨</span> What happens NEXT
         </h2>
-        {upcomingCup.length === 0 ? (
-          <p className="what-next-empty">Hold tight! The next event is on the way.</p>
-        ) : (
-          <ul className="what-next-list">
+        <div className="calendar-list-scroll calendar-list-scroll-next">
+          {upcomingCup.length === 0 ? (
+            <p className="what-next-empty">Hold tight! The next event is on the way.</p>
+          ) : (
+            <ul className="what-next-list">
             {upcomingCup.map((event) => (
               <li key={event.id} className="what-next-item what-next-item-v2">
                 <CalendarListEventRow
@@ -595,8 +607,9 @@ export default function CalendarPage() {
                 />
               </li>
             ))}
-          </ul>
-        )}
+            </ul>
+          )}
+        </div>
       </section>
 
       {eventDetail && (

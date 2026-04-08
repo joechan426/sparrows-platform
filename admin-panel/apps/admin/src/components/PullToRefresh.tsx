@@ -37,7 +37,7 @@ function isDisabledStartTarget(target: EventTarget | null): boolean {
 }
 
 /**
- * Mobile / tablet: pull down at scroll top → reload current page.
+ * Mobile / tablet: pull down at scroll top → soft-refresh current list views.
  */
 export const PullToRefresh: React.FC = () => {
   const [enabled, setEnabled] = useState(false);
@@ -108,7 +108,8 @@ export const PullToRefresh: React.FC = () => {
       }
       if (p >= THRESHOLD_PX) {
         setRefreshing(true);
-        window.location.reload();
+        window.dispatchEvent(new CustomEvent("sparrows:soft-refresh"));
+        window.setTimeout(() => setRefreshing(false), 500);
       }
     };
 
