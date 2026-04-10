@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useLayoutEffect, useState } from "react";
 import type { Member } from "./api";
 import { apiGetMember } from "./api";
 
@@ -64,20 +64,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  useEffect(() => {
+  // Restore session from localStorage before first paint to avoid a flash of logged-out UI on Profile.
+  useLayoutEffect(() => {
     const stored = loadStored();
     if (stored) {
       setMemberState(stored);
-      apiGetMember(stored.id)
-        .then((updated) => {
-          setMemberState(updated);
-          saveStored(updated);
-        })
-        .catch(() => {})
-        .finally(() => setLoading(false));
     } else {
       setLoading(false);
     }
+  }, []);
+
+  useEffect(() => {
+    const stored = loadStored();
+    if (!stored?.id) return;
+    apiGetMember(stored.id)
+      .then((updated) => {
+        setMemberState(updated);
+        saveStored(updated);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, []);
 
   const logout = useCallback(() => {

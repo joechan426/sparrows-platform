@@ -1,12 +1,12 @@
 "use client";
 
+import React, { useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { useNavRefresh } from "@/lib/nav-refresh-context";
 import { useAnnouncements } from "@/lib/announcements-context";
-import { useEffect } from "react";
 import { CONTACT_LINKS, HOME_LOGO_URL } from "@/lib/contact-links";
 
 const NAV_ITEMS: {
@@ -56,12 +56,12 @@ const LEFT_LOGOES = [
   { img: "/images/pickleball_logo.svg", label: "Sparrows Pickleball" },
 ];
 
-export function Nav() {
+function NavComponent() {
   const pathname = usePathname();
   const router = useRouter();
   const { member } = useAuth();
   const { unreadCount } = useAnnouncements();
-  const { refreshCalendarInBackground, refreshRegistrationsInBackground } = useNavRefresh();
+  const { refreshRegistrationsInBackground } = useNavRefresh();
 
   useEffect(() => {
     router.prefetch("/calendar");
@@ -83,10 +83,7 @@ export function Nav() {
 
   const onInternalNavClick = (href: string) => {
     router.prefetch(href);
-    if (href === "/calendar" || href === "/") {
-      refreshCalendarInBackground();
-      if (member?.id) refreshRegistrationsInBackground(member.id);
-    }
+    // Calendar refreshes only while the Calendar route is mounted (see calendar/page.tsx).
     if (href === "/profile" && member?.id) {
       refreshRegistrationsInBackground(member.id);
     }
@@ -175,14 +172,15 @@ export function Nav() {
               className={linkClassMobile(href, true)}
               onClick={() => onInternalNavClick(href)}
             >
-              <Image
+              {/* Native img: rely on browser cache so tab icons are not re-fetched on each client navigation. */}
+              <img
                 src={tabIcon}
                 alt=""
                 width={28}
                 height={28}
                 className="nav-mobile-tab-icon"
-                loading="lazy"
-                sizes="28px"
+                decoding="async"
+                fetchPriority="low"
               />
               <span className="nav-mobile-tab-text">{tabLabel}</span>
               {href === "/profile" && unreadCount > 0 && (
@@ -199,14 +197,14 @@ export function Nav() {
               rel="noopener noreferrer"
               className={linkClassMobile(href, false)}
             >
-              <Image
+              <img
                 src={tabIcon}
                 alt=""
                 width={28}
                 height={28}
                 className="nav-mobile-tab-icon"
-                loading="lazy"
-                sizes="28px"
+                decoding="async"
+                fetchPriority="low"
               />
               <span className="nav-mobile-tab-text">{tabLabel}</span>
             </a>
@@ -216,3 +214,5 @@ export function Nav() {
     </>
   );
 }
+
+export const Nav = React.memo(NavComponent);

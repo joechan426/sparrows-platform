@@ -30,7 +30,7 @@ function statusText(s: string): string {
 
 export default function ProfilePage() {
   const router = useRouter();
-  const { member, setMember } = useAuth();
+  const { member, setMember, loading: authLoading } = useAuth();
   const {
     registrations,
     registrationsUpdatedAt,
@@ -134,6 +134,21 @@ export default function ProfilePage() {
     } finally {
       setPasswordSaving(false);
     }
+  }
+
+  if (!member && authLoading) {
+    return (
+      <div className="profile-page">
+        <header className="profile-header">
+          <span className="profile-logo">Sparrows</span>
+          <h1 className="profile-title">My Profile</h1>
+        </header>
+        <div className="section-divider" />
+        <p className="profile-muted" style={{ padding: "0 1rem 1rem" }}>
+          Loading…
+        </p>
+      </div>
+    );
   }
 
   if (!member) {

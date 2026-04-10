@@ -332,32 +332,30 @@ export default function CalendarPage() {
     ensureRegistrationsLoaded(member.id).catch(() => {});
   }, [member?.id]);
 
-  // Keep event registration status in sync with admin-panel changes.
-  // Polling is only active while this tab is visible to avoid unnecessary traffic.
+  // Polling runs only while this route is mounted (leaving Calendar clears the interval).
+  // Registrations: ~15s. Calendar event list data: at most every 5 minutes while on this page.
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (!member?.id) return;
 
-    const memberId = member.id;
+    const memberId = member?.id;
     const REFRESH_REG_MS = 15000;
-    const REFRESH_CAL_MS = 30000;
+    const CAL_EVENT_TTL_MS = 5 * 60 * 1000;
 
     let lastCalRefreshAt = 0;
 
     const maybeRefresh = () => {
       if (document.visibilityState !== "visible") return;
-      // registrations status changes should be fast (~15s)
-      refreshRegistrationsInBackground(memberId);
-
-      // registrationOpen changes can be a bit slower (~30s)
+      if (memberId) {
+        refreshRegistrationsInBackground(memberId);
+      }
       const now = Date.now();
-      if (now - lastCalRefreshAt >= REFRESH_CAL_MS) {
+      if (lastCalRefreshAt === 0 || now - lastCalRefreshAt >= CAL_EVENT_TTL_MS) {
         lastCalRefreshAt = now;
         refreshCalendarInBackground();
       }
     };
 
-    // Refresh immediately when landing on the page.
+    // First open of this page: refresh calendar + registrations (if logged in) once.
     maybeRefresh();
 
     const intervalId = window.setInterval(maybeRefresh, REFRESH_REG_MS);
@@ -369,7 +367,7 @@ export default function CalendarPage() {
       document.removeEventListener("visibilitychange", maybeRefresh);
       window.removeEventListener("focus", maybeRefresh);
     };
-  }, [member?.id, refreshRegistrationsInBackground]);
+  }, [member?.id, refreshRegistrationsInBackground, refreshCalendarInBackground]);
 
   const registrationsSafe = registrations ?? [];
 

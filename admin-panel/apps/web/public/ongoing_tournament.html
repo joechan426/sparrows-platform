@@ -1163,6 +1163,8 @@
       return { name: "", subtitle: "", drawLink: "" };
     }
 
+    const ONGOING_LAST_TOURNAMENT_KEY = "sparrows_web_ongoing_last_tournament";
+
     const TOURNAMENT_LIST_CACHE_KEY = "sparrows:tournaments:list";
     const TOURNAMENT_LIST_CACHE_TTL = 30 * 1000;
     const SPECIAL_TOURNAMENTS = {
@@ -1352,6 +1354,11 @@
 
     async function enterTournament(name, { showLoader = true } = {}) {
       currentTournament = name;
+      try {
+        sessionStorage.setItem(ONGOING_LAST_TOURNAMENT_KEY, name);
+      } catch (err) {
+        console.warn("Failed to persist ongoing tournament", err);
+      }
       updateTournamentInUrl(name);
       setLunarCupTheme(isLunarCupTournament(name));
       updateSpecialTournamentButtons(name);
@@ -1400,6 +1407,11 @@
       if (!btn) return;
       btn.addEventListener("click", async () => {
         updateTournamentInUrl(null);
+        try {
+          sessionStorage.removeItem(ONGOING_LAST_TOURNAMENT_KEY);
+        } catch (err) {
+          console.warn("Failed to clear ongoing tournament session", err);
+        }
         showTournamentPage();
         await loadTournamentList();
       });
@@ -3066,8 +3078,30 @@
           hideLoading();
         }
       } else {
-        showTournamentPage();
-        await loadTournamentList();
+        let restored = "";
+        try {
+          restored = (sessionStorage.getItem(ONGOING_LAST_TOURNAMENT_KEY) || "").trim();
+        } catch (err) {
+          console.warn("Failed to read ongoing tournament session", err);
+        }
+        if (restored) {
+          showLoading("Loading tournament...");
+          try {
+            await enterTournament(restored, { showLoader: false });
+          } catch (err) {
+            console.warn("Failed to restore tournament, showing list", err);
+            try {
+              sessionStorage.removeItem(ONGOING_LAST_TOURNAMENT_KEY);
+            } catch (e2) {}
+            showTournamentPage();
+            await loadTournamentList();
+          } finally {
+            hideLoading();
+          }
+        } else {
+          showTournamentPage();
+          await loadTournamentList();
+        }
       }
     });
 </script>
