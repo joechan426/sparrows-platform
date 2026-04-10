@@ -24,7 +24,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		EA59A76C2F37099C00918DAC /* Sparrows Sport Club.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Sparrows Sport Club.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		EA59A76C2F37099C00918DAC /* Sparrows Club.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Sparrows Club.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		EA59A7792F37099E00918DAC /* Sparrow AppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Sparrow AppTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		EA59A7832F37099E00918DAC /* Sparrow AppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Sparrow AppUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -85,7 +85,7 @@
 		EA59A76D2F37099C00918DAC /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				EA59A76C2F37099C00918DAC /* Sparrows Sport Club.app */,
+				EA59A76C2F37099C00918DAC /* Sparrows Club.app */,
 				EA59A7792F37099E00918DAC /* Sparrow AppTests.xctest */,
 				EA59A7832F37099E00918DAC /* Sparrow AppUITests.xctest */,
 			);
@@ -114,7 +114,7 @@
 			packageProductDependencies = (
 			);
 			productName = "Sparrow App";
-			productReference = EA59A76C2F37099C00918DAC /* Sparrows Sport Club.app */;
+			productReference = EA59A76C2F37099C00918DAC /* Sparrows Club.app */;
 			productType = "com.apple.product-type.application";
 		};
 		EA59A7782F37099E00918DAC /* Sparrow AppTests */ = {
@@ -399,7 +399,7 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "Sparrows Sport Club";
+				INFOPLIST_KEY_CFBundleDisplayName = "Sparrows Club";
 				INFOPLIST_KEY_CFBundleURLTypes = "{\n    CFBundleTypeRole = Editor;\n    CFBundleURLName = \"sparrows-app\";\n    CFBundleURLSchemes =     (\n        \"sparrows-app\"\n    );\n}";
 				INFOPLIST_KEY_SparrowsAPIBaseURL = "http://127.0.0.1:3000";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
@@ -415,7 +415,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.joechan426.sparrowapp;
-				PRODUCT_NAME = "Sparrows Sport Club";
+				PRODUCT_NAME = "Sparrows Club";
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = auto;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -443,7 +443,7 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "Sparrows Sport Club";
+				INFOPLIST_KEY_CFBundleDisplayName = "Sparrows Club";
 				INFOPLIST_KEY_CFBundleURLTypes = "{\n    CFBundleTypeRole = Editor;\n    CFBundleURLName = \"sparrows-app\";\n    CFBundleURLSchemes =     (\n        \"sparrows-app\"\n    );\n}";
 				INFOPLIST_KEY_SparrowsAPIBaseURL = "https://sparrowsweb.netlify.app";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
@@ -459,7 +459,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.joechan426.sparrowapp;
-				PRODUCT_NAME = "Sparrows Sport Club";
+				PRODUCT_NAME = "Sparrows Club";
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = auto;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -493,7 +493,7 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 1;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Sparrows Sport Club.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Sparrows Sport Club";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Sparrows Club.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Sparrows Club";
 			};
 			name = Debug;
 		};
@@ -517,7 +517,7 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 1;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Sparrows Sport Club.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Sparrows Sport Club";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Sparrows Club.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Sparrows Club";
 			};
 			name = Release;
 		};

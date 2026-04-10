@@ -197,7 +197,7 @@ export const PaymentRevenueListPage: React.FC = () => {
         minWidth: 180,
         renderCell: ({ row }) => (
           <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
-            <Typography component={Link} to={`/events/${row.eventId}`} variant="body2" color="primary">
+            <Typography component={Link} to={`/events/${row.eventId}/registrations`} variant="body2" color="primary">
               {row.eventTitle ?? "—"}
             </Typography>
           </Box>

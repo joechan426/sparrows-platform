@@ -16,7 +16,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "EA59A76B2F37099C00918DAC"
-               BuildableName = "Sparrows Sport Club.app"
+               BuildableName = "Sparrows Club.app"
                BlueprintName = "Sparrow App"
                ReferencedContainer = "container:Sparrow App.xcodeproj">
             </BuildableReference>
@@ -69,7 +69,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "EA59A76B2F37099C00918DAC"
-            BuildableName = "Sparrows Sport Club.app"
+            BuildableName = "Sparrows Club.app"
             BlueprintName = "Sparrow App"
             ReferencedContainer = "container:Sparrow App.xcodeproj">
          </BuildableReference>
@@ -86,7 +86,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "EA59A76B2F37099C00918DAC"
-            BuildableName = "Sparrows Sport Club.app"
+            BuildableName = "Sparrows Club.app"
             BlueprintName = "Sparrow App"
             ReferencedContainer = "container:Sparrow App.xcodeproj">
          </BuildableReference>

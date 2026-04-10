@@ -6,7 +6,7 @@ The app talks to the same Next.js **sparrowsweb** API as the browser (`/api/auth
 
 | Build configuration | `SparrowsAPIBaseURL` | Set in Xcode |
 |---------------------|----------------------|--------------|
-| **Debug** | `http://127.0.0.1:3000` | Target **Sparrows Sport Clup** → **Build Settings** → search **SparrowsAPIBaseURL** (`INFOPLIST_KEY_SparrowsAPIBaseURL`) |
+| **Debug** | `http://127.0.0.1:3000` | Target **Sparrow App** → **Build Settings** → search **SparrowsAPIBaseURL** (`INFOPLIST_KEY_SparrowsAPIBaseURL`) |
 | **Release** | `https://sparrowsweb.netlify.app` | Same (Release row) |
 
 These are stored in `Sparrow App.xcodeproj/project.pbxproj` as `INFOPLIST_KEY_SparrowsAPIBaseURL` on the app target’s Debug / Release configurations. **Archive / App Store builds use Release** → production Netlify URL.
