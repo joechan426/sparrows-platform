@@ -62,6 +62,13 @@ export function useAnimatedGridRows<T>(
     }
 
     const prevSignature = prevSignatureRef.current;
+    const signaturesUnchanged =
+      prevSignature.size === nextSignature.size &&
+      [...nextSignature.entries()].every(([id, sig]) => prevSignature.get(id) === sig);
+    if (signaturesUnchanged) {
+      return;
+    }
+
     const addedIds = new Set<RowId>();
     const updatedIds = new Set<RowId>();
     const deletedIds = new Set<RowId>();
