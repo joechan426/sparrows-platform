@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
-import { apiChangePassword, apiUpdateMember } from "@/lib/api";
+import { apiChangePassword, apiDeleteAccount, apiUpdateMember } from "@/lib/api";
 import type { MemberRegistration } from "@/lib/api";
 import { useNavRefresh } from "@/lib/nav-refresh-context";
 import { useAnnouncements } from "@/lib/announcements-context";
@@ -50,6 +50,10 @@ export default function ProfilePage() {
   const [preferredNameDraft, setPreferredNameDraft] = useState("");
   const [nameSaving, setNameSaving] = useState(false);
   const [nameError, setNameError] = useState("");
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteConfirmInput, setDeleteConfirmInput] = useState("");
+  const [deleteError, setDeleteError] = useState("");
+  const [deleteLoading, setDeleteLoading] = useState(false);
   const { unreadCount } = useAnnouncements();
 
   useEffect(() => {
@@ -87,6 +91,27 @@ export default function ProfilePage() {
   const upcoming = (registrations ?? [])
     .filter((r) => r.event && new Date(r.event.endAt) >= now)
     .sort((a, b) => (a.event?.startAt ? new Date(a.event.startAt).getTime() : 0) - (b.event?.startAt ? new Date(b.event.startAt).getTime() : 0));
+
+  async function handleDeleteAccount() {
+    if (!member?.id) return;
+    if (deleteConfirmInput.trim().toUpperCase() !== "DELETE") {
+      setDeleteError('Type "DELETE" to confirm.');
+      return;
+    }
+    setDeleteLoading(true);
+    setDeleteError("");
+    try {
+      await apiDeleteAccount(member.id);
+      setDeleteDialogOpen(false);
+      setDeleteConfirmInput("");
+      setMember(null);
+      router.push("/calendar");
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : "Account deletion failed.");
+    } finally {
+      setDeleteLoading(false);
+    }
+  }
 
   async function handleSavePreferredName(e: React.FormEvent) {
     e.preventDefault();
@@ -370,6 +395,60 @@ export default function ProfilePage() {
       >
         Click here to check Sparrows News
       </a>
+      <button
+        type="button"
+        className="btn-sparrows-news btn-delete-account"
+        onClick={() => {
+          setDeleteError("");
+          setDeleteConfirmInput("");
+          setDeleteDialogOpen(true);
+        }}
+      >
+        Delete my account
+      </button>
+      {deleteDialogOpen && (
+        <div className="profile-delete-dialog-backdrop" role="presentation" onClick={() => !deleteLoading && setDeleteDialogOpen(false)}>
+          <div
+            className="profile-delete-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-account-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 id="delete-account-title">Delete your account?</h2>
+            <p>
+              This action cannot be undone. You will not be able to sign in the same way again, and you must register again to use this account.
+            </p>
+            <p>The following data will be deleted:</p>
+            <ul>
+              <li>Email address</li>
+              <li>Password</li>
+              <li>My Next Sparrows Events data</li>
+              <li>My Sparrows History data</li>
+            </ul>
+            <label className="profile-delete-confirm-label" htmlFor="delete-confirm-input">
+              Type DELETE to confirm
+            </label>
+            <input
+              id="delete-confirm-input"
+              type="text"
+              value={deleteConfirmInput}
+              onChange={(e) => setDeleteConfirmInput(e.target.value)}
+              className="profile-delete-confirm-input"
+              autoComplete="off"
+            />
+            {deleteError && <p className="form-error">{deleteError}</p>}
+            <div className="profile-delete-actions">
+              <button type="button" className="btn-secondary" onClick={() => setDeleteDialogOpen(false)} disabled={deleteLoading}>
+                Cancel
+              </button>
+              <button type="button" className="btn-danger" onClick={handleDeleteAccount} disabled={deleteLoading}>
+                {deleteLoading ? "Deleting…" : "Delete account permanently"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

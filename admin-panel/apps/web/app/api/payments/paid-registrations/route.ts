@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
       id: r.id,
       memberId: r.memberId,
       memberPreferredName: r.member.preferredName,
-      memberEmail: r.member.email,
+      memberEmail: r.member.email ?? "",
       eventId: r.calendarEventId,
       eventTitle: r.event.title,
       eventStartAt: r.event.startAt.toISOString(),

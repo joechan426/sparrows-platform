@@ -24,11 +24,12 @@ import { apiUrl } from "../../lib/api-base";
 import { getStoredAdmin } from "../../lib/admin-auth";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import { useGridPreferences } from "../../lib/grid-preferences";
+import { getRowAnimationClass, useAnimatedGridRows } from "../../lib/useAnimatedGridRows";
 
 type Member = {
   id: string;
   preferredName: string;
-  email: string;
+  email: string | null;
 };
 
 type CalendarEvent = {
@@ -98,6 +99,7 @@ export const EventRegistrationsPage: React.FC = () => {
   const [bulkStatusLoading, setBulkStatusLoading] = useState(false);
   const [bulkAttendanceLoading, setBulkAttendanceLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
 
   const selectedIds =
     rowSelectionModel.type === "include" ? (Array.from(rowSelectionModel.ids) as string[]) : [];
@@ -132,6 +134,10 @@ export const EventRegistrationsPage: React.FC = () => {
     };
   }, [id]);
 
+  useEffect(() => {
+    if (!registrationsLoading) setHasLoadedOnce(true);
+  }, [registrationsLoading]);
+
   const handleBulkDelete = async () => {
     if (selectedIds.length === 0) return;
     setBulkDeleteLoading(true);
@@ -141,7 +147,6 @@ export const EventRegistrationsPage: React.FC = () => {
           fetch(apiUrl(`/event-registrations/${regId}`), { method: "DELETE" }),
         ),
       );
-      open?.({ type: "success", message: `Removed ${selectedIds.length} participant(s) from the event` });
       setRowSelectionModel({ type: "include", ids: new Set() });
       refetchRegistrations?.();
     } catch {
@@ -173,10 +178,6 @@ export const EventRegistrationsPage: React.FC = () => {
       },
       {
         onSuccess: () => {
-          open?.({
-            type: "success",
-            message: "Registration status updated",
-          });
           refetchRegistrations?.();
         },
         onError: (error) => {
@@ -207,6 +208,10 @@ export const EventRegistrationsPage: React.FC = () => {
       return name.includes(q) || email.includes(q) || teamName.includes(q);
     });
   }, [rows, searchQuery]);
+  const animatedRows = useAnimatedGridRows<EventRegistrationRow>(
+    filteredRows,
+    React.useCallback((row: EventRegistrationRow) => row.id, []),
+  );
 
   const approvedCount = rows.filter((r) => r.status === "APPROVED").length;
   const statusCounts = React.useMemo(() => {
@@ -245,10 +250,6 @@ export const EventRegistrationsPage: React.FC = () => {
           }),
         ),
       );
-      open?.({
-        type: "success",
-        message: `Updated ${selectedIds.length} participant(s) to ${status.replace("_", " ")}`,
-      });
       setRowSelectionModel({ type: "include", ids: new Set() });
       refetchRegistrations?.();
     } catch (err) {
@@ -274,8 +275,6 @@ export const EventRegistrationsPage: React.FC = () => {
           }),
         ),
       );
-      const label = attendance === "DEFAULT" ? "Default" : attendance === "PRESENT" ? "Present" : "Absent";
-      open?.({ type: "success", message: `Updated ${selectedIds.length} participant(s) attendance to ${label}` });
       setRowSelectionModel({ type: "include", ids: new Set() });
       refetchRegistrations?.();
     } catch (err) {
@@ -304,7 +303,7 @@ export const EventRegistrationsPage: React.FC = () => {
         flex: 1,
         minWidth: 200,
         valueGetter: (_value, row: EventRegistrationRow) =>
-          row.member?.email ?? "—",
+          row.member?.email ?? "",
       },
       {
         field: "attendance",
@@ -511,7 +510,6 @@ export const EventRegistrationsPage: React.FC = () => {
       { resource: "calendar-events", id, values: { capacity: cap } },
       {
         onSuccess: () => {
-          open?.({ type: "success", message: "Capacity updated" });
           setEvent((prev) => (prev ? { ...prev, capacity: cap } : prev));
         },
         onError: (err) => {
@@ -547,7 +545,6 @@ export const EventRegistrationsPage: React.FC = () => {
       if (!res.ok) {
         throw new Error(data?.message ?? "Failed to add participant");
       }
-      open?.({ type: "success", message: "Participant added" });
       setAddName("");
       setAddEmail("");
       setAddTeamName("");
@@ -827,9 +824,9 @@ export const EventRegistrationsPage: React.FC = () => {
 
       <Box sx={{ height: { xs: "calc(100dvh - 540px)", md: "calc(100dvh - 430px)" }, minHeight: 300 }}>
         <SaasDataGrid
-          rows={filteredRows}
+          rows={animatedRows}
           columns={gridPrefs.columns}
-          loading={registrationsLoading}
+          loading={registrationsLoading && !hasLoadedOnce}
           getRowId={(row: EventRegistrationRow) => row.id}
           checkboxSelection
           disableRowSelectionExcludeModel
@@ -838,6 +835,7 @@ export const EventRegistrationsPage: React.FC = () => {
           columnVisibilityModel={gridPrefs.columnVisibilityModel}
           onColumnVisibilityModelChange={gridPrefs.onColumnVisibilityModelChange}
           onColumnWidthChange={gridPrefs.onColumnWidthChange}
+          getRowClassName={(params) => getRowAnimationClass(params.row as EventRegistrationRow)}
           sx={{ height: "100%" }}
         />
       </Box>

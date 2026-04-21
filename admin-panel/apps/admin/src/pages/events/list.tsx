@@ -26,6 +26,7 @@ import InputAdornment from "@mui/material/InputAdornment";
 import { apiUrl } from "../../lib/api-base";
 import { useGridPreferences } from "../../lib/grid-preferences";
 import { getStoredAdmin } from "../../lib/admin-auth";
+import { getRowAnimationClass, useAnimatedGridRows } from "../../lib/useAnimatedGridRows";
 
 type CalendarEventRow = {
   id: string;
@@ -153,6 +154,7 @@ export const EventList: React.FC = () => {
   const [importSearchQuery, setImportSearchQuery] = useState("");
   const [monthFilter, setMonthFilter] = useState<string>(() => currentSydneyMonthYyyyMm());
   const [showAllEvents, setShowAllEvents] = useState(false);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
 
   const selectedIds = rowSelectionModel.type === "include" ? Array.from(rowSelectionModel.ids) as string[] : [];
   const selectedCount = rowSelectionModel.type === "include" ? rowSelectionModel.ids.size : 0;
@@ -196,7 +198,6 @@ export const EventList: React.FC = () => {
           }),
         ),
       );
-      openNotification?.({ type: "success", message: `Opened registration for ${selectedIds.length} event(s)` });
       setRowSelectionModel({ type: "include", ids: new Set() });
       invalidate({ resource: "calendar-events", invalidates: ["list", "many", "detail"] });
       await refetchList?.();
@@ -220,7 +221,6 @@ export const EventList: React.FC = () => {
           }),
         ),
       );
-      openNotification?.({ type: "success", message: `Closed registration for ${selectedIds.length} event(s)` });
       setRowSelectionModel({ type: "include", ids: new Set() });
       invalidate({ resource: "calendar-events", invalidates: ["list", "many", "detail"] });
       await refetchList?.();
@@ -246,7 +246,6 @@ export const EventList: React.FC = () => {
       await Promise.all(
         selectedIds.map((id) => fetch(apiUrl(`/calendar-events/${id}`), { method: "DELETE" })),
       );
-      openNotification?.({ type: "success", message: `Deleted ${selectedIds.length} event(s)` });
       setRowSelectionModel({ type: "include", ids: new Set() });
       setBulkDeleteConfirmPending(false);
       invalidate({ resource: "calendar-events", invalidates: ["list", "many", "detail"] });
@@ -339,7 +338,6 @@ export const EventList: React.FC = () => {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.message ?? "Import failed");
-      openNotification?.({ type: "success", message: `Import complete. Created: ${data.created}, Updated: ${data.updated}, Skipped: ${data.skipped}` });
       invalidate({ resource: "calendar-events", invalidates: ["list", "many", "detail"] });
       await refetchList?.();
       setImportDialogOpen(false);
@@ -360,7 +358,6 @@ export const EventList: React.FC = () => {
       { resource: "calendar-events", id: deleteConfirm.id },
       {
         onSuccess: () => {
-          openNotification?.({ type: "success", message: "Event deleted" });
           setDeleteConfirm(null);
           invalidate({ resource: "calendar-events", invalidates: ["list", "many", "detail"] });
           refetchList?.();
@@ -373,6 +370,9 @@ export const EventList: React.FC = () => {
   };
 
   const listRows = (dataGridProps.rows ?? []) as CalendarEventRow[];
+  React.useEffect(() => {
+    if (!dataGridProps.loading) setHasLoadedOnce(true);
+  }, [dataGridProps.loading]);
 
   const filteredListRows = React.useMemo(() => {
     const q = listSearchQuery.trim().toLowerCase();
@@ -395,6 +395,10 @@ export const EventList: React.FC = () => {
       }
     });
   }, [listRows, listSearchQuery, monthFilter, showAllEvents]);
+  const animatedRows = useAnimatedGridRows<CalendarEventRow>(
+    filteredListRows,
+    React.useCallback((row: CalendarEventRow) => row.id, []),
+  );
 
   const columns = React.useMemo<GridColDef[]>(
     () => [
@@ -689,16 +693,20 @@ export const EventList: React.FC = () => {
         >
           <SaasDataGrid
             {...dataGridProps}
-            rows={filteredListRows}
+            rows={animatedRows}
             columns={gridPrefs.columns}
+            loading={Boolean(dataGridProps.loading && !hasLoadedOnce)}
             getRowId={(row: CalendarEventRow) => row.id}
             getRowClassName={(params) => {
               try {
                 const row = params.row as CalendarEventRow;
                 const k = row.startAt ? sydneyDateKey(new Date(row.startAt)) : "";
-                return k && k === todayKeySydney ? "event-row-today-highlight" : "";
+                const classes = [k && k === todayKeySydney ? "event-row-today-highlight" : "", getRowAnimationClass(row)]
+                  .filter(Boolean)
+                  .join(" ");
+                return classes;
               } catch {
-                return "";
+                return getRowAnimationClass(params.row as CalendarEventRow);
               }
             }}
             checkboxSelection={!isCoach}

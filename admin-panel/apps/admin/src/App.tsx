@@ -70,6 +70,7 @@ import { AdminResponsiveSider } from "./components/AdminResponsiveSider";
 import { AdminMobileBottomNav } from "./components/AdminMobileBottomNav";
 import { AdminHomeLink } from "./components/AdminHomeLink";
 import { PullToRefresh } from "./components/PullToRefresh";
+import "./styles/grid-row-animations.css";
 
 const accessControlProvider: AccessControlProvider = {
   can: async ({ resource }) => {

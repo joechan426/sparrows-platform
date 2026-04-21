@@ -65,7 +65,8 @@ CREATE TABLE match_sets (
 CREATE TABLE members (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   preferred_name TEXT NOT NULL,
-  email TEXT NOT NULL UNIQUE,
+  -- Nullable to support app-initiated account deletion while retaining historical payment rows by member_id.
+  email TEXT UNIQUE,
   stripe_customer_id TEXT,
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW()

@@ -1,0 +1,47 @@
+.MuiDataGrid-row.grid-row-anim-add {
+  animation: gridRowSlideDownFade 300ms ease-out;
+}
+
+.MuiDataGrid-row.grid-row-anim-update {
+  animation: gridRowHighlightPulse 1200ms ease-out;
+}
+
+.MuiDataGrid-row.grid-row-anim-delete {
+  overflow: hidden;
+  animation: gridRowFadeOutCollapse 350ms ease-in forwards;
+}
+
+@keyframes gridRowSlideDownFade {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes gridRowHighlightPulse {
+  0% {
+    background-color: rgba(76, 175, 80, 0.32);
+  }
+  35% {
+    background-color: rgba(76, 175, 80, 0.18);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+@keyframes gridRowFadeOutCollapse {
+  from {
+    opacity: 1;
+    max-height: 56px;
+  }
+  to {
+    opacity: 0;
+    max-height: 0;
+    transform: scaleY(0.96);
+  }
+}

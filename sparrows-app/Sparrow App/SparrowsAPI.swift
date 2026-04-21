@@ -325,6 +325,21 @@ enum AuthAPI {
         let msg = (try? JSONDecoder().decode([String: String].self, from: data))?["message"]
         throw SparrowsAPIError.httpStatus(code, msg ?? "Change password failed")
     }
+
+    static func deleteAccount(memberId: String) async throws {
+        let url = URL(string: "\(SparrowsAPI.apiBase)/auth/delete-account")!
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONEncoder().encode([
+            "memberId": memberId
+        ])
+        let (data, res) = try await SparrowsAPI.data(for: req)
+        let code = res.statusCode
+        if code == 200 { return }
+        let msg = (try? JSONDecoder().decode([String: String].self, from: data))?["message"]
+        throw SparrowsAPIError.httpStatus(code, msg ?? "Account deletion failed")
+    }
 }
 
 // MARK: - Calendar Events API

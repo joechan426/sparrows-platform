@@ -25,7 +25,7 @@ import { apiUrl } from "../../lib/api-base";
 type Member = {
   id: string;
   preferredName: string;
-  email: string;
+  email: string | null;
   createdAt: string;
 };
 
@@ -172,7 +172,7 @@ export const MemberShow: React.FC = () => {
           </IconButton>
         </Box>
         <Typography variant="body1" sx={{ mb: 1 }}>
-          <strong>Email:</strong> {member.email}
+          <strong>Email:</strong> {member.email ?? ""}
         </Typography>
         <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, alignItems: "center" }}>
           <Button
@@ -180,7 +180,7 @@ export const MemberShow: React.FC = () => {
             variant="outlined"
             color="primary"
             onClick={() => {
-              setChangeEmailValue(member.email);
+              setChangeEmailValue(member.email ?? "");
               setChangeEmailError("");
               setChangeEmailOpen(true);
             }}

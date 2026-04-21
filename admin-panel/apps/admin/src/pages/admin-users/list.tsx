@@ -16,6 +16,7 @@ import { Link } from "react-router-dom";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import { getToken, getStoredAdmin } from "../../lib/admin-auth";
 import { apiUrl } from "../../lib/api-base";
+import { getRowAnimationClass, useAnimatedGridRows } from "../../lib/useAnimatedGridRows";
 
 type AdminUserRow = {
   id: string;
@@ -43,6 +44,7 @@ export const AdminUserList: React.FC = () => {
   });
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
 
   const invalidate = useInvalidate();
   const { open: notify } = useNotification();
@@ -98,10 +100,6 @@ export const AdminUserList: React.FC = () => {
         notify?.({ type: "error", message: data?.message ?? "Delete failed" });
         return;
       }
-      notify?.({
-        type: "success",
-        message: `Deleted ${data.deleted ?? 0} admin user(s).`,
-      });
       setDeleteOpen(false);
       setRowSelectionModel({ type: "include", ids: new Set() });
       invalidate({ resource: "admin-users", invalidates: ["list", "many", "detail"] });
@@ -185,6 +183,14 @@ export const AdminUserList: React.FC = () => {
   );
 
   const selectionIncludesSelf = Boolean(selfId && selectedIds.includes(selfId));
+  const sourceRows = (dataGridProps.rows ?? []) as AdminUserRow[];
+  React.useEffect(() => {
+    if (!dataGridProps.loading) setHasLoadedOnce(true);
+  }, [dataGridProps.loading]);
+  const animatedRows = useAnimatedGridRows<AdminUserRow>(
+    sourceRows,
+    React.useCallback((row: AdminUserRow) => row.id, []),
+  );
 
   return (
     <List
@@ -210,11 +216,14 @@ export const AdminUserList: React.FC = () => {
       <Box sx={{ height: { xs: "calc(100dvh - 330px)", md: "calc(100dvh - 280px)" }, minHeight: 300 }}>
         <SaasDataGrid
           {...dataGridProps}
+          rows={animatedRows}
           columns={columns}
+          loading={Boolean(dataGridProps.loading && !hasLoadedOnce)}
           checkboxSelection={isAdminViewer}
           disableRowSelectionOnClick
           rowSelectionModel={rowSelectionModel}
           onRowSelectionModelChange={setRowSelectionModel}
+          getRowClassName={(params) => getRowAnimationClass(params.row as AdminUserRow)}
           sx={{ height: "100%" }}
         />
       </Box>

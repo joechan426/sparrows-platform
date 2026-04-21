@@ -107,6 +107,16 @@ export async function apiChangePassword(
   if (!res.ok) throw new Error(data?.message ?? "Change password failed");
 }
 
+export async function apiDeleteAccount(memberId: string): Promise<void> {
+  const res = await fetch(`${base()}/api/auth/delete-account`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ memberId }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.message ?? "Account deletion failed");
+}
+
 export async function apiGetMember(id: string): Promise<Member> {
   const res = await fetch(`${base()}/api/members/${id}`);
   const data = await res.json().catch(() => ({}));

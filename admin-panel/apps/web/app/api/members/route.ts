@@ -24,12 +24,13 @@ export async function GET(req: NextRequest) {
 
     const where = q
       ? {
+          email: { not: null },
           OR: [
             { preferredName: { contains: q, mode: "insensitive" as const } },
             { email: { contains: q, mode: "insensitive" as const } },
           ],
         }
-      : undefined;
+      : { email: { not: null } };
 
     const [rawItems, total] = await Promise.all([
       prisma.member.findMany({

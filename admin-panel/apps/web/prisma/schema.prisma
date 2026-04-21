@@ -194,7 +194,7 @@ model MatchSet {
 model Member {
   id            String   @id @default(cuid())
   preferredName String
-  email         String   @unique
+  email         String?  @unique
   passwordHash  String?  // for email/password login
   appleId       String?  @unique // Sign in with Apple unique user id
   googleId      String?  @unique // Google Sign-In unique user id

@@ -15,12 +15,13 @@ import Button from "@mui/material/Button";
 import DownloadOutlinedIcon from "@mui/icons-material/DownloadOutlined";
 import { getToken } from "../../lib/admin-auth";
 import { apiUrl } from "../../lib/api-base";
+import { getRowAnimationClass, useAnimatedGridRows } from "../../lib/useAnimatedGridRows";
 
 type PaidRow = {
   id: string;
   memberId: string;
   memberPreferredName: string;
-  memberEmail: string;
+  memberEmail: string | null;
   eventId: string;
   eventTitle: string;
   eventStartAt: string;
@@ -59,11 +60,15 @@ export const PaymentRevenueListPage: React.FC = () => {
   const [showAll, setShowAll] = useState(false);
   const [rows, setRows] = useState<PaidRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const animatedRows = useAnimatedGridRows<PaidRow>(
+    rows,
+    React.useCallback((row: PaidRow) => row.id, []),
+  );
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (showSkeleton: boolean) => {
     const token = getToken();
     if (!token) return;
-    setLoading(true);
+    if (showSkeleton) setLoading(true);
     try {
       const q = showAll ? "month=all" : `month=${encodeURIComponent(monthFilter)}`;
       const res = await fetch(apiUrl(`/payments/paid-registrations?${q}`), {
@@ -80,17 +85,17 @@ export const PaymentRevenueListPage: React.FC = () => {
       notify?.({ type: "error", message: e instanceof Error ? e.message : "Failed to load payments" });
       setRows([]);
     } finally {
-      setLoading(false);
+      if (showSkeleton) setLoading(false);
     }
   }, [monthFilter, showAll, notify]);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    void load(true);
+  }, [monthFilter, showAll, load]);
 
   useEffect(() => {
     const refresh = () => {
-      void load();
+      void load(false);
     };
     const onSoftRefresh = () => refresh();
     const onVisibility = () => {
@@ -184,9 +189,15 @@ export const PaymentRevenueListPage: React.FC = () => {
         minWidth: 200,
         renderCell: ({ row }) => (
           <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
-            <Typography component={Link} to={`/members/${row.memberId}`} variant="body2" color="primary">
-              {row.memberEmail ?? "—"}
-            </Typography>
+            {row.memberEmail ? (
+              <Typography component={Link} to={`/members/${row.memberId}`} variant="body2" color="primary">
+                {row.memberEmail}
+              </Typography>
+            ) : (
+              <Typography variant="body2" color="text.primary">
+                {""}
+              </Typography>
+            )}
           </Box>
         ),
       },
@@ -375,7 +386,7 @@ export const PaymentRevenueListPage: React.FC = () => {
           </Box>
         )}
         <SaasDataGrid
-          rows={rows}
+          rows={animatedRows}
           columns={gridPrefs.columns}
           loading={loading}
           getRowId={(r) => r.id}
@@ -383,6 +394,7 @@ export const PaymentRevenueListPage: React.FC = () => {
           onColumnVisibilityModelChange={gridPrefs.onColumnVisibilityModelChange}
           onColumnWidthChange={gridPrefs.onColumnWidthChange}
           disableRowSelectionOnClick
+          getRowClassName={(params) => getRowAnimationClass(params.row as PaidRow)}
           sx={{ height: "100%" }}
         />
       </Box>

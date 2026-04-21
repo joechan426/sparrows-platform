@@ -20,11 +20,12 @@ import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import { getToken, getStoredAdmin } from "../../lib/admin-auth";
 import { apiUrl } from "../../lib/api-base";
 import { useGridPreferences } from "../../lib/grid-preferences";
+import { getRowAnimationClass, useAnimatedGridRows } from "../../lib/useAnimatedGridRows";
 
 type MemberRow = {
   id: string;
   preferredName: string;
-  email: string;
+  email: string | null;
   createdAt: string;
 };
 
@@ -40,6 +41,7 @@ export const MemberList: React.FC = () => {
   const [resetPwError, setResetPwError] = useState("");
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const navigate = useNavigate();
   const invalidate = useInvalidate();
   const { open: notify } = useNotification();
@@ -144,10 +146,6 @@ export const MemberList: React.FC = () => {
         notify?.({ type: "error", message: data?.message ?? "Delete failed" });
         return;
       }
-      notify?.({
-        type: "success",
-        message: `Deleted ${data.deletedMembers ?? 0} member(s). Removed ${data.deletedRegistrations ?? 0} event registration(s).`,
-      });
       setDeleteOpen(false);
       setRowSelectionModel({ type: "include", ids: new Set() });
       invalidate({ resource: "members", invalidates: ["list", "many", "detail"] });
@@ -200,6 +198,14 @@ export const MemberList: React.FC = () => {
     []
   );
   const gridPrefs = useGridPreferences("members-list", columns);
+  const sourceRows = (dataGridProps.rows ?? []) as MemberRow[];
+  React.useEffect(() => {
+    if (!dataGridProps.loading) setHasLoadedOnce(true);
+  }, [dataGridProps.loading]);
+  const animatedRows = useAnimatedGridRows<MemberRow>(
+    sourceRows,
+    React.useCallback((row: MemberRow) => row.id, []),
+  );
 
   return (
     <List title="Members">
@@ -259,7 +265,9 @@ export const MemberList: React.FC = () => {
       <Box sx={{ height: { xs: "calc(100dvh - 380px)", md: "calc(100dvh - 320px)" }, minHeight: 300 }}>
         <SaasDataGrid
           {...dataGridProps}
+          rows={animatedRows}
           columns={gridPrefs.columns}
+          loading={Boolean(dataGridProps.loading && !hasLoadedOnce)}
           checkboxSelection={!isCoach}
           rowSelectionModel={rowSelectionModel}
           onRowSelectionModelChange={setRowSelectionModel}
@@ -267,6 +275,7 @@ export const MemberList: React.FC = () => {
           onColumnVisibilityModelChange={gridPrefs.onColumnVisibilityModelChange}
           onColumnWidthChange={gridPrefs.onColumnWidthChange}
           onRowClick={(params) => navigate(`/members/${params.id}`)}
+          getRowClassName={(params) => getRowAnimationClass(params.row as MemberRow)}
           sx={{
             height: "100%",
             "& .MuiDataGrid-row": { cursor: "pointer" },

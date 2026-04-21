@@ -300,6 +300,27 @@ final class MemberProfileStore: ObservableObject {
         }
     }
 
+    func deleteAccount() async -> Bool {
+        guard let id = memberId else { return false }
+        isSaving = true
+        saveError = nil
+        defer { isSaving = false }
+        do {
+            try await AuthAPI.deleteAccount(memberId: id)
+            logout()
+            return true
+        } catch let err as SparrowsAPIError {
+            if case .httpStatus(_, let msg) = err {
+                saveError = msg ?? "Account deletion failed."
+            } else {
+                saveError = err.localizedDescription
+            }
+        } catch {
+            saveError = error.localizedDescription
+        }
+        return false
+    }
+
     func loadFromBackendIfNeeded() async {
         guard let id = memberId else { return }
         do {
@@ -2405,6 +2426,8 @@ private struct MyProfileView: View {
     @State private var registrations: [APIMemberRegistration] = []
     @State private var registrationsLoaded = false
     @State private var registrationsSectionId = UUID()
+    @State private var showDeleteAccountSheet = false
+    @State private var showDeleteAccountFinalConfirm = false
 
     var body: some View {
         GeometryReader { rootGeo in
@@ -2604,6 +2627,12 @@ private struct MyProfileView: View {
 
                                     sectionDivider
 
+                                    if memberStore.hasProfile {
+                                        deleteAccountButton
+
+                                        sectionDivider
+                                    }
+
                                     contactUsBar
                                 }
                                 .padding(.horizontal, 12)
@@ -2687,6 +2716,78 @@ private struct MyProfileView: View {
                             }
                             .sheet(isPresented: $showMoreNews) {
                                 MoreNewsSheetView(url: URL(string: "https://sparrowsvolleyball.com.au/news")!)
+                            }
+                            .sheet(isPresented: $showDeleteAccountSheet) {
+                                NavigationStack {
+                                    ScrollView {
+                                        VStack(alignment: .leading, spacing: 12) {
+                                            Text("Delete your account?")
+                                                .font(.title3.weight(.semibold))
+                                            Text("This action cannot be undone. You will not be able to sign in the same way again, and you must register again.")
+                                                .font(.subheadline)
+                                                .foregroundStyle(.secondary)
+                                            Text("The following data will be deleted:")
+                                                .font(.subheadline.weight(.semibold))
+                                            VStack(alignment: .leading, spacing: 6) {
+                                                Text("• Email address")
+                                                Text("• Password")
+                                                Text("• My Next Sparrows Events data")
+                                                Text("• My Sparrows History data")
+                                            }
+                                            .font(.subheadline)
+                                            .foregroundStyle(Color.black.opacity(0.85))
+
+                                            if let err = memberStore.saveError {
+                                                Text(err)
+                                                    .font(.caption)
+                                                    .foregroundStyle(.red)
+                                            }
+
+                                            HStack(spacing: 10) {
+                                                Button("Cancel") {
+                                                    showDeleteAccountSheet = false
+                                                }
+                                                .buttonStyle(.bordered)
+                                                .frame(maxWidth: .infinity)
+
+                                                Button("Continue") {
+                                                    showDeleteAccountFinalConfirm = true
+                                                }
+                                                .buttonStyle(.borderedProminent)
+                                                .tint(.red)
+                                                .frame(maxWidth: .infinity)
+                                                .disabled(memberStore.isSaving)
+                                            }
+                                            .padding(.top, 4)
+                                        }
+                                        .padding(16)
+                                    }
+                                    .navigationTitle("Delete account")
+                                    .navigationBarTitleDisplayMode(.inline)
+                                    .toolbar {
+                                        ToolbarItem(placement: .topBarTrailing) {
+                                            Button("Close") { showDeleteAccountSheet = false }
+                                        }
+                                    }
+                                }
+                            }
+                            .alert("Delete account permanently?", isPresented: $showDeleteAccountFinalConfirm) {
+                                Button("Cancel", role: .cancel) {}
+                                Button("Delete", role: .destructive) {
+                                    Task {
+                                        let ok = await memberStore.deleteAccount()
+                                        if ok {
+                                            authPassword = ""
+                                            profileNameInput = ""
+                                            profileEmailInput = ""
+                                            registrations = []
+                                            registrationsLoaded = true
+                                            showDeleteAccountSheet = false
+                                        }
+                                    }
+                                }
+                            } message: {
+                                Text("This action cannot be undone.")
                             }
                         }
                     }
@@ -2781,6 +2882,23 @@ private struct MyProfileView: View {
             x: 0,
             y: 3
         )
+    }
+
+    private var deleteAccountButton: some View {
+        Button {
+            memberStore.clearSaveError()
+            showDeleteAccountSheet = true
+        } label: {
+            Text("Delete my account")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Color.white)
+                .frame(maxWidth: .infinity, minHeight: 38)
+                .background(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(Color.red)
+                )
+        }
+        .buttonStyle(.plain)
     }
 
     private func openInstagramContact() {
