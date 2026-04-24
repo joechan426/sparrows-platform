@@ -19,22 +19,99 @@ function classifyEventType(title: string): "NORMAL" | "SPECIAL" {
   return "NORMAL";
 }
 
-/** Parse ICAL date-time value (e.g. 20260320T100000Z or 20260320T100000) to Date */
-function parseIcalDate(value: string): Date | null {
-  const s = value.trim().replace(/\s/g, "");
-  if (!s) return null;
-  const withDashes = s.slice(0, 4) + "-" + s.slice(4, 6) + "-" + s.slice(6, 8);
-  const timePart = s.includes("T") ? s.slice(9) : "";
-  const isUtc = timePart.endsWith("Z");
-  let iso: string;
-  if (timePart && timePart.length >= 6) {
-    const h = timePart.slice(0, 2), m = timePart.slice(2, 4), sec = timePart.slice(4, 6).replace(/Z$/, "");
-    iso = `${withDashes}T${h}:${m}:${sec}${isUtc ? "Z" : ""}`;
-  } else {
-    iso = withDashes;
+const DEFAULT_ICS_TIME_ZONE = "Australia/Sydney";
+
+function getTZIdFromKey(key: string): string | null {
+  const m = key.match(/TZID=([^;:]+)/i);
+  return m?.[1] ?? null;
+}
+
+function getFormatterParts(date: Date, timeZone: string): Record<string, number> {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).formatToParts(date);
+
+  const out: Record<string, number> = {};
+  for (const p of parts) {
+    if (p.type === "literal") continue;
+    if (["year", "month", "day", "hour", "minute", "second"].includes(p.type)) {
+      out[p.type] = parseInt(p.value, 10);
+    }
   }
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? null : d;
+  return out;
+}
+
+function zonedDateTimeToUTC(
+  year: number,
+  month: number,
+  day: number,
+  hour: number,
+  minute: number,
+  second: number,
+  timeZone: string
+): Date {
+  const targetUTC = Date.UTC(year, month - 1, day, hour, minute, second);
+  let guess = targetUTC;
+  for (let i = 0; i < 4; i += 1) {
+    const p = getFormatterParts(new Date(guess), timeZone);
+    const observedUTC = Date.UTC(
+      p.year ?? year,
+      (p.month ?? month) - 1,
+      p.day ?? day,
+      p.hour ?? hour,
+      p.minute ?? minute,
+      p.second ?? second
+    );
+    guess += targetUTC - observedUTC;
+  }
+  return new Date(guess);
+}
+
+/** Parse ICAL date-time value with property key (supports TZID). */
+function parseIcalDate(key: string, value: string): Date | null {
+  const compact = value.trim().replace(/\s/g, "");
+  if (!compact) return null;
+
+  if (key.includes("VALUE=DATE")) {
+    const m = compact.match(/^(\d{4})(\d{2})(\d{2})/);
+    if (!m) return null;
+    return new Date(Date.UTC(parseInt(m[1]!, 10), parseInt(m[2]!, 10) - 1, parseInt(m[3]!, 10)));
+  }
+
+  if (compact.endsWith("Z")) {
+    const m = compact.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})/);
+    if (!m) return null;
+    return new Date(
+      Date.UTC(
+        parseInt(m[1]!, 10),
+        parseInt(m[2]!, 10) - 1,
+        parseInt(m[3]!, 10),
+        parseInt(m[4]!, 10),
+        parseInt(m[5]!, 10),
+        parseInt(m[6]!, 10)
+      )
+    );
+  }
+
+  const m = compact.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})$/);
+  if (!m) return null;
+  const tzId = getTZIdFromKey(key) ?? DEFAULT_ICS_TIME_ZONE;
+  return zonedDateTimeToUTC(
+    parseInt(m[1]!, 10),
+    parseInt(m[2]!, 10),
+    parseInt(m[3]!, 10),
+    parseInt(m[4]!, 10),
+    parseInt(m[5]!, 10),
+    parseInt(m[6]!, 10),
+    tzId
+  );
 }
 
 export type ParsedIcalEvent = {
@@ -62,13 +139,22 @@ function parseIcalToEvents(icsText: string): ParsedIcalEvent[] {
       if (!value) return null;
       return value.replace(/\\n/g, "\n").trim() || null;
     };
+    const getKeyAndValue = (key: string): { key: string; value: string } | null => {
+      const keyUpper = key.toUpperCase();
+      const regex = new RegExp("^(" + keyUpper + "(?:;[^:]*)?):(.*)$", "im");
+      const lineMatch = block.match(regex);
+      const fullKey = lineMatch?.[1];
+      const value = lineMatch?.[2];
+      if (!fullKey || !value) return null;
+      return { key: fullKey, value };
+    };
     const uid = get("UID");
     const summary = get("SUMMARY") ?? "";
-    const dtStart = get("DTSTART");
-    const dtEnd = get("DTEND");
+    const dtStart = getKeyAndValue("DTSTART");
+    const dtEnd = getKeyAndValue("DTEND");
     if (!uid || !dtStart || !dtEnd) continue;
-    const start = parseIcalDate(dtStart);
-    const end = parseIcalDate(dtEnd);
+    const start = parseIcalDate(dtStart.key, dtStart.value);
+    const end = parseIcalDate(dtEnd.key, dtEnd.value);
     if (!start || !end || Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) continue;
     events.push({
       uid,
