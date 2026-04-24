@@ -21,7 +21,8 @@ export type AdminModule =
   | "ANNOUNCEMENTS"
   | "PAYMENT_PROFILES"
   | "ADMIN_USERS"
-  | "PAYMENTS";
+  | "PAYMENTS"
+  | "CREDITS";
 
 export const ADMIN_IMPLICIT_MODULES: AdminModule[] = [
   "TOURNAMENTS",
@@ -32,6 +33,7 @@ export const ADMIN_IMPLICIT_MODULES: AdminModule[] = [
   "PAYMENT_PROFILES",
   "ADMIN_USERS",
   "PAYMENTS",
+  "CREDITS",
 ];
 
 export type AdminPayload = {

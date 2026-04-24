@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "../../../../../lib/prisma";
 import { requireAdminAuth, getOptionalAdminAuth } from "../../../../../lib/admin-auth";
 import { withCors, corsJson, corsOptions } from "../../../../../lib/cors";
+import { upsertPaidRegistration } from "../../../../../lib/paid-registration";
 
 async function getIdFromContext(context: any): Promise<string | undefined> {
   const params = await Promise.resolve(context?.params);
@@ -69,6 +70,7 @@ export async function POST(req: NextRequest, context: any) {
       typeof body.teamName === "string" && body.teamName.trim().length > 0
         ? body.teamName.trim()
         : null;
+    const useCredit = body.useCredit === true;
 
     if (!preferredName) {
       return withCors(
@@ -111,6 +113,22 @@ export async function POST(req: NextRequest, context: any) {
       Boolean(event.isPaid && event.priceCents != null && event.priceCents > 0);
 
     if (requiresPayment) {
+      if (useCredit && email) {
+        const memberForCredit = await prisma.member.findUnique({
+          where: { email },
+          select: { creditCents: true },
+        });
+        const price = event.priceCents ?? 0;
+        if ((memberForCredit?.creditCents ?? 0) >= price && price > 0) {
+          const paid = await upsertPaidRegistration({
+            context: { calendarEventId, email, preferredName, teamName },
+            provider: "MANUAL",
+            amountPaidCents: 0,
+            useCredit: true,
+          });
+          return withCors(req, NextResponse.json(paid, { status: 201 }));
+        }
+      }
       const admin = await getOptionalAdminAuth(req, "CALENDAR_EVENTS");
       if (!admin) {
         return corsJson(

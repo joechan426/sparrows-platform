@@ -61,6 +61,7 @@ struct APIMember: Codable {
     let id: String
     var preferredName: String
     var email: String
+    var creditCents: Int?
 }
 
 struct APICalendarEvent: Codable {
@@ -86,10 +87,11 @@ struct APICalendarEvent: Codable {
     let currency: String?
     let stripeCheckoutAvailable: Bool?
     let paypalCheckoutAvailable: Bool?
+    let payableAfterCreditCents: Int?
 
     enum CodingKeys: String, CodingKey {
         case id, title, startAt, endAt, description, location, sportType, eventType, registrationOpen, capacity, approvedCount, waitlistedCount, pendingCount
-        case isPaid, priceCents, currency, stripeCheckoutAvailable, paypalCheckoutAvailable
+        case isPaid, priceCents, currency, stripeCheckoutAvailable, paypalCheckoutAvailable, payableAfterCreditCents
     }
 
     init(from decoder: Decoder) throws {
@@ -112,6 +114,7 @@ struct APICalendarEvent: Codable {
         currency = try c.decodeIfPresent(String.self, forKey: .currency)
         stripeCheckoutAvailable = try c.decodeIfPresent(Bool.self, forKey: .stripeCheckoutAvailable)
         paypalCheckoutAvailable = try c.decodeIfPresent(Bool.self, forKey: .paypalCheckoutAvailable)
+        payableAfterCreditCents = try c.decodeIfPresent(Int.self, forKey: .payableAfterCreditCents)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -134,6 +137,7 @@ struct APICalendarEvent: Codable {
         try c.encodeIfPresent(currency, forKey: .currency)
         try c.encodeIfPresent(stripeCheckoutAvailable, forKey: .stripeCheckoutAvailable)
         try c.encodeIfPresent(paypalCheckoutAvailable, forKey: .paypalCheckoutAvailable)
+        try c.encodeIfPresent(payableAfterCreditCents, forKey: .payableAfterCreditCents)
     }
 }
 
@@ -345,8 +349,9 @@ enum AuthAPI {
 // MARK: - Calendar Events API
 enum CalendarEventsAPI {
     struct CheckoutResponse: Decodable {
-        let url: String
+        let url: String?
         let registrationId: String?
+        let directRegistered: Bool?
     }
 
     /// Same events + ids as sparrowsweb `fetch("/api/google-calendar-ics")`.
@@ -382,10 +387,11 @@ enum CalendarEventsAPI {
         return try JSONDecoder().decode(APICalendarEvent.self, from: data)
     }
 
-    static func register(eventId: String, preferredName: String, email: String, teamName: String?) async throws {
+    static func register(eventId: String, preferredName: String, email: String, teamName: String?, useCredit: Bool = false) async throws {
         let url = URL(string: "\(SparrowsAPI.apiBase)/calendar-events/\(eventId)/registrations")!
         var body: [String: Any] = ["preferredName": preferredName, "email": email]
         if let t = teamName, !t.isEmpty { body["teamName"] = t }
+        if useCredit { body["useCredit"] = true }
 
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
@@ -406,7 +412,8 @@ enum CalendarEventsAPI {
         preferredName: String,
         email: String,
         teamName: String?,
-        appReturn: Bool
+        appReturn: Bool,
+        useCredit: Bool = false
     ) async throws -> CheckoutResponse {
         let url = URL(string: "\(SparrowsAPI.apiBase)/calendar-events/\(eventId)/checkout")!
         var body: [String: Any] = [
@@ -416,6 +423,7 @@ enum CalendarEventsAPI {
             "appReturn": appReturn,
         ]
         if let t = teamName, !t.isEmpty { body["teamName"] = t }
+        if useCredit { body["useCredit"] = true }
 
         var req = URLRequest(url: url)
         req.httpMethod = "POST"

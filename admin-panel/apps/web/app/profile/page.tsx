@@ -340,6 +340,11 @@ export default function ProfilePage() {
         </button>
         {openScheduled && (
           <div className="disclosure-body">
+            {(member.creditCents ?? 0) > 0 && (
+              <p style={{ color: "#b71c1c", fontWeight: 700, marginBottom: 10 }}>
+                Credit: AUD ${((member.creditCents ?? 0) / 100).toFixed(2)}
+              </p>
+            )}
             {registrations === null ? (
               <p className="profile-muted">Loading...</p>
             ) : upcoming.length === 0 ? (
@@ -426,6 +431,11 @@ export default function ProfilePage() {
               <li>My Next Sparrows Events data</li>
               <li>My Sparrows History data</li>
             </ul>
+            {(member.creditCents ?? 0) > 0 && (
+              <p className="form-error" style={{ marginTop: 8 }}>
+                Warning: your remaining credit will be forfeited after account deletion.
+              </p>
+            )}
             <label className="profile-delete-confirm-label" htmlFor="delete-confirm-input">
               Type DELETE to confirm
             </label>

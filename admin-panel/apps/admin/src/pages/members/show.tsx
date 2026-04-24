@@ -19,7 +19,7 @@ import DialogActions from "@mui/material/DialogActions";
 import TextField from "@mui/material/TextField";
 import IconButton from "@mui/material/IconButton";
 import EditOutlined from "@mui/icons-material/EditOutlined";
-import { getToken } from "../../lib/admin-auth";
+import { getToken, getStoredAdmin } from "../../lib/admin-auth";
 import { apiUrl } from "../../lib/api-base";
 
 type Member = {
@@ -27,6 +27,7 @@ type Member = {
   preferredName: string;
   email: string | null;
   createdAt: string;
+  creditCents?: number;
 };
 
 type CalendarEvent = {
@@ -87,6 +88,11 @@ export const MemberShow: React.FC = () => {
   const [changeNameValue, setChangeNameValue] = useState("");
   const [changeNameSaving, setChangeNameSaving] = useState(false);
   const [changeNameError, setChangeNameError] = useState("");
+  const [creditDialogOpen, setCreditDialogOpen] = useState(false);
+  const [creditDeltaValue, setCreditDeltaValue] = useState("");
+  const [creditSaving, setCreditSaving] = useState(false);
+  const admin = getStoredAdmin();
+  const canManageCredits = admin?.role === "ADMIN" || admin?.permissions?.includes("CREDITS");
 
   useEffect(() => {
     if (!id) {
@@ -203,7 +209,67 @@ export const MemberShow: React.FC = () => {
         <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
           Created: {formatDate(member.createdAt)}
         </Typography>
+        {canManageCredits && (
+          <Box sx={{ mt: 1.5 }}>
+            <Typography variant="body1" sx={{ color: "error.main", fontWeight: 700 }}>
+              Credit: AUD ${((member.creditCents ?? 0) / 100).toFixed(2)}
+            </Typography>
+            <Button size="small" variant="outlined" sx={{ mt: 0.75 }} onClick={() => setCreditDialogOpen(true)}>
+              Adjust credit
+            </Button>
+          </Box>
+        )}
       </Paper>
+      <Dialog open={creditDialogOpen} onClose={() => !creditSaving && setCreditDialogOpen(false)}>
+        <DialogTitle>Adjust member credit</DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ mb: 2 }}>
+            Positive adds credit, negative deducts credit.
+          </DialogContentText>
+          <TextField
+            autoFocus
+            fullWidth
+            label="Delta (AUD, e.g. 10 or -5)"
+            value={creditDeltaValue}
+            onChange={(e) => setCreditDeltaValue(e.target.value)}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setCreditDialogOpen(false)} disabled={creditSaving}>Cancel</Button>
+          <Button
+            variant="contained"
+            disabled={creditSaving}
+            onClick={async () => {
+              if (!id) return;
+              const amount = Number(creditDeltaValue);
+              const deltaCents = Math.round(amount * 100);
+              if (!Number.isFinite(amount) || deltaCents === 0) return;
+              setCreditSaving(true);
+              try {
+                const token = getToken();
+                const res = await fetch(apiUrl(`/members/${id}/credit-adjust`), {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                  },
+                  body: JSON.stringify({ deltaCents }),
+                });
+                const data = await res.json().catch(() => ({}));
+                if (res.ok) {
+                  setMember((m) => (m ? { ...m, creditCents: Number(data.creditCents ?? m.creditCents ?? 0) } : m));
+                  setCreditDeltaValue("");
+                  setCreditDialogOpen(false);
+                }
+              } finally {
+                setCreditSaving(false);
+              }
+            }}
+          >
+            {creditSaving ? "Saving…" : "Apply"}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <Dialog open={changeEmailOpen} onClose={() => !changeEmailSaving && setChangeEmailOpen(false)}>
         <DialogTitle>Change member email</DialogTitle>

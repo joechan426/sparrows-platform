@@ -5,6 +5,7 @@ import { getPaymentPlatformSettings, getCheckoutPublicBaseUrl } from "../../../.
 import { getStripe } from "../../../../../lib/stripe-server";
 import { createPayPalOrder, getPayPalAccessTokenWithClientCreds } from "../../../../../lib/paypal-server";
 import { getEventPaymentProfilePayPalRestCreds } from "../../../../../lib/paypal-merchant-creds";
+import { upsertPaidRegistration } from "../../../../../lib/paid-registration";
 
 async function getIdFromContext(context: { params?: Promise<{ id: string }> }): Promise<string | undefined> {
   const params = await context.params;
@@ -36,6 +37,7 @@ export async function POST(req: NextRequest, context: { params?: Promise<{ id: s
       typeof body.teamName === "string" && body.teamName.trim().length > 0
         ? body.teamName.trim()
         : null;
+    const useCredit = body.useCredit === true;
 
     // When called by the iOS app, we want the web return pages to deep-link back into the app.
     const appReturn =
@@ -141,6 +143,19 @@ export async function POST(req: NextRequest, context: { params?: Promise<{ id: s
       }
     }
 
+    const availableCredit = useCredit ? Math.max(member?.creditCents ?? 0, 0) : 0;
+    const creditApplied = Math.min(availableCredit, event.priceCents);
+    const payableCents = Math.max(event.priceCents - creditApplied, 0);
+    if (useCredit && payableCents === 0) {
+      const registration = await upsertPaidRegistration({
+        context: { calendarEventId, email, preferredName, teamName },
+        provider: "MANUAL",
+        amountPaidCents: 0,
+        useCredit: true,
+      });
+      return corsJson(req, { ok: true, directRegistered: true, registrationId: registration.id });
+    }
+
     const base = getCheckoutPublicBaseUrl();
     const appQuery = appReturn ? "&app=1" : "";
     const encodedEmail = encodeURIComponent(email);
@@ -165,12 +180,13 @@ export async function POST(req: NextRequest, context: { params?: Promise<{ id: s
             email,
             preferredName,
             teamName: teamName ?? "",
+            useCredit: useCredit ? "1" : "0",
           },
           line_items: [
             {
               price_data: {
                 currency: event.currency.toLowerCase(),
-                unit_amount: event.priceCents,
+                unit_amount: payableCents,
                 product_data: { name: event.title },
               },
               quantity: 1,
@@ -203,8 +219,8 @@ export async function POST(req: NextRequest, context: { params?: Promise<{ id: s
       accessToken: token,
       clientId: creds.clientId,
       currencyCode: event.currency,
-      value: formatMoney(event.priceCents, event.currency),
-      customId: `${calendarEventId}:${email.toLowerCase()}`,
+      value: formatMoney(payableCents, event.currency),
+      customId: `${calendarEventId}:${email.toLowerCase()}:${useCredit ? "1" : "0"}`,
       returnUrl: successPaypal,
       cancelUrl: cancelPaypal,
       // Not a partner payee flow: merchant's own REST app receives the funds.

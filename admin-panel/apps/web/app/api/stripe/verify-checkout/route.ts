@@ -43,6 +43,7 @@ export async function POST(req: NextRequest) {
     const email = session.metadata?.email?.trim() ?? "";
     const preferredName = session.metadata?.preferredName?.trim() ?? "";
     const teamName = session.metadata?.teamName?.trim() ?? "";
+    const useCredit = session.metadata?.useCredit === "1";
     if (!calendarEventId || !email || !preferredName) {
       return corsJson(req, { message: "Session metadata is incomplete" }, { status: 400 });
     }
@@ -57,6 +58,7 @@ export async function POST(req: NextRequest) {
       },
       provider: "STRIPE",
       amountPaidCents: amount,
+      useCredit,
       stripeSessionId: session.id,
       stripePaymentIntentId:
         typeof session.payment_intent === "string"

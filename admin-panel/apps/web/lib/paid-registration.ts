@@ -9,8 +9,9 @@ export type PaidRegistrationContext = {
 
 export async function upsertPaidRegistration(params: {
   context: PaidRegistrationContext;
-  provider: "STRIPE" | "PAYPAL";
+  provider: "STRIPE" | "PAYPAL" | "MANUAL";
   amountPaidCents: number;
+  useCredit?: boolean;
   paidAt?: Date;
   stripeSessionId?: string | null;
   stripePaymentIntentId?: string | null;
@@ -64,39 +65,75 @@ export async function upsertPaidRegistration(params: {
     return existing;
   }
 
-  return prisma.eventRegistration.upsert({
-    where: {
-      memberId_calendarEventId: {
+  return prisma.$transaction(async (tx) => {
+    let creditAppliedCents = 0;
+    if (params.useCredit === true) {
+      const freshMember = await tx.member.findUnique({
+        where: { id: member.id },
+        select: { creditCents: true },
+      });
+      const price = event.priceCents ?? 0;
+      const remainingAfterExternal = Math.max(price - params.amountPaidCents, 0);
+      const available = freshMember?.creditCents ?? 0;
+      creditAppliedCents = Math.min(available, remainingAfterExternal);
+      if (creditAppliedCents > 0) {
+        const debited = await tx.member.updateMany({
+          where: { id: member.id, creditCents: { gte: creditAppliedCents } },
+          data: { creditCents: { decrement: creditAppliedCents } },
+        });
+        if (debited.count === 1) {
+          await tx.memberCreditLedger.create({
+            data: {
+              memberId: member.id,
+              calendarEventId: event.id,
+              deltaCents: -creditAppliedCents,
+              reason: "REGISTRATION_APPLY",
+              note: `Applied credit to paid registration (${params.provider})`,
+            },
+          });
+        } else {
+          creditAppliedCents = 0;
+        }
+      }
+    }
+
+    const totalPaid = params.amountPaidCents + creditAppliedCents;
+    return tx.eventRegistration.upsert({
+      where: {
+        memberId_calendarEventId: {
+          memberId: member.id,
+          calendarEventId: event.id,
+        },
+      },
+      create: {
         memberId: member.id,
         calendarEventId: event.id,
+        teamName: teamName ?? undefined,
+        status: "PENDING",
+        paymentStatus: "PAID",
+        amountDueCents: event.priceCents,
+        amountPaidCents: totalPaid,
+        creditAppliedCents: creditAppliedCents > 0 ? creditAppliedCents : null,
+        paymentProvider: params.provider,
+        paidAt: params.paidAt ?? new Date(),
+        stripeSessionId: params.stripeSessionId ?? null,
+        stripePaymentIntentId: params.stripePaymentIntentId ?? null,
+        paypalOrderId: params.paypalOrderId ?? null,
       },
-    },
-    create: {
-      memberId: member.id,
-      calendarEventId: event.id,
-      teamName: teamName ?? undefined,
-      status: "PENDING",
-      paymentStatus: "PAID",
-      amountDueCents: event.priceCents,
-      amountPaidCents: params.amountPaidCents,
-      paymentProvider: params.provider,
-      paidAt: params.paidAt ?? new Date(),
-      stripeSessionId: params.stripeSessionId ?? null,
-      stripePaymentIntentId: params.stripePaymentIntentId ?? null,
-      paypalOrderId: params.paypalOrderId ?? null,
-    },
-    update: {
-      teamName: teamName ?? undefined,
-      status: "PENDING",
-      paymentStatus: "PAID",
-      amountDueCents: event.priceCents,
-      amountPaidCents: params.amountPaidCents,
-      paymentProvider: params.provider,
-      paidAt: params.paidAt ?? new Date(),
-      stripeSessionId: params.stripeSessionId ?? undefined,
-      stripePaymentIntentId: params.stripePaymentIntentId ?? undefined,
-      paypalOrderId: params.paypalOrderId ?? undefined,
-    },
+      update: {
+        teamName: teamName ?? undefined,
+        status: "PENDING",
+        paymentStatus: "PAID",
+        amountDueCents: event.priceCents,
+        amountPaidCents: totalPaid,
+        creditAppliedCents: creditAppliedCents > 0 ? creditAppliedCents : null,
+        paymentProvider: params.provider,
+        paidAt: params.paidAt ?? new Date(),
+        stripeSessionId: params.stripeSessionId ?? undefined,
+        stripePaymentIntentId: params.stripePaymentIntentId ?? undefined,
+        paypalOrderId: params.paypalOrderId ?? undefined,
+      },
+    });
   });
 }
 

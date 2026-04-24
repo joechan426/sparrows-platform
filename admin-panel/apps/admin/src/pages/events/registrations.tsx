@@ -21,7 +21,7 @@ import DialogTitle from "@mui/material/DialogTitle";
 import DialogContent from "@mui/material/DialogContent";
 import DialogActions from "@mui/material/DialogActions";
 import { apiUrl } from "../../lib/api-base";
-import { getStoredAdmin } from "../../lib/admin-auth";
+import { getStoredAdmin, getToken } from "../../lib/admin-auth";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import { useGridPreferences } from "../../lib/grid-preferences";
 import { getRowAnimationClass, useAnimatedGridRows } from "../../lib/useAnimatedGridRows";
@@ -58,6 +58,7 @@ type EventRegistrationRow = {
   amountDueCents?: number | null;
   amountPaidCents?: number | null;
   paidAt?: string | null;
+  creditRefundedAt?: string | null;
 };
 
 export const EventRegistrationsPage: React.FC = () => {
@@ -67,6 +68,8 @@ export const EventRegistrationsPage: React.FC = () => {
   const { open } = useNotification();
   const storedAdmin = getStoredAdmin();
   const isCoach = storedAdmin?.role === "COACH";
+  const canManageCredits =
+    storedAdmin?.role === "ADMIN" || storedAdmin?.permissions?.includes("CREDITS");
   const [event, setEvent] = useState<CalendarEvent | null>(null);
   const [eventLoading, setEventLoading] = useState(true);
 
@@ -391,6 +394,21 @@ export const EventRegistrationsPage: React.FC = () => {
           return <Chip label={ps} size="small" variant="filled" sx={style} />;
         },
       },
+      ...(canManageCredits
+        ? [
+            {
+              field: "creditRefundedAt",
+              headerName: "Credit Refunded",
+              width: 170,
+              renderCell: ({ row }: { row: EventRegistrationRow }) =>
+                row.creditRefundedAt ? (
+                  <Chip size="small" color="info" label="Refunded" />
+                ) : (
+                  <Chip size="small" variant="outlined" label="No" />
+                ),
+            } satisfies GridColDef,
+          ]
+        : []),
       {
         field: "amountPaidCents",
         headerName: "Paid",
@@ -468,7 +486,7 @@ export const EventRegistrationsPage: React.FC = () => {
         },
       },
     ],
-    [approvedCount, rows, event?.capacity, isCoach],
+    [approvedCount, rows, event?.capacity, isCoach, canManageCredits],
   );
   const gridPrefs = useGridPreferences("event-registrations-list", columns);
 
@@ -645,7 +663,47 @@ export const EventRegistrationsPage: React.FC = () => {
                 >
                   {bulkDeleteLoading ? "Removing…" : "Delete"}
                 </Button>
+                {canManageCredits && (
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    color="secondary"
+                    disabled={bulkDeleteLoading || bulkStatusLoading}
+                    onClick={async () => {
+                      const token = getToken();
+                      await Promise.all(
+                        selectedIds.map((regId) =>
+                          fetch(apiUrl(`/event-registrations/${regId}/refund-credit`), {
+                            method: "POST",
+                            headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+                          }),
+                        ),
+                      );
+                      refetchRegistrations?.();
+                    }}
+                  >
+                    Refund Credit (Selected)
+                  </Button>
+                )}
               </Stack>
+            )}
+            {canManageCredits && !isCoach && (
+              <Button
+                variant="outlined"
+                size="small"
+                color="secondary"
+                onClick={async () => {
+                  if (!id) return;
+                  const token = getToken();
+                  await fetch(apiUrl(`/calendar-events/${id}/refund-credit-batch`), {
+                    method: "POST",
+                    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+                  });
+                  refetchRegistrations?.();
+                }}
+              >
+                Refund All Paid To Credit
+              </Button>
             )}
 
             <Box

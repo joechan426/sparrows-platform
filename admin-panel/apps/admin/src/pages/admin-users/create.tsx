@@ -23,6 +23,7 @@ const MODULES = [
   { value: "ANNOUNCEMENTS", label: "Announcements" },
   { value: "PAYMENT_PROFILES", label: "Payment profiles" },
   { value: "PAYMENTS", label: "Payments" },
+  { value: "CREDITS", label: "Credits" },
 ] as const;
 
 export const AdminUserCreate: React.FC = () => {

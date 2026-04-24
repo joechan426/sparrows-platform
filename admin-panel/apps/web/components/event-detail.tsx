@@ -64,6 +64,7 @@ export function EventDetail({ event, member, onClose, onRegistered, infoOnly = f
   const [checkoutLoadingProvider, setCheckoutLoadingProvider] = useState<"stripe" | "paypal" | null>(null);
   const [paymentMethodsLoading, setPaymentMethodsLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [useCredit, setUseCredit] = useState(false);
 
   useEffect(() => {
     setEventData(event);
@@ -87,6 +88,9 @@ export function EventDetail({ event, member, onClose, onRegistered, infoOnly = f
   const special = isSpecial(eventData);
   const requiresPayment = Boolean(eventData.isPaid && (eventData.priceCents ?? 0) > 0);
   const paidFeeLabel = requiresPayment ? formatPaidEventFee(eventData) : null;
+  const availableCreditCents = Math.max(member?.creditCents ?? 0, 0);
+  const creditToApplyCents = requiresPayment && useCredit ? Math.min(availableCreditCents, eventData.priceCents ?? 0) : 0;
+  const payableCents = requiresPayment ? Math.max((eventData.priceCents ?? 0) - creditToApplyCents, 0) : 0;
 
   async function handleCheckout(provider: "stripe" | "paypal") {
     setError("");
@@ -110,8 +114,15 @@ export function EventDetail({ event, member, onClose, onRegistered, infoOnly = f
         preferredName: preferredName.trim(),
         email: email.trim(),
         teamName: special ? teamName.trim() || null : null,
+        useCredit,
       });
-      window.location.href = result.url;
+      if (result.directRegistered) {
+        setSuccess(true);
+        onRegistered(eventData.id);
+        setTimeout(() => onClose(), 1500);
+        return;
+      }
+      if (result.url) window.location.href = result.url;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to start checkout.");
     } finally {
@@ -136,7 +147,8 @@ export function EventDetail({ event, member, onClose, onRegistered, infoOnly = f
         eventData.id,
         preferredName.trim(),
         email.trim(),
-        special ? teamName.trim() || null : null
+        special ? teamName.trim() || null : null,
+        useCredit,
       );
       setSuccess(true);
       // Optimistically update the UI (Pending pill) immediately.
@@ -251,6 +263,20 @@ export function EventDetail({ event, member, onClose, onRegistered, infoOnly = f
                         <span className="event-detail-payment-fee-label">Fee: </span>
                         <strong className="event-detail-payment-fee-amount">{paidFeeLabel}</strong>
                       </p>
+                    )}
+                    {availableCreditCents > 0 && (
+                      <>
+                        <p className="event-detail-payment-fee" style={{ color: "#b71c1c" }}>
+                          Available credit: AUD ${(availableCreditCents / 100).toFixed(2)}
+                        </p>
+                        <label style={{ display: "inline-flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
+                          <input type="checkbox" checked={useCredit} onChange={(e) => setUseCredit(e.target.checked)} />
+                          Use available credit
+                        </label>
+                        <p className="event-detail-payment-fee">
+                          Payable now: <strong>AUD {(payableCents / 100).toFixed(2)}</strong>
+                        </p>
+                      </>
                     )}
                     {paymentMethodsLoading ? (
                       <p className="event-detail-payment-loading">Loading payment methods…</p>

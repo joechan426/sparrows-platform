@@ -84,10 +84,12 @@ final class MemberProfileStore: ObservableObject {
     private let memberIdKey = "sparrows.memberId"
     private let preferredNameKey = "sparrows.preferredName"
     private let emailKey = "sparrows.email"
+    private let creditCentsKey = "sparrows.creditCents"
 
     @Published var memberId: String?
     @Published var preferredName: String
     @Published var email: String
+    @Published var creditCents: Int
     @Published var saveError: String?
     @Published var isSaving = false
     @Published var authError: String?
@@ -99,18 +101,21 @@ final class MemberProfileStore: ObservableObject {
         self.memberId = defaults.string(forKey: memberIdKey)
         self.preferredName = defaults.string(forKey: preferredNameKey) ?? ""
         self.email = defaults.string(forKey: emailKey) ?? ""
+        self.creditCents = defaults.integer(forKey: creditCentsKey)
     }
 
     private func persist() {
         defaults.set(memberId, forKey: memberIdKey)
         defaults.set(preferredName, forKey: preferredNameKey)
         defaults.set(email, forKey: emailKey)
+        defaults.set(creditCents, forKey: creditCentsKey)
     }
 
     private func setMember(_ member: APIMember) {
         memberId = member.id
         preferredName = member.preferredName
         email = member.email
+        creditCents = member.creditCents ?? 0
         persist()
     }
 
@@ -199,6 +204,7 @@ final class MemberProfileStore: ObservableObject {
         memberId = nil
         preferredName = ""
         email = ""
+        creditCents = 0
         saveError = nil
         authError = nil
         persist()
@@ -5472,6 +5478,7 @@ private struct RegisterEventSheet: View {
     @State private var registerError: String?
     @State private var isRegistering = false
     @State private var registerSuccess = false
+    @State private var useCredit = false
     @State private var eventDetail: APICalendarEvent?
     @State private var isLoadingEventDetail = false
     /// True after `.task` finishes (or skips) so we do not show "no checkout" before the first fetch.
@@ -5555,6 +5562,16 @@ private struct RegisterEventSheet: View {
                                         .font(.subheadline)
                                         .fontWeight(.semibold)
                                         .padding(.top, 2)
+                                    if memberStore.creditCents > 0 {
+                                        Text("Available credit: AUD $\(String(format: "%.2f", Double(memberStore.creditCents) / 100))")
+                                            .font(.subheadline)
+                                            .foregroundStyle(.red)
+                                        Toggle("Use available credit", isOn: $useCredit)
+                                        let payable = max(cents - (useCredit ? min(memberStore.creditCents, cents) : 0), 0)
+                                        Text("Payable now: \(ccy) $\(String(format: "%.2f", Double(payable) / 100))")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
                                 }
                                 if let err = registerError {
                                     Text(err)
@@ -5700,8 +5717,9 @@ private struct RegisterEventSheet: View {
                 email: em,
                 teamName: checkoutTeamName,
                 appReturn: true
+                , useCredit: useCredit
             )
-            guard let url = URL(string: res.url) else {
+            guard let checkoutUrl = res.url, let url = URL(string: checkoutUrl) else {
                 registerError = "Invalid checkout URL"
                 return
             }
@@ -5782,7 +5800,8 @@ private struct RegisterEventSheet: View {
                 eventId: event.id,
                 preferredName: name,
                 email: em,
-                teamName: isSpecial ? teamName.trimmingCharacters(in: .whitespacesAndNewlines) : nil
+                teamName: isSpecial ? teamName.trimmingCharacters(in: .whitespacesAndNewlines) : nil,
+                useCredit: useCredit
             )
             await MainActor.run {
                 registerSuccess = true
@@ -5807,10 +5826,11 @@ private struct RegisterEventSheet: View {
                         preferredName: name,
                         email: em,
                         teamName: checkoutTeamName,
-                        appReturn: true
+                        appReturn: true,
+                        useCredit: useCredit
                     )
 
-                    guard let stripeUrl = URL(string: stripeCheckout.url) else {
+                    guard let stripeRaw = stripeCheckout.url, let stripeUrl = URL(string: stripeRaw) else {
                         throw SparrowsAPIError.transport("Invalid checkout URL")
                     }
 
@@ -5831,10 +5851,11 @@ private struct RegisterEventSheet: View {
                             preferredName: name,
                             email: em,
                             teamName: checkoutTeamName,
-                            appReturn: true
+                            appReturn: true,
+                            useCredit: useCredit
                         )
 
-                        guard let paypalUrl = URL(string: paypalCheckout.url) else {
+                        guard let paypalRaw = paypalCheckout.url, let paypalUrl = URL(string: paypalRaw) else {
                             throw SparrowsAPIError.transport("Invalid checkout URL")
                         }
 

@@ -67,6 +67,7 @@ CREATE TABLE members (
   preferred_name TEXT NOT NULL,
   -- Nullable to support app-initiated account deletion while retaining historical payment rows by member_id.
   email TEXT UNIQUE,
+  credit_cents INT NOT NULL DEFAULT 0,
   stripe_customer_id TEXT,
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW()
@@ -118,9 +119,25 @@ CREATE TABLE event_registrations (
   paypal_order_id TEXT,
   paid_at TIMESTAMP,
   manager_payment_note TEXT,
+  credit_applied_cents INT,
+  credit_refunded_at TIMESTAMP,
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW(),
   UNIQUE (member_id, calendar_event_id)
+);
+
+-- Credit ledger for refunds / usage / manual adjustments.
+-- reason: EVENT_REFUND | REGISTRATION_APPLY | MANUAL_ADJUST
+CREATE TABLE member_credit_ledger (
+  id TEXT PRIMARY KEY,
+  member_id UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+  registration_id UUID REFERENCES event_registrations(id) ON DELETE SET NULL,
+  calendar_event_id UUID REFERENCES calendar_events(id) ON DELETE SET NULL,
+  delta_cents INT NOT NULL,
+  reason TEXT NOT NULL,
+  created_by_admin_id TEXT REFERENCES admin_users(id) ON DELETE SET NULL,
+  note TEXT,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE payment_platform_settings (
@@ -179,7 +196,7 @@ CREATE TABLE payment_profiles (
 CREATE TABLE admin_permissions (
   id TEXT PRIMARY KEY,
   admin_user_id TEXT NOT NULL REFERENCES admin_users(id) ON DELETE CASCADE,
-  module TEXT NOT NULL CHECK (module IN ('TOURNAMENTS', 'TEAMS', 'CALENDAR_EVENTS', 'MEMBERS', 'ANNOUNCEMENTS', 'PAYMENT_PROFILES', 'ADMIN_USERS', 'PAYMENTS')),
+  module TEXT NOT NULL CHECK (module IN ('TOURNAMENTS', 'TEAMS', 'CALENDAR_EVENTS', 'MEMBERS', 'ANNOUNCEMENTS', 'PAYMENT_PROFILES', 'ADMIN_USERS', 'PAYMENTS', 'CREDITS')),
   created_at TIMESTAMP NOT NULL DEFAULT NOW(),
   UNIQUE (admin_user_id, module)
 );

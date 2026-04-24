@@ -27,6 +27,7 @@ type MemberRow = {
   preferredName: string;
   email: string | null;
   createdAt: string;
+  creditCents?: number;
 };
 
 export const MemberList: React.FC = () => {
@@ -34,6 +35,8 @@ export const MemberList: React.FC = () => {
   const [rowSelectionModel, setRowSelectionModel] = useState<GridRowSelectionModel>({ type: "include", ids: new Set<string>() });
   const storedAdmin = getStoredAdmin();
   const isCoach = storedAdmin?.role === "COACH";
+  const canManageCredits =
+    storedAdmin?.role === "ADMIN" || storedAdmin?.permissions?.includes("CREDITS");
   const [resetPwOpen, setResetPwOpen] = useState(false);
   const [resetPwPassword, setResetPwPassword] = useState("");
   const [resetPwConfirm, setResetPwConfirm] = useState("");
@@ -42,6 +45,10 @@ export const MemberList: React.FC = () => {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+  const [creditDialogOpen, setCreditDialogOpen] = useState(false);
+  const [creditTarget, setCreditTarget] = useState<MemberRow | null>(null);
+  const [creditDeltaInput, setCreditDeltaInput] = useState("");
+  const [creditLoading, setCreditLoading] = useState(false);
   const navigate = useNavigate();
   const invalidate = useInvalidate();
   const { open: notify } = useNotification();
@@ -194,8 +201,31 @@ export const MemberList: React.FC = () => {
             ? new Date(value as string).toLocaleString()
             : "—",
       },
+      ...(canManageCredits
+        ? [
+            {
+              field: "creditCents",
+              headerName: "Credit",
+              width: 150,
+              renderCell: ({ row }: { row: MemberRow }) => (
+                <Button
+                  size="small"
+                  color="error"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setCreditTarget(row);
+                    setCreditDeltaInput("");
+                    setCreditDialogOpen(true);
+                  }}
+                >
+                  AUD ${((row.creditCents ?? 0) / 100).toFixed(2)}
+                </Button>
+              ),
+            } satisfies GridColDef,
+          ]
+        : []),
     ],
-    []
+    [canManageCredits]
   );
   const gridPrefs = useGridPreferences("members-list", columns);
   const sourceRows = (dataGridProps.rows ?? []) as MemberRow[];
@@ -334,6 +364,55 @@ export const MemberList: React.FC = () => {
           </Button>
           <Button onClick={handleDeleteMembersConfirm} color="error" variant="contained" disabled={deleteLoading}>
             {deleteLoading ? "Deleting…" : "Delete"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+      <Dialog open={creditDialogOpen} onClose={() => !creditLoading && setCreditDialogOpen(false)}>
+        <DialogTitle>Adjust credit</DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ mb: 1 }}>
+            {creditTarget?.preferredName ?? "Member"} current credit: AUD $
+            {((creditTarget?.creditCents ?? 0) / 100).toFixed(2)}
+          </DialogContentText>
+          <TextField
+            fullWidth
+            label="Delta (AUD, e.g. 10 or -5)"
+            value={creditDeltaInput}
+            onChange={(e) => setCreditDeltaInput(e.target.value)}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setCreditDialogOpen(false)} disabled={creditLoading}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            disabled={creditLoading || !creditTarget}
+            onClick={async () => {
+              if (!creditTarget) return;
+              const amount = Number(creditDeltaInput);
+              const deltaCents = Math.round(amount * 100);
+              if (!Number.isFinite(amount) || deltaCents === 0) return;
+              setCreditLoading(true);
+              try {
+                const token = getToken();
+                const res = await fetch(apiUrl(`/members/${creditTarget.id}/credit-adjust`), {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                  },
+                  body: JSON.stringify({ deltaCents }),
+                });
+                if (!res.ok) throw new Error("Credit adjustment failed");
+                setCreditDialogOpen(false);
+                await refetchMembersList?.();
+              } finally {
+                setCreditLoading(false);
+              }
+            }}
+          >
+            {creditLoading ? "Saving…" : "Apply"}
           </Button>
         </DialogActions>
       </Dialog>

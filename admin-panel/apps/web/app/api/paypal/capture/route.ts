@@ -79,10 +79,13 @@ export async function POST(req: NextRequest) {
       const value = Number(captureUnit?.amount?.value);
       return Number.isFinite(value) ? Math.round(value * 100) : 0;
     })();
+    const customId = String((result as any)?.purchase_units?.[0]?.custom_id ?? "");
+    const useCredit = customId.split(":")[2] === "1";
     const created = await upsertPaidRegistration({
       context: { calendarEventId, email, preferredName, teamName },
       provider: "PAYPAL",
       amountPaidCents: amountPaid,
+      useCredit,
       paypalOrderId: orderId,
     });
 

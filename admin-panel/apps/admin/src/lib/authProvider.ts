@@ -140,6 +140,7 @@ export const adminAuthProvider: AuthProvider = {
         "PAYMENT_PROFILES",
         "ADMIN_USERS",
         "PAYMENTS",
+        "CREDITS",
       ];
     }
     return admin.permissions;

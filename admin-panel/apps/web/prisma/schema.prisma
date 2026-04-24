@@ -200,11 +200,13 @@ model Member {
   googleId      String?  @unique // Google Sign-In unique user id
   /// Stripe Customer id for saved cards / Checkout (platform account).
   stripeCustomerId String?
+  creditCents   Int      @default(0)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
   registrations   EventRegistration[]
   paymentMethods  MemberPaymentMethod[]
+  creditLedger    MemberCreditLedger[]
 }
 
 /// Saved card metadata only (Stripe PaymentMethod ids). No PAN/CVC stored.
@@ -267,6 +269,7 @@ model CalendarEvent {
 
   registrations     EventRegistration[]
   paymentProfile    PaymentProfile?     @relation(fields: [paymentProfileId], references: [id], onDelete: SetNull)
+  creditLedgerEntries MemberCreditLedger[]
 
   @@unique([sourceEventId, sourceType])
   @@index([paymentProfileId])
@@ -316,13 +319,45 @@ model EventRegistration {
   paidAt          DateTime?
   /// Manager adjustments to recorded amount (refunds handled outside the app).
   managerPaymentNote String?
+  creditAppliedCents Int?
+  creditRefundedAt DateTime?
   createdAt       DateTime                @default(now())
   updatedAt       DateTime                @updatedAt
 
   member          Member        @relation(fields: [memberId], references: [id])
   event           CalendarEvent @relation(fields: [calendarEventId], references: [id])
+  creditLedgerEntries MemberCreditLedger[]
 
   @@unique([memberId, calendarEventId])
+}
+
+enum MemberCreditReason {
+  EVENT_REFUND
+  REGISTRATION_APPLY
+  MANUAL_ADJUST
+}
+
+model MemberCreditLedger {
+  id               String             @id @default(cuid())
+  memberId         String
+  registrationId   String?
+  calendarEventId  String?
+  deltaCents       Int
+  reason           MemberCreditReason
+  createdByAdminId String?            @map("created_by_admin_id")
+  note             String?
+  createdAt        DateTime           @default(now())
+
+  member       Member             @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  registration EventRegistration? @relation(fields: [registrationId], references: [id], onDelete: SetNull)
+  event        CalendarEvent?     @relation(fields: [calendarEventId], references: [id], onDelete: SetNull)
+  createdBy    AdminUser?         @relation(fields: [createdByAdminId], references: [id], onDelete: SetNull)
+
+  @@index([memberId, createdAt])
+  @@index([registrationId])
+  @@index([calendarEventId])
+  @@index([createdByAdminId])
+  @@map("member_credit_ledger")
 }
 
 /// Named payout configuration (Stripe Connect + optional PayPal REST credentials).
@@ -376,6 +411,7 @@ enum AdminModule {
   PAYMENT_PROFILES
   ADMIN_USERS
   PAYMENTS
+  CREDITS
 }
 
 model AdminUser {
@@ -393,6 +429,7 @@ model AdminUser {
   permissions AdminPermission[]
   paymentProfilesCreated PaymentProfile[]
   announcementsCreated Announcement[]
+  creditLedgerEntriesCreated MemberCreditLedger[]
 
   @@map("admin_users")
 }

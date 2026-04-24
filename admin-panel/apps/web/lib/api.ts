@@ -16,6 +16,7 @@ export type Member = {
   id: string;
   preferredName: string;
   email: string;
+  creditCents?: number;
 };
 
 export type CalendarEvent = {
@@ -41,6 +42,7 @@ export type CalendarEvent = {
   waitlistedCount?: number;
   /** Count of PENDING registrations */
   pendingCount?: number;
+  payableAfterCreditCents?: number;
 };
 
 export type MemberRegistration = {
@@ -163,13 +165,15 @@ export async function apiRegisterForEvent(
   eventId: string,
   preferredName: string,
   email: string,
-  teamName?: string | null
+  teamName?: string | null,
+  useCredit?: boolean,
 ): Promise<void> {
-  const body: Record<string, string | undefined> = {
+  const body: Record<string, string | boolean | undefined> = {
     preferredName: preferredName.trim(),
     email: email.trim() || undefined,
   };
   if (teamName != null && String(teamName).trim()) body.teamName = String(teamName).trim();
+  if (useCredit === true) body.useCredit = true;
   const res = await fetch(`${base()}/api/calendar-events/${eventId}/registrations`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -185,13 +189,15 @@ export async function apiCreateEventCheckout(params: {
   preferredName: string;
   email: string;
   teamName?: string | null;
-}): Promise<{ url: string }> {
-  const body: Record<string, string> = {
+  useCredit?: boolean;
+}): Promise<{ url?: string; directRegistered?: boolean; registrationId?: string }> {
+  const body: Record<string, string | boolean> = {
     provider: params.provider,
     preferredName: params.preferredName.trim(),
     email: params.email.trim(),
   };
   if (params.teamName != null && String(params.teamName).trim()) body.teamName = String(params.teamName).trim();
+  if (params.useCredit === true) body.useCredit = true;
 
   const res = await fetch(`${base()}/api/calendar-events/${params.eventId}/checkout`, {
     method: "POST",
@@ -200,8 +206,9 @@ export async function apiCreateEventCheckout(params: {
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data?.message ?? "Checkout failed");
+  if (data?.directRegistered) return { directRegistered: true, registrationId: data?.registrationId };
   if (!data?.url || typeof data.url !== "string") throw new Error("Checkout URL is missing");
-  return { url: data.url };
+  return { url: data.url as string };
 }
 
 export async function apiAnnouncements(start: number, end: number): Promise<{ items: Announcement[]; total: number }> {
