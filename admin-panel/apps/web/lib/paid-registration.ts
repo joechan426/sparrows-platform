@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import { prisma } from "./prisma";
 
 export type PaidRegistrationContext = {
@@ -65,7 +66,7 @@ export async function upsertPaidRegistration(params: {
     return existing;
   }
 
-  return prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     let creditAppliedCents = 0;
     if (params.useCredit === true) {
       const freshMember = await tx.member.findUnique({

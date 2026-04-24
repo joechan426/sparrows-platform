@@ -1,4 +1,5 @@
 import { type NextRequest } from "next/server";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "../../../../../lib/prisma";
 import { requireAdminAuth } from "../../../../../lib/admin-auth";
 import { withCors, corsJson, corsOptions } from "../../../../../lib/cors";
@@ -25,7 +26,7 @@ export async function POST(req: NextRequest, context: any) {
       return corsJson(req, { message: "deltaCents must be a non-zero integer." }, { status: 400 });
     }
 
-    const updated = await prisma.$transaction(async (tx) => {
+    const updated = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const member = await tx.member.findUnique({
         where: { id: memberId },
         select: { id: true, creditCents: true },

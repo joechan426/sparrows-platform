@@ -1,7 +1,17 @@
 import { type NextRequest } from "next/server";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "../../../../../lib/prisma";
 import { requireAdminAuth } from "../../../../../lib/admin-auth";
 import { withCors, corsJson, corsOptions } from "../../../../../lib/cors";
+
+type BatchRefundRegRow = {
+  id: string;
+  memberId: string;
+  calendarEventId: string;
+  amountPaidCents: number | null;
+};
+
+type RefundableRow = BatchRefundRegRow & { cents: number };
 
 async function getIdFromContext(context: any): Promise<string | undefined> {
   const params = await Promise.resolve(context?.params);
@@ -17,7 +27,7 @@ export async function POST(req: NextRequest, context: any) {
     const calendarEventId = await getIdFromContext(context);
     if (!calendarEventId) return corsJson(req, { message: "Missing calendar event id" }, { status: 400 });
 
-    const regs = await prisma.eventRegistration.findMany({
+    const regs: BatchRefundRegRow[] = await prisma.eventRegistration.findMany({
       where: { calendarEventId, paymentStatus: "PAID", creditRefundedAt: null },
       select: { id: true, memberId: true, calendarEventId: true, amountPaidCents: true },
     });
@@ -26,12 +36,12 @@ export async function POST(req: NextRequest, context: any) {
       return corsJson(req, { ok: true, refundedCount: 0, refundedCents: 0 }, { status: 200 });
     }
 
-    const regIds = regs.map((r) => r.id);
-    const refundable = regs
-      .map((r) => ({ ...r, cents: r.amountPaidCents ?? 0 }))
-      .filter((r) => Number.isInteger(r.cents) && r.cents > 0);
+    const regIds = regs.map((r: BatchRefundRegRow) => r.id);
+    const refundable: RefundableRow[] = regs
+      .map((r: BatchRefundRegRow) => ({ ...r, cents: r.amountPaidCents ?? 0 }))
+      .filter((r: RefundableRow) => Number.isInteger(r.cents) && r.cents > 0);
 
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const mark = await tx.eventRegistration.updateMany({
         where: { id: { in: regIds }, paymentStatus: "PAID", creditRefundedAt: null },
         data: { creditRefundedAt: new Date() },

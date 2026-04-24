@@ -68,6 +68,22 @@ function getEventType(summary: string): string {
   return t.includes("cup") ? "SPECIAL" : "NORMAL";
 }
 
+/** ISO timestamps from the API are shown in Sydney time (matches month filter & web calendar). */
+function formatDateTimeInSydney(iso: string): string {
+  if (iso === "") return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  try {
+    return new Intl.DateTimeFormat("en-AU", {
+      timeZone: "Australia/Sydney",
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(d);
+  } catch {
+    return d.toLocaleString("en-AU");
+  }
+}
+
 /** YYYY-MM for `input type="month"`, using Sydney calendar month (matches event filtering). */
 function currentSydneyMonthYyyyMm(): string {
   const d = new Date();
@@ -426,7 +442,7 @@ export const EventList: React.FC = () => {
           <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%", height: "100%" }}>
             <Link to={`/events/${row.id}`} style={{ textDecoration: "none", color: "inherit" }}>
               <Typography variant="body2" sx={{ textAlign: "center" }}>
-                {value != null && value !== "" ? new Date(value as string).toLocaleString() : "—"}
+                {value != null && value !== "" ? formatDateTimeInSydney(String(value)) : "—"}
               </Typography>
             </Link>
           </Box>
@@ -440,7 +456,7 @@ export const EventList: React.FC = () => {
           <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%", height: "100%" }}>
             <Link to={`/events/${row.id}`} style={{ textDecoration: "none", color: "inherit" }}>
               <Typography variant="body2" sx={{ textAlign: "center" }}>
-                {value != null && value !== "" ? new Date(value as string).toLocaleString() : "—"}
+                {value != null && value !== "" ? formatDateTimeInSydney(String(value)) : "—"}
               </Typography>
             </Link>
           </Box>

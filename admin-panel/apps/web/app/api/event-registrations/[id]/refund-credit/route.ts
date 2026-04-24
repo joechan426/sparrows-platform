@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "../../../../../lib/prisma";
 import { requireAdminAuth } from "../../../../../lib/admin-auth";
 import { withCors, corsJson, corsOptions } from "../../../../../lib/cors";
@@ -17,7 +18,7 @@ export async function POST(req: NextRequest, context: any) {
     const registrationId = await getIdFromContext(context);
     if (!registrationId) return corsJson(req, { message: "Missing registration id" }, { status: 400 });
 
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const reg = await tx.eventRegistration.findUnique({
         where: { id: registrationId },
         include: { event: true },
