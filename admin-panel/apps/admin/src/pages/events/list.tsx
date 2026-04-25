@@ -104,6 +104,18 @@ function currentSydneyMonthYyyyMm(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
+function logOpTimestamp(op: string, phase: "t0" | "t1" | "t2" | "t3", meta?: Record<string, unknown>): void {
+  const nowIso = new Date().toISOString();
+  console.log(`[EventsList][${op}] ${phase} ${nowIso}`, meta ?? {});
+}
+
+async function markDomUpdateComplete(op: string, meta?: Record<string, unknown>): Promise<void> {
+  await new Promise<void>((resolve) => {
+    requestAnimationFrame(() => resolve());
+  });
+  logOpTimestamp(op, "t3", meta);
+}
+
 export const EventList: React.FC = () => {
   const navigate = useNavigate();
   const { open: openNotification } = useNotification();
@@ -206,9 +218,12 @@ export const EventList: React.FC = () => {
 
   const handleBulkOpenRegistration = async () => {
     if (selectedIds.length === 0) return;
+    const op = "bulk-open-registration";
+    logOpTimestamp(op, "t0", { selectedIds });
     setBulkActionLoading(true);
     tableLock.begin("events:bulk-open", selectedIds[0] ?? null);
     try {
+      logOpTimestamp(op, "t1", { selectedCount: selectedIds.length });
       await Promise.all(
         selectedIds.map((id) =>
           fetch(apiUrl(`/calendar-events/${id}`), {
@@ -218,9 +233,11 @@ export const EventList: React.FC = () => {
           }),
         ),
       );
+      logOpTimestamp(op, "t2", { selectedCount: selectedIds.length });
       setRowSelectionModel({ type: "include", ids: new Set() });
       invalidate({ resource: "calendar-events", invalidates: ["list", "many", "detail"] });
       await refetchList?.();
+      await markDomUpdateComplete(op, { selectedCount: selectedIds.length });
       await tableLock.finishSuccess();
     } catch {
       tableLock.finishError(selectedIds[0] ?? null);
@@ -232,9 +249,12 @@ export const EventList: React.FC = () => {
 
   const handleBulkCloseRegistration = async () => {
     if (selectedIds.length === 0) return;
+    const op = "bulk-close-registration";
+    logOpTimestamp(op, "t0", { selectedIds });
     setBulkActionLoading(true);
     tableLock.begin("events:bulk-close", selectedIds[0] ?? null);
     try {
+      logOpTimestamp(op, "t1", { selectedCount: selectedIds.length });
       await Promise.all(
         selectedIds.map((id) =>
           fetch(apiUrl(`/calendar-events/${id}`), {
@@ -244,9 +264,11 @@ export const EventList: React.FC = () => {
           }),
         ),
       );
+      logOpTimestamp(op, "t2", { selectedCount: selectedIds.length });
       setRowSelectionModel({ type: "include", ids: new Set() });
       invalidate({ resource: "calendar-events", invalidates: ["list", "many", "detail"] });
       await refetchList?.();
+      await markDomUpdateComplete(op, { selectedCount: selectedIds.length });
       await tableLock.finishSuccess();
     } catch {
       tableLock.finishError(selectedIds[0] ?? null);
@@ -266,16 +288,21 @@ export const EventList: React.FC = () => {
       });
       return;
     }
+    const op = "bulk-delete-events";
+    logOpTimestamp(op, "t0", { selectedIds });
     setBulkActionLoading(true);
     tableLock.begin("events:bulk-delete", selectedIds[0] ?? null);
     try {
+      logOpTimestamp(op, "t1", { selectedCount: selectedIds.length });
       await Promise.all(
         selectedIds.map((id) => fetch(apiUrl(`/calendar-events/${id}`), { method: "DELETE" })),
       );
+      logOpTimestamp(op, "t2", { selectedCount: selectedIds.length });
       setRowSelectionModel({ type: "include", ids: new Set() });
       setBulkDeleteConfirmPending(false);
       invalidate({ resource: "calendar-events", invalidates: ["list", "many", "detail"] });
       await refetchList?.();
+      await markDomUpdateComplete(op, { selectedCount: selectedIds.length });
       await tableLock.finishSuccess();
     } catch {
       tableLock.finishError(selectedIds[0] ?? null);
@@ -357,9 +384,12 @@ export const EventList: React.FC = () => {
       openNotification?.({ type: "error", message: "Select at least one event to import" });
       return;
     }
+    const op = "import-selected-events";
+    logOpTimestamp(op, "t0", { selectedCount: events.length });
     setImporting(true);
     tableLock.begin("events:import", null);
     try {
+      logOpTimestamp(op, "t1", { selectedCount: events.length });
       const res = await fetch(apiUrl("/calendar-events/import"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -367,9 +397,11 @@ export const EventList: React.FC = () => {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.message ?? "Import failed");
+      logOpTimestamp(op, "t2", { selectedCount: events.length });
       invalidate({ resource: "calendar-events", invalidates: ["list", "many", "detail"] });
       await refetchList?.();
       setImportDialogOpen(false);
+      await markDomUpdateComplete(op, { selectedCount: events.length });
       await tableLock.finishSuccess();
     } catch (e) {
       tableLock.finishError(null);
@@ -385,14 +417,20 @@ export const EventList: React.FC = () => {
 
   const handleDeleteConfirm = () => {
     if (!deleteConfirm) return;
+    const op = "single-delete-event";
+    const deletingId = deleteConfirm.id;
+    logOpTimestamp(op, "t0", { id: deletingId });
     tableLock.begin("events:delete-single", deleteConfirm.id);
+    logOpTimestamp(op, "t1", { id: deletingId });
     deleteOne(
       { resource: "calendar-events", id: deleteConfirm.id },
       {
         onSuccess: () => {
+          logOpTimestamp(op, "t2", { id: deletingId });
           setDeleteConfirm(null);
           invalidate({ resource: "calendar-events", invalidates: ["list", "many", "detail"] });
           refetchList?.().finally(() => {
+            void markDomUpdateComplete(op, { id: deletingId });
             void tableLock.finishSuccess();
           });
         },
@@ -568,11 +606,17 @@ export const EventList: React.FC = () => {
             checked={Boolean(row.registrationOpen)}
             disabled={isCoach || tableLock.isLocked}
             onChange={() => {
+              const op = "row-toggle-registration-open";
+              logOpTimestamp(op, "t0", { id: row.id, nextRegistrationOpen: !row.registrationOpen });
+              logOpTimestamp(op, "t1", { id: row.id, nextRegistrationOpen: !row.registrationOpen });
               update(
                 { resource: "calendar-events", id: row.id, values: { registrationOpen: !row.registrationOpen } },
                 {
                   onSuccess: () => {
-                    void refetchList?.();
+                    logOpTimestamp(op, "t2", { id: row.id, nextRegistrationOpen: !row.registrationOpen });
+                    void refetchList?.().finally(() => {
+                      void markDomUpdateComplete(op, { id: row.id, nextRegistrationOpen: !row.registrationOpen });
+                    });
                   },
                 },
               );
