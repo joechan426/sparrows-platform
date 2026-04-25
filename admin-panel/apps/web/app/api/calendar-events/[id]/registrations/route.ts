@@ -25,9 +25,25 @@ export async function GET(req: NextRequest, context: any) {
     const registrations = await prisma.eventRegistration.findMany({
       where: { calendarEventId },
       orderBy: { createdAt: "asc" },
-      include: {
-        member: true,
-        event: true,
+      select: {
+        id: true,
+        status: true,
+        attendance: true,
+        createdAt: true,
+        teamName: true,
+        paymentStatus: true,
+        paymentProvider: true,
+        amountDueCents: true,
+        amountPaidCents: true,
+        paidAt: true,
+        creditRefundedAt: true,
+        member: {
+          select: {
+            id: true,
+            preferredName: true,
+            email: true,
+          },
+        },
       },
     });
 

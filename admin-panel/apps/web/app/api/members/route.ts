@@ -32,19 +32,22 @@ export async function GET(req: NextRequest) {
         }
       : { email: { not: null } };
 
-    const [rawItems, total] = await Promise.all([
+    const [items, total] = await Promise.all([
       prisma.member.findMany({
         where,
         skip,
         take,
         orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          preferredName: true,
+          email: true,
+          createdAt: true,
+          creditCents: true,
+        },
       }),
       prisma.member.count({ where }),
     ]);
-
-    const items = rawItems.map(
-      ({ passwordHash: _passwordHash, ...m }: { passwordHash?: string; [key: string]: any }) => m
-    );
 
     return corsJson(req, items, {
       status: 200,
