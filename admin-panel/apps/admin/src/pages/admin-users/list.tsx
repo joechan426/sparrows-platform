@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { List, useDataGrid, EditButton, CreateButton } from "../../components/SaasRefineMui";
 import { useInvalidate, useNotification } from "@refinedev/core";
 import { type GridColDef, type GridRowSelectionModel } from "@mui/x-data-grid";
@@ -192,9 +192,25 @@ export const AdminUserList: React.FC = () => {
 
   const selectionIncludesSelf = Boolean(selfId && selectedIds.includes(selfId));
   const sourceRowsFromServer = (dataGridProps.rows ?? []) as AdminUserRow[];
+  const sourceRowsSignature = useMemo(
+    () =>
+      JSON.stringify(
+        sourceRowsFromServer.map((row) => ({
+          id: row.id,
+          userName: row.userName,
+          role: row.role,
+          isActive: row.isActive,
+          createdAt: row.createdAt,
+          updatedAt: row.updatedAt,
+          permissions: row.permissions ?? [],
+        })),
+      ),
+    [sourceRowsFromServer],
+  );
   React.useEffect(() => {
+    if (tableLock.isLocked) return;
     setUiRows(sourceRowsFromServer);
-  }, [sourceRowsFromServer]);
+  }, [sourceRowsSignature, tableLock.isLocked]);
   const sourceRows = uiRows;
   React.useEffect(() => {
     if (!dataGridProps.loading) setHasLoadedOnce(true);

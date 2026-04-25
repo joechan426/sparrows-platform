@@ -239,9 +239,23 @@ export const MemberList: React.FC = () => {
   );
   const gridPrefs = useGridPreferences("members-list", columns);
   const sourceRowsFromServer = (dataGridProps.rows ?? []) as MemberRow[];
+  const sourceRowsSignature = useMemo(
+    () =>
+      JSON.stringify(
+        sourceRowsFromServer.map((row) => ({
+          id: row.id,
+          preferredName: row.preferredName,
+          email: row.email,
+          createdAt: row.createdAt,
+          creditCents: row.creditCents ?? 0,
+        })),
+      ),
+    [sourceRowsFromServer],
+  );
   React.useEffect(() => {
+    if (tableLock.isLocked) return;
     setUiRows(sourceRowsFromServer);
-  }, [sourceRowsFromServer]);
+  }, [sourceRowsSignature, tableLock.isLocked]);
   const sourceRows = uiRows;
   React.useEffect(() => {
     if (!dataGridProps.loading) setHasLoadedOnce(true);
