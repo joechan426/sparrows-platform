@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { List, useDataGrid } from "../../components/SaasRefineMui";
 import { useUpdate, useDelete, useNotification, useInvalidate } from "@refinedev/core";
 import { type GridColDef, type GridRowSelectionModel } from "@mui/x-data-grid";
@@ -192,9 +192,33 @@ export const EventList: React.FC = () => {
   const selectedCount = rowSelectionModel.type === "include" ? rowSelectionModel.ids.size : 0;
   const [bulkDeleteConfirmPending, setBulkDeleteConfirmPending] = useState(false);
 
+  const serverRows = (dataGridProps.rows ?? []) as CalendarEventRow[];
+  const serverRowsSignature = useMemo(
+    () =>
+      JSON.stringify(
+        serverRows.map((r) => ({
+          id: r.id,
+          title: r.title,
+          startAt: r.startAt,
+          endAt: r.endAt,
+          sportType: r.sportType,
+          eventType: r.eventType,
+          registrationOpen: r.registrationOpen,
+          capacity: r.capacity,
+          isPaid: r.isPaid ?? false,
+          priceCents: r.priceCents ?? null,
+          currency: r.currency ?? null,
+          approvedCount: r.approvedCount ?? null,
+        })),
+      ),
+    [serverRows],
+  );
+
   React.useEffect(() => {
-    setUiRows((dataGridProps.rows ?? []) as CalendarEventRow[]);
-  }, [dataGridProps.rows]);
+    // Prevent render loops from unstable row-array references in dataGridProps.
+    if (tableLock.isLocked) return;
+    setUiRows(serverRows);
+  }, [serverRowsSignature, tableLock.isLocked]);
 
   React.useEffect(() => {
     if (isCoach) setRowSelectionModel({ type: "include", ids: new Set<string>() });
