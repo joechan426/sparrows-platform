@@ -11,6 +11,14 @@
   animation: gridRowFadeOutCollapse 350ms ease-in forwards;
 }
 
+.MuiDataGrid-row.grid-row-processing {
+  opacity: 0.5;
+}
+
+.MuiDataGrid-row.grid-row-error {
+  background-color: rgba(211, 47, 47, 0.2) !important;
+}
+
 @keyframes gridRowSlideDownFade {
   from {
     opacity: 0;

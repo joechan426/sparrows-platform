@@ -17,10 +17,12 @@ import DialogActions from "@mui/material/DialogActions";
 import SearchIcon from "@mui/icons-material/Search";
 import LockIcon from "@mui/icons-material/Lock";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
+import CircularProgress from "@mui/material/CircularProgress";
 import { getToken, getStoredAdmin } from "../../lib/admin-auth";
 import { apiUrl } from "../../lib/api-base";
 import { useGridPreferences } from "../../lib/grid-preferences";
 import { getRowAnimationClass, useAnimatedGridRows } from "../../lib/useAnimatedGridRows";
+import { useTableActionLock } from "../../lib/useTableActionLock";
 
 type MemberRow = {
   id: string;
@@ -49,6 +51,7 @@ export const MemberList: React.FC = () => {
   const [creditTarget, setCreditTarget] = useState<MemberRow | null>(null);
   const [creditDeltaInput, setCreditDeltaInput] = useState("");
   const [creditLoading, setCreditLoading] = useState(false);
+  const tableLock = useTableActionLock();
   const navigate = useNavigate();
   const invalidate = useInvalidate();
   const { open: notify } = useNotification();
@@ -110,26 +113,27 @@ export const MemberList: React.FC = () => {
     }
     setResetPwLoading(true);
     try {
-      const token = getToken();
-      const res = await fetch(apiUrl("/members/reset-password"), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ memberIds: selectedIds, newPassword: resetPwPassword }),
+      await tableLock.runWithLock("members:reset-password", selectedIds[0] ?? null, async () => {
+        const token = getToken();
+        const res = await fetch(apiUrl("/members/reset-password"), {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({ memberIds: selectedIds, newPassword: resetPwPassword }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data?.message ?? "Reset failed.");
+        setResetPwOpen(false);
+        setResetPwPassword("");
+        setResetPwConfirm("");
+        setRowSelectionModel({ type: "include", ids: new Set() });
+        invalidate({ resource: "members", invalidates: ["list", "many", "detail"] });
+        await refetchMembersList?.();
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setResetPwError(data?.message ?? "Reset failed.");
-        return;
-      }
-      setResetPwOpen(false);
-      setResetPwPassword("");
-      setResetPwConfirm("");
-      setRowSelectionModel({ type: "include", ids: new Set() });
-      invalidate({ resource: "members", invalidates: ["list", "many", "detail"] });
-      await refetchMembersList?.();
+    } catch (error) {
+      setResetPwError(error instanceof Error ? error.message : "Reset failed.");
     } finally {
       setResetPwLoading(false);
     }
@@ -139,24 +143,25 @@ export const MemberList: React.FC = () => {
     if (selectedIds.length === 0) return;
     setDeleteLoading(true);
     try {
-      const token = getToken();
-      const res = await fetch(apiUrl("/members/delete-batch"), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ memberIds: selectedIds }),
+      await tableLock.runWithLock("members:delete-batch", selectedIds[0] ?? null, async () => {
+        const token = getToken();
+        const res = await fetch(apiUrl("/members/delete-batch"), {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({ memberIds: selectedIds }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data?.message ?? "Delete failed");
+        setDeleteOpen(false);
+        setRowSelectionModel({ type: "include", ids: new Set() });
+        invalidate({ resource: "members", invalidates: ["list", "many", "detail"] });
+        await refetchMembersList?.();
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        notify?.({ type: "error", message: data?.message ?? "Delete failed" });
-        return;
-      }
-      setDeleteOpen(false);
-      setRowSelectionModel({ type: "include", ids: new Set() });
-      invalidate({ resource: "members", invalidates: ["list", "many", "detail"] });
-      await refetchMembersList?.();
+    } catch (error) {
+      notify?.({ type: "error", message: error instanceof Error ? error.message : "Delete failed" });
     } finally {
       setDeleteLoading(false);
     }
@@ -211,6 +216,7 @@ export const MemberList: React.FC = () => {
                 <Button
                   size="small"
                   color="error"
+                  disabled={tableLock.isLocked}
                   onClick={(e) => {
                     e.stopPropagation();
                     setCreditTarget(row);
@@ -268,7 +274,7 @@ export const MemberList: React.FC = () => {
             <Button
               variant="outlined"
               startIcon={<LockIcon />}
-              disabled={selectedIds.length === 0}
+              disabled={selectedIds.length === 0 || tableLock.isLocked}
               sx={{ alignSelf: { xs: "stretch", sm: "auto" } }}
               onClick={() => {
                 setResetPwError("");
@@ -283,7 +289,7 @@ export const MemberList: React.FC = () => {
               variant="outlined"
               color="error"
               startIcon={<DeleteOutlineIcon />}
-              disabled={selectedIds.length === 0}
+              disabled={selectedIds.length === 0 || tableLock.isLocked}
               sx={{ alignSelf: { xs: "stretch", sm: "auto" } }}
               onClick={() => setDeleteOpen(true)}
             >
@@ -305,10 +311,14 @@ export const MemberList: React.FC = () => {
           onColumnVisibilityModelChange={gridPrefs.onColumnVisibilityModelChange}
           onColumnWidthChange={gridPrefs.onColumnWidthChange}
           onRowClick={(params) => navigate(`/members/${params.id}`)}
-          getRowClassName={(params) => getRowAnimationClass(params.row as MemberRow)}
+          getRowClassName={(params) => {
+            const row = params.row as MemberRow;
+            return [getRowAnimationClass(row), tableLock.getRowStateClass(row.id)].filter(Boolean).join(" ");
+          }}
           sx={{
             height: "100%",
             "& .MuiDataGrid-row": { cursor: "pointer" },
+            ...(tableLock.isLocked ? { pointerEvents: "none" } : {}),
           }}
         />
       </Box>
@@ -387,7 +397,7 @@ export const MemberList: React.FC = () => {
           </Button>
           <Button
             variant="contained"
-            disabled={creditLoading || !creditTarget}
+            disabled={creditLoading || !creditTarget || tableLock.isLocked}
             onClick={async () => {
               if (!creditTarget) return;
               const amount = Number(creditDeltaInput);
@@ -395,24 +405,28 @@ export const MemberList: React.FC = () => {
               if (!Number.isFinite(amount) || deltaCents === 0) return;
               setCreditLoading(true);
               try {
-                const token = getToken();
-                const res = await fetch(apiUrl(`/members/${creditTarget.id}/credit-adjust`), {
-                  method: "POST",
-                  headers: {
-                    "Content-Type": "application/json",
-                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-                  },
-                  body: JSON.stringify({ deltaCents }),
+                await tableLock.runWithLock("members:credit-adjust", creditTarget.id, async () => {
+                  const token = getToken();
+                  const res = await fetch(apiUrl(`/members/${creditTarget.id}/credit-adjust`), {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/json",
+                      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                    },
+                    body: JSON.stringify({ deltaCents }),
+                  });
+                  if (!res.ok) throw new Error("Credit adjustment failed");
+                  setCreditDialogOpen(false);
+                  await refetchMembersList?.();
                 });
-                if (!res.ok) throw new Error("Credit adjustment failed");
-                setCreditDialogOpen(false);
-                await refetchMembersList?.();
+              } catch (error) {
+                notify?.({ type: "error", message: error instanceof Error ? error.message : "Credit adjustment failed" });
               } finally {
                 setCreditLoading(false);
               }
             }}
           >
-            {creditLoading ? "Saving…" : "Apply"}
+            {creditLoading ? <CircularProgress size={16} color="inherit" /> : "Apply"}
           </Button>
         </DialogActions>
       </Dialog>

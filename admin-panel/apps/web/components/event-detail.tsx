@@ -91,6 +91,7 @@ export function EventDetail({ event, member, onClose, onRegistered, infoOnly = f
   const availableCreditCents = Math.max(member?.creditCents ?? 0, 0);
   const creditToApplyCents = requiresPayment && useCredit ? Math.min(availableCreditCents, eventData.priceCents ?? 0) : 0;
   const payableCents = requiresPayment ? Math.max((eventData.priceCents ?? 0) - creditToApplyCents, 0) : 0;
+  const needsCheckout = requiresPayment && payableCents > 0;
 
   async function handleCheckout(provider: "stripe" | "paypal") {
     setError("");
@@ -226,7 +227,7 @@ export function EventDetail({ event, member, onClose, onRegistered, infoOnly = f
             {success ? (
               <p className="form-success">You are registered. Status: PENDING.</p>
             ) : (
-              <form onSubmit={requiresPayment ? (e) => e.preventDefault() : handleRegister} className="auth-form">
+              <form onSubmit={needsCheckout ? (e) => e.preventDefault() : handleRegister} className="auth-form">
                 <div className="field">
                   <label>Preferred name *</label>
                   <input
@@ -278,9 +279,9 @@ export function EventDetail({ event, member, onClose, onRegistered, infoOnly = f
                         </p>
                       </>
                     )}
-                    {paymentMethodsLoading ? (
+                    {needsCheckout && paymentMethodsLoading ? (
                       <p className="event-detail-payment-loading">Loading payment methods…</p>
-                    ) : (
+                    ) : needsCheckout ? (
                       <>
                         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                           {eventData.stripeCheckoutAvailable && (
@@ -308,11 +309,11 @@ export function EventDetail({ event, member, onClose, onRegistered, infoOnly = f
                           <p className="form-error">No payment method is currently available for this event.</p>
                         )}
                       </>
-                    )}
+                    ) : null}
                   </div>
                 )}
                 {error && <p className="form-error">{error}</p>}
-                {!requiresPayment && (
+                {!needsCheckout && (
                   <button type="submit" className="btn-primary" disabled={loading}>
                     {loading ? "Registering…" : "Register"}
                   </button>

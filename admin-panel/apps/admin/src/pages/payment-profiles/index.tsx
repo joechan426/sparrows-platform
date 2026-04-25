@@ -396,7 +396,11 @@ export const PaymentProfilesPage: React.FC = () => {
             const st = stripeStatus(r);
             const pp = paypalStatus(r);
             return (
-              <Accordion key={r.id} defaultExpanded disableGutters>
+              <Accordion
+                key={r.id}
+                defaultExpanded={!(st.label === "Ready" && pp.label === "Ready")}
+                disableGutters
+              >
                 <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                   <Stack
                     direction={{ xs: "column", sm: "row" }}

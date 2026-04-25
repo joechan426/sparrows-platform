@@ -14,9 +14,11 @@ import DialogContentText from "@mui/material/DialogContentText";
 import DialogActions from "@mui/material/DialogActions";
 import { Link } from "react-router-dom";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
+import CircularProgress from "@mui/material/CircularProgress";
 import { getToken, getStoredAdmin } from "../../lib/admin-auth";
 import { apiUrl } from "../../lib/api-base";
 import { getRowAnimationClass, useAnimatedGridRows } from "../../lib/useAnimatedGridRows";
+import { useTableActionLock } from "../../lib/useTableActionLock";
 
 type AdminUserRow = {
   id: string;
@@ -45,6 +47,7 @@ export const AdminUserList: React.FC = () => {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+  const tableLock = useTableActionLock();
 
   const invalidate = useInvalidate();
   const { open: notify } = useNotification();
@@ -86,24 +89,25 @@ export const AdminUserList: React.FC = () => {
     }
     setDeleteLoading(true);
     try {
-      const token = getToken();
-      const res = await fetch(apiUrl("/admin-users/delete-batch"), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ ids: selectedIds }),
+      await tableLock.runWithLock("admin-users:delete-batch", selectedIds[0] ?? null, async () => {
+        const token = getToken();
+        const res = await fetch(apiUrl("/admin-users/delete-batch"), {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({ ids: selectedIds }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data?.message ?? "Delete failed");
+        setDeleteOpen(false);
+        setRowSelectionModel({ type: "include", ids: new Set() });
+        invalidate({ resource: "admin-users", invalidates: ["list", "many", "detail"] });
+        await refetchAdminUsersList?.();
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        notify?.({ type: "error", message: data?.message ?? "Delete failed" });
-        return;
-      }
-      setDeleteOpen(false);
-      setRowSelectionModel({ type: "include", ids: new Set() });
-      invalidate({ resource: "admin-users", invalidates: ["list", "many", "detail"] });
-      await refetchAdminUsersList?.();
+    } catch (error) {
+      notify?.({ type: "error", message: error instanceof Error ? error.message : "Delete failed" });
     } finally {
       setDeleteLoading(false);
     }
@@ -203,7 +207,7 @@ export const AdminUserList: React.FC = () => {
               variant="outlined"
               color="error"
               startIcon={<DeleteOutlineIcon />}
-              disabled={selectedIds.length === 0}
+              disabled={selectedIds.length === 0 || tableLock.isLocked}
               onClick={() => setDeleteOpen(true)}
             >
               Delete user{selectedIds.length === 1 ? "" : "s"}
@@ -223,8 +227,11 @@ export const AdminUserList: React.FC = () => {
           disableRowSelectionOnClick
           rowSelectionModel={rowSelectionModel}
           onRowSelectionModelChange={setRowSelectionModel}
-          getRowClassName={(params) => getRowAnimationClass(params.row as AdminUserRow)}
-          sx={{ height: "100%" }}
+          getRowClassName={(params) => {
+            const row = params.row as AdminUserRow;
+            return [getRowAnimationClass(row), tableLock.getRowStateClass(row.id)].filter(Boolean).join(" ");
+          }}
+          sx={{ height: "100%", ...(tableLock.isLocked ? { pointerEvents: "none" } : {}) }}
         />
       </Box>
       <Dialog open={deleteOpen} onClose={() => !deleteLoading && setDeleteOpen(false)}>
@@ -250,7 +257,7 @@ export const AdminUserList: React.FC = () => {
             variant="contained"
             disabled={deleteLoading || selectionIncludesSelf}
           >
-            {deleteLoading ? "Deleting…" : "Delete"}
+            {deleteLoading ? <CircularProgress size={16} color="inherit" /> : "Delete"}
           </Button>
         </DialogActions>
       </Dialog>

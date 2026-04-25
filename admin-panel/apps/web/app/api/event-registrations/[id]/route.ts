@@ -221,9 +221,35 @@ export async function DELETE(req: NextRequest, context: any) {
       );
     }
 
-    await prisma.eventRegistration.delete({
+    const reg = await prisma.eventRegistration.findUnique({
       where: { id: registrationId },
+      select: {
+        id: true,
+        paymentStatus: true,
+        creditRefundedAt: true,
+      },
     });
+    if (!reg) {
+      return withCors(
+        req,
+        NextResponse.json({ message: "Registration not found" }, { status: 404 }),
+      );
+    }
+
+    if (reg.paymentStatus === "PAID" && !reg.creditRefundedAt) {
+      return withCors(
+        req,
+        NextResponse.json(
+          {
+            message:
+              "Cannot delete a PAID registration before refunding credit. Please refund credit first.",
+          },
+          { status: 409 },
+        ),
+      );
+    }
+
+    await prisma.eventRegistration.delete({ where: { id: registrationId } });
 
     return withCors(req, new NextResponse(null, { status: 204 }));
   } catch (e: any) {

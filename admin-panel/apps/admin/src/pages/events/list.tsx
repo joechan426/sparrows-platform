@@ -23,10 +23,12 @@ import Tabs from "@mui/material/Tabs";
 import Tab from "@mui/material/Tab";
 import TextField from "@mui/material/TextField";
 import InputAdornment from "@mui/material/InputAdornment";
+import CircularProgress from "@mui/material/CircularProgress";
 import { apiUrl } from "../../lib/api-base";
 import { useGridPreferences } from "../../lib/grid-preferences";
 import { getStoredAdmin } from "../../lib/admin-auth";
 import { getRowAnimationClass, useAnimatedGridRows } from "../../lib/useAnimatedGridRows";
+import { useTableActionLock } from "../../lib/useTableActionLock";
 
 type CalendarEventRow = {
   id: string;
@@ -171,6 +173,7 @@ export const EventList: React.FC = () => {
   const [monthFilter, setMonthFilter] = useState<string>(() => currentSydneyMonthYyyyMm());
   const [showAllEvents, setShowAllEvents] = useState(false);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+  const tableLock = useTableActionLock();
 
   const selectedIds = rowSelectionModel.type === "include" ? Array.from(rowSelectionModel.ids) as string[] : [];
   const selectedCount = rowSelectionModel.type === "include" ? rowSelectionModel.ids.size : 0;
@@ -204,6 +207,7 @@ export const EventList: React.FC = () => {
   const handleBulkOpenRegistration = async () => {
     if (selectedIds.length === 0) return;
     setBulkActionLoading(true);
+    tableLock.begin("events:bulk-open", selectedIds[0] ?? null);
     try {
       await Promise.all(
         selectedIds.map((id) =>
@@ -217,7 +221,9 @@ export const EventList: React.FC = () => {
       setRowSelectionModel({ type: "include", ids: new Set() });
       invalidate({ resource: "calendar-events", invalidates: ["list", "many", "detail"] });
       await refetchList?.();
+      await tableLock.finishSuccess();
     } catch {
+      tableLock.finishError(selectedIds[0] ?? null);
       openNotification?.({ type: "error", message: "Failed to update some events" });
     } finally {
       setBulkActionLoading(false);
@@ -227,6 +233,7 @@ export const EventList: React.FC = () => {
   const handleBulkCloseRegistration = async () => {
     if (selectedIds.length === 0) return;
     setBulkActionLoading(true);
+    tableLock.begin("events:bulk-close", selectedIds[0] ?? null);
     try {
       await Promise.all(
         selectedIds.map((id) =>
@@ -240,7 +247,9 @@ export const EventList: React.FC = () => {
       setRowSelectionModel({ type: "include", ids: new Set() });
       invalidate({ resource: "calendar-events", invalidates: ["list", "many", "detail"] });
       await refetchList?.();
+      await tableLock.finishSuccess();
     } catch {
+      tableLock.finishError(selectedIds[0] ?? null);
       openNotification?.({ type: "error", message: "Failed to update some events" });
     } finally {
       setBulkActionLoading(false);
@@ -258,6 +267,7 @@ export const EventList: React.FC = () => {
       return;
     }
     setBulkActionLoading(true);
+    tableLock.begin("events:bulk-delete", selectedIds[0] ?? null);
     try {
       await Promise.all(
         selectedIds.map((id) => fetch(apiUrl(`/calendar-events/${id}`), { method: "DELETE" })),
@@ -266,7 +276,9 @@ export const EventList: React.FC = () => {
       setBulkDeleteConfirmPending(false);
       invalidate({ resource: "calendar-events", invalidates: ["list", "many", "detail"] });
       await refetchList?.();
+      await tableLock.finishSuccess();
     } catch {
+      tableLock.finishError(selectedIds[0] ?? null);
       openNotification?.({ type: "error", message: "Failed to delete some events" });
     } finally {
       setBulkActionLoading(false);
@@ -346,6 +358,7 @@ export const EventList: React.FC = () => {
       return;
     }
     setImporting(true);
+    tableLock.begin("events:import", null);
     try {
       const res = await fetch(apiUrl("/calendar-events/import"), {
         method: "POST",
@@ -357,7 +370,9 @@ export const EventList: React.FC = () => {
       invalidate({ resource: "calendar-events", invalidates: ["list", "many", "detail"] });
       await refetchList?.();
       setImportDialogOpen(false);
+      await tableLock.finishSuccess();
     } catch (e) {
+      tableLock.finishError(null);
       openNotification?.({ type: "error", message: e instanceof Error ? e.message : "Import failed" });
     } finally {
       setImporting(false);
@@ -370,15 +385,19 @@ export const EventList: React.FC = () => {
 
   const handleDeleteConfirm = () => {
     if (!deleteConfirm) return;
+    tableLock.begin("events:delete-single", deleteConfirm.id);
     deleteOne(
       { resource: "calendar-events", id: deleteConfirm.id },
       {
         onSuccess: () => {
           setDeleteConfirm(null);
           invalidate({ resource: "calendar-events", invalidates: ["list", "many", "detail"] });
-          refetchList?.();
+          refetchList?.().finally(() => {
+            void tableLock.finishSuccess();
+          });
         },
         onError: (e) => {
+          tableLock.finishError(deleteConfirm.id);
           openNotification?.({ type: "error", message: (e as any)?.message ?? "Delete failed" });
         },
       },
@@ -547,7 +566,7 @@ export const EventList: React.FC = () => {
         renderCell: ({ row }) => (
           <Switch
             checked={Boolean(row.registrationOpen)}
-            disabled={isCoach}
+            disabled={isCoach || tableLock.isLocked}
             onChange={() => {
               update(
                 { resource: "calendar-events", id: row.id, values: { registrationOpen: !row.registrationOpen } },
@@ -583,12 +602,12 @@ export const EventList: React.FC = () => {
               useFlexGap
               sx={{ flexShrink: 0 }}
             >
-              <Button size="small" variant="outlined" component={Link} to={`/events/${row.id}/registrations`}>
+              <Button size="small" variant="outlined" disabled={tableLock.isLocked} component={Link} to={`/events/${row.id}/registrations`}>
                 Registrations
               </Button>
               {!isCoach && (
-                <Button size="small" color="error" variant="outlined" onClick={() => handleDeleteClick(row)}>
-                  Delete
+                <Button size="small" color="error" variant="outlined" disabled={tableLock.isLocked} onClick={() => handleDeleteClick(row)}>
+                  {tableLock.isActionRunning("events:delete-single") && tableLock.processingRowId === row.id ? <CircularProgress size={14} color="inherit" /> : "Delete"}
                 </Button>
               )}
             </Stack>
@@ -613,7 +632,7 @@ export const EventList: React.FC = () => {
                 flexWrap="wrap"
                 alignItems={{ xs: "stretch", sm: "center" }}
               >
-                <Button variant="contained" onClick={openImportDialog} sx={{ width: { xs: "100%", sm: "auto" } }}>
+                <Button variant="contained" disabled={tableLock.isLocked} onClick={openImportDialog} sx={{ width: { xs: "100%", sm: "auto" } }}>
                   Import from Google Calendar
                 </Button>
                 <Button
@@ -634,20 +653,20 @@ export const EventList: React.FC = () => {
                     variant="outlined"
                     size="small"
                     onClick={handleBulkOpenRegistration}
-                    disabled={bulkActionLoading}
+                    disabled={bulkActionLoading || tableLock.isLocked}
                   >
-                    Open Registration
+                    {tableLock.isActionRunning("events:bulk-open") ? <CircularProgress size={14} color="inherit" /> : "Open Registration"}
                   </Button>
                   <Button
                     variant="outlined"
                     size="small"
                     onClick={handleBulkCloseRegistration}
-                    disabled={bulkActionLoading}
+                    disabled={bulkActionLoading || tableLock.isLocked}
                   >
-                    Close Registration
+                    {tableLock.isActionRunning("events:bulk-close") ? <CircularProgress size={14} color="inherit" /> : "Close Registration"}
                   </Button>
-                  <Button variant="outlined" size="small" color="error" onClick={handleBulkDelete} disabled={bulkActionLoading}>
-                    Delete selected
+                  <Button variant="outlined" size="small" color="error" onClick={handleBulkDelete} disabled={bulkActionLoading || tableLock.isLocked}>
+                    {tableLock.isActionRunning("events:bulk-delete") ? <CircularProgress size={14} color="inherit" /> : "Delete selected"}
                   </Button>
                 </Stack>
               )}
@@ -717,7 +736,7 @@ export const EventList: React.FC = () => {
               try {
                 const row = params.row as CalendarEventRow;
                 const k = row.startAt ? sydneyDateKey(new Date(row.startAt)) : "";
-                const classes = [k && k === todayKeySydney ? "event-row-today-highlight" : "", getRowAnimationClass(row)]
+                const classes = [k && k === todayKeySydney ? "event-row-today-highlight" : "", getRowAnimationClass(row), tableLock.getRowStateClass(row.id)]
                   .filter(Boolean)
                   .join(" ");
                 return classes;
@@ -734,6 +753,7 @@ export const EventList: React.FC = () => {
             onColumnWidthChange={gridPrefs.onColumnWidthChange}
             sx={{
               height: "100%",
+              ...(tableLock.isLocked ? { pointerEvents: "none" } : {}),
               "& .MuiDataGrid-row:nth-of-type(even)": {
                 backgroundColor: "action.hover",
               },
@@ -827,15 +847,15 @@ export const EventList: React.FC = () => {
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setImportDialogOpen(false)} disabled={importing}>
+          <Button onClick={() => setImportDialogOpen(false)} disabled={importing || tableLock.isLocked}>
             Cancel
           </Button>
           <Button
             variant="contained"
             onClick={handleImportSelected}
-            disabled={importing || previewLoading || previewEvents.length === 0 || selectedKeys.size === 0}
+            disabled={importing || tableLock.isLocked || previewLoading || previewEvents.length === 0 || selectedKeys.size === 0}
           >
-            {importing ? "Importing…" : "Import selected"}
+            {importing ? <CircularProgress size={16} color="inherit" /> : "Import selected"}
           </Button>
         </DialogActions>
       </Dialog>
@@ -847,9 +867,9 @@ export const EventList: React.FC = () => {
           </DialogContentText>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDeleteConfirm(null)}>Cancel</Button>
-          <Button color="error" variant="contained" onClick={handleDeleteConfirm} autoFocus>
-            Delete
+          <Button onClick={() => setDeleteConfirm(null)} disabled={tableLock.isLocked}>Cancel</Button>
+          <Button color="error" variant="contained" onClick={handleDeleteConfirm} autoFocus disabled={tableLock.isLocked}>
+            {tableLock.isActionRunning("events:delete-single") ? <CircularProgress size={16} color="inherit" /> : "Delete"}
           </Button>
         </DialogActions>
       </Dialog>

@@ -20,11 +20,13 @@ import Dialog from "@mui/material/Dialog";
 import DialogTitle from "@mui/material/DialogTitle";
 import DialogContent from "@mui/material/DialogContent";
 import DialogActions from "@mui/material/DialogActions";
+import CircularProgress from "@mui/material/CircularProgress";
 import { apiUrl } from "../../lib/api-base";
 import { getStoredAdmin, getToken } from "../../lib/admin-auth";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import { useGridPreferences } from "../../lib/grid-preferences";
 import { getRowAnimationClass, useAnimatedGridRows } from "../../lib/useAnimatedGridRows";
+import { useTableActionLock } from "../../lib/useTableActionLock";
 
 type Member = {
   id: string;
@@ -85,7 +87,7 @@ export const EventRegistrationsPage: React.FC = () => {
   const registrationsLoading = registrationsQuery?.isLoading ?? false;
   const refetchRegistrations = registrationsQuery?.refetch;
 
-  const { mutate: updateRegistration, mutateAsync: updateRegistrationAsync } = useUpdate();
+  const { mutateAsync: updateRegistrationAsync } = useUpdate();
   const { mutate: updateEvent } = useUpdate();
   const [capacityInput, setCapacityInput] = useState("");
   const [capacitySaving, setCapacitySaving] = useState(false);
@@ -103,6 +105,7 @@ export const EventRegistrationsPage: React.FC = () => {
   const [bulkAttendanceLoading, setBulkAttendanceLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+  const tableLock = useTableActionLock();
 
   const selectedIds =
     rowSelectionModel.type === "include" ? (Array.from(rowSelectionModel.ids) as string[]) : [];
@@ -143,17 +146,40 @@ export const EventRegistrationsPage: React.FC = () => {
 
   const handleBulkDelete = async () => {
     if (selectedIds.length === 0) return;
+    const blockedRows = rows.filter(
+      (r) =>
+        selectedIds.includes(r.id) &&
+        String(r.paymentStatus ?? "").toUpperCase() === "PAID" &&
+        !r.creditRefundedAt,
+    );
+    if (blockedRows.length > 0) {
+      window.alert("Cannot delete PAID registration(s) with Credit Refunded = No. Please refund credit first.");
+      open?.({
+        type: "error",
+        message:
+          "Some selected registrations are PAID and not credit-refunded. Refund credit first before delete.",
+      });
+      return;
+    }
     setBulkDeleteLoading(true);
     try {
-      await Promise.all(
-        selectedIds.map((regId) =>
-          fetch(apiUrl(`/event-registrations/${regId}`), { method: "DELETE" }),
-        ),
-      );
-      setRowSelectionModel({ type: "include", ids: new Set() });
-      refetchRegistrations?.();
-    } catch {
-      open?.({ type: "error", message: "Failed to remove some participants" });
+      await tableLock.runWithLock("event-reg:bulk-delete", selectedIds[0] ?? null, async () => {
+        const responses = await Promise.all(
+          selectedIds.map((regId) => fetch(apiUrl(`/event-registrations/${regId}`), { method: "DELETE" })),
+        );
+        const failedResponse = responses.find((res) => !res.ok);
+        if (failedResponse) {
+          const data = await failedResponse.json().catch(() => ({}));
+          throw new Error(data?.message ?? "Failed to remove some participants");
+        }
+        setRowSelectionModel({ type: "include", ids: new Set() });
+        await refetchRegistrations?.();
+      });
+    } catch (err) {
+      open?.({
+        type: "error",
+        message: (err as Error)?.message ?? "Failed to remove some participants",
+      });
     } finally {
       setBulkDeleteLoading(false);
     }
@@ -173,25 +199,21 @@ export const EventRegistrationsPage: React.FC = () => {
         return;
       }
     }
-    updateRegistration(
-      {
-        resource: "event-registrations",
-        id: registrationId,
-        values: { status },
-      },
-      {
-        onSuccess: () => {
-          refetchRegistrations?.();
-        },
-        onError: (error) => {
-          open?.({
-            type: "error",
-            message:
-              (error as any)?.message ?? "Failed to update registration status",
-          });
-        },
-      },
-    );
+    void tableLock
+      .runWithLock(`event-reg:status:${registrationId}:${status}`, registrationId, async () => {
+        await updateRegistrationAsync({
+          resource: "event-registrations",
+          id: registrationId,
+          values: { status },
+        });
+        await refetchRegistrations?.();
+      })
+      .catch((error) => {
+        open?.({
+          type: "error",
+          message: (error as Error)?.message ?? "Failed to update registration status",
+        });
+      });
   };
 
   const rows: EventRegistrationRow[] =
@@ -244,17 +266,19 @@ export const EventRegistrationsPage: React.FC = () => {
     }
     setBulkStatusLoading(true);
     try {
-      await Promise.all(
-        selectedIds.map((regId) =>
-          updateRegistrationAsync({
-            resource: "event-registrations",
-            id: regId,
-            values: { status },
-          }),
-        ),
-      );
-      setRowSelectionModel({ type: "include", ids: new Set() });
-      refetchRegistrations?.();
+      await tableLock.runWithLock("event-reg:bulk-status", selectedIds[0] ?? null, async () => {
+        await Promise.all(
+          selectedIds.map((regId) =>
+            updateRegistrationAsync({
+              resource: "event-registrations",
+              id: regId,
+              values: { status },
+            }),
+          ),
+        );
+        setRowSelectionModel({ type: "include", ids: new Set() });
+        await refetchRegistrations?.();
+      });
     } catch (err) {
       open?.({
         type: "error",
@@ -269,17 +293,19 @@ export const EventRegistrationsPage: React.FC = () => {
     if (selectedIds.length === 0) return;
     setBulkAttendanceLoading(true);
     try {
-      await Promise.all(
-        selectedIds.map((regId) =>
-          updateRegistrationAsync({
-            resource: "event-registrations",
-            id: regId,
-            values: { attendance },
-          }),
-        ),
-      );
-      setRowSelectionModel({ type: "include", ids: new Set() });
-      refetchRegistrations?.();
+      await tableLock.runWithLock("event-reg:bulk-attendance", selectedIds[0] ?? null, async () => {
+        await Promise.all(
+          selectedIds.map((regId) =>
+            updateRegistrationAsync({
+              resource: "event-registrations",
+              id: regId,
+              values: { attendance },
+            }),
+          ),
+        );
+        setRowSelectionModel({ type: "include", ids: new Set() });
+        await refetchRegistrations?.();
+      });
     } catch (err) {
       open?.({
         type: "error",
@@ -451,34 +477,38 @@ export const EventRegistrationsPage: React.FC = () => {
                 <Button
                   size="small"
                   variant="outlined"
+                  disabled={tableLock.isLocked}
                   onClick={() => handleStatusChange(row.id, "PENDING")}
                   sx={{ color: "grey.800", borderColor: "grey.600" }}
                 >
-                  Pending
+                  {tableLock.isActionRunning(`event-reg:status:${row.id}:PENDING`) ? <CircularProgress size={14} color="inherit" /> : "Pending"}
                 </Button>
                 <Button
                   size="small"
                   variant="contained"
                   color="success"
+                  disabled={tableLock.isLocked}
                   onClick={() => handleStatusChange(row.id, "APPROVED")}
                 >
-                  Approve
+                  {tableLock.isActionRunning(`event-reg:status:${row.id}:APPROVED`) ? <CircularProgress size={14} color="inherit" /> : "Approve"}
                 </Button>
                 <Button
                   size="small"
                   variant="contained"
                   color="warning"
+                  disabled={tableLock.isLocked}
                   onClick={() => handleStatusChange(row.id, "WAITING_LIST")}
                 >
-                  Waitlist
+                  {tableLock.isActionRunning(`event-reg:status:${row.id}:WAITING_LIST`) ? <CircularProgress size={14} color="inherit" /> : "Waitlist"}
                 </Button>
                 <Button
                   size="small"
                   variant="contained"
                   color="error"
+                  disabled={tableLock.isLocked}
                   onClick={() => handleStatusChange(row.id, "REJECTED")}
                 >
-                  Reject
+                  {tableLock.isActionRunning(`event-reg:status:${row.id}:REJECTED`) ? <CircularProgress size={14} color="inherit" /> : "Reject"}
                 </Button>
               </Stack>
             </Box>
@@ -628,7 +658,7 @@ export const EventRegistrationsPage: React.FC = () => {
                   size="small"
                   color="success"
                   onClick={() => handleBulkStatusChange("APPROVED")}
-                  disabled={bulkStatusLoading || bulkDeleteLoading}
+                  disabled={bulkStatusLoading || bulkDeleteLoading || tableLock.isLocked}
                   sx={{ px: { xs: 1, sm: 1.25 }, fontSize: { xs: "0.75rem", sm: "0.8125rem" } }}
                 >
                   All Approve
@@ -638,7 +668,7 @@ export const EventRegistrationsPage: React.FC = () => {
                   size="small"
                   color="warning"
                   onClick={() => handleBulkStatusChange("WAITING_LIST")}
-                  disabled={bulkStatusLoading || bulkDeleteLoading}
+                  disabled={bulkStatusLoading || bulkDeleteLoading || tableLock.isLocked}
                   sx={{ px: { xs: 1, sm: 1.25 }, fontSize: { xs: "0.75rem", sm: "0.8125rem" } }}
                 >
                   All Waitlist
@@ -648,7 +678,7 @@ export const EventRegistrationsPage: React.FC = () => {
                   size="small"
                   color="error"
                   onClick={() => handleBulkStatusChange("REJECTED")}
-                  disabled={bulkStatusLoading || bulkDeleteLoading}
+                  disabled={bulkStatusLoading || bulkDeleteLoading || tableLock.isLocked}
                   sx={{ px: { xs: 1, sm: 1.25 }, fontSize: { xs: "0.75rem", sm: "0.8125rem" } }}
                 >
                   All Reject
@@ -658,7 +688,7 @@ export const EventRegistrationsPage: React.FC = () => {
                   size="small"
                   color="error"
                   onClick={handleBulkDelete}
-                  disabled={bulkDeleteLoading || bulkStatusLoading}
+                  disabled={bulkDeleteLoading || bulkStatusLoading || tableLock.isLocked}
                   sx={{ px: { xs: 1, sm: 1.25 }, fontSize: { xs: "0.75rem", sm: "0.8125rem" } }}
                 >
                   {bulkDeleteLoading ? "Removing…" : "Delete"}
@@ -893,8 +923,11 @@ export const EventRegistrationsPage: React.FC = () => {
           columnVisibilityModel={gridPrefs.columnVisibilityModel}
           onColumnVisibilityModelChange={gridPrefs.onColumnVisibilityModelChange}
           onColumnWidthChange={gridPrefs.onColumnWidthChange}
-          getRowClassName={(params) => getRowAnimationClass(params.row as EventRegistrationRow)}
-          sx={{ height: "100%" }}
+          getRowClassName={(params) => {
+            const row = params.row as EventRegistrationRow;
+            return [getRowAnimationClass(row), tableLock.getRowStateClass(row.id)].filter(Boolean).join(" ");
+          }}
+          sx={{ height: "100%", ...(tableLock.isLocked ? { pointerEvents: "none" } : {}) }}
         />
       </Box>
       <Dialog open={addOpen} onClose={() => !adding && setAddOpen(false)}>

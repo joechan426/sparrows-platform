@@ -337,6 +337,7 @@ final class MemberProfileStore: ObservableObject {
             }
             preferredName = member.preferredName
             email = member.email
+            creditCents = member.creditCents ?? 0
             persist()
         } catch { }
     }
@@ -2066,6 +2067,13 @@ private struct MyScheduledEventsContent: View {
         }
     }
 
+    private var creditBannerText: String? {
+        guard isUpcoming else { return nil }
+        let cents = max(memberStore.creditCents, 0)
+        guard cents > 0 else { return nil }
+        return String(format: "Credit: AUD $%.2f", Double(cents) / 100)
+    }
+
     var body: some View {
         Group {
             if !memberStore.hasProfile {
@@ -2079,12 +2087,28 @@ private struct MyScheduledEventsContent: View {
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
             } else if filtered.isEmpty {
-                Text(isUpcoming ? "No upcoming events." : "No past events.")
-                    .font(.subheadline)
-                    .foregroundStyle(Color.black.opacity(0.75))
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                VStack(alignment: .leading, spacing: 8) {
+                    if let creditText = creditBannerText {
+                        Text(creditText)
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(.red)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    Text(isUpcoming ? "No upcoming events." : "No past events.")
+                        .font(.subheadline)
+                        .foregroundStyle(Color.black.opacity(0.75))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
             } else {
                 VStack(alignment: .center, spacing: 10) {
+                    if let creditText = creditBannerText {
+                        Text(creditText)
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(.red)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
                     ForEach(filtered, id: \.id) { reg in
                         registrationRow(reg)
                     }
@@ -2742,6 +2766,13 @@ private struct MyProfileView: View {
                                             }
                                             .font(.subheadline)
                                             .foregroundStyle(Color.black.opacity(0.85))
+
+                                            if memberStore.creditCents > 0 {
+                                                Text("Warning: deleting this account will forfeit your remaining credit balance.")
+                                                    .font(.subheadline)
+                                                    .fontWeight(.semibold)
+                                                    .foregroundStyle(.red)
+                                            }
 
                                             if let err = memberStore.saveError {
                                                 Text(err)
@@ -5496,6 +5527,17 @@ private struct RegisterEventSheet: View {
         isPaidEvent && eventDetail?.paypalCheckoutAvailable == true
     }
 
+    private var payableNowCents: Int {
+        guard isPaidEvent else { return 0 }
+        let cents = max(eventDetail?.priceCents ?? 0, 0)
+        let appliedCredit = useCredit ? min(memberStore.creditCents, cents) : 0
+        return max(cents - appliedCredit, 0)
+    }
+
+    private var shouldShowCheckoutButtons: Bool {
+        isPaidEvent && payableNowCents > 0
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -5587,7 +5629,7 @@ private struct RegisterEventSheet: View {
                                             .foregroundStyle(.secondary)
                                     }
                                     .padding(.top, 6)
-                                } else if canPayStripe || canPayPayPal {
+                                } else if shouldShowCheckoutButtons && (canPayStripe || canPayPayPal) {
                                     VStack(spacing: 10) {
                                         if canPayStripe {
                                             Button {
@@ -5630,7 +5672,12 @@ private struct RegisterEventSheet: View {
                                     }
                                     .padding(.top, 4)
                                 } else {
-                                    if isPaidEvent, !canPayStripe, !canPayPayPal, didFinishEventDetailFetch, !event.id.hasPrefix("ics-") {
+                                    if shouldShowCheckoutButtons,
+                                       isPaidEvent,
+                                       !canPayStripe,
+                                       !canPayPayPal,
+                                       didFinishEventDetailFetch,
+                                       !event.id.hasPrefix("ics-") {
                                         Text("This event requires payment, but online checkout is not available right now. Please contact the organiser.")
                                             .font(.caption)
                                             .foregroundStyle(.secondary)

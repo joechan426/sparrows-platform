@@ -16,6 +16,7 @@ import DownloadOutlinedIcon from "@mui/icons-material/DownloadOutlined";
 import { getToken } from "../../lib/admin-auth";
 import { apiUrl } from "../../lib/api-base";
 import { getRowAnimationClass, useAnimatedGridRows } from "../../lib/useAnimatedGridRows";
+import { useTableActionLock } from "../../lib/useTableActionLock";
 
 type PaidRow = {
   id: string;
@@ -56,6 +57,7 @@ function escapeCsvCell(value: string): string {
 
 export const PaymentRevenueListPage: React.FC = () => {
   const { open: notify } = useNotification();
+  const tableLock = useTableActionLock();
   const [monthFilter, setMonthFilter] = useState<string>(currentMonthValue());
   const [showAll, setShowAll] = useState(false);
   const [rows, setRows] = useState<PaidRow[]>([]);
@@ -127,8 +129,10 @@ export const PaymentRevenueListPage: React.FC = () => {
   }, [rows]);
 
   const exportCsv = useCallback(() => {
+    tableLock.begin("payments:export-csv", null);
     if (rows.length === 0) {
       notify?.({ type: "error", message: "No rows to export for the current filter." });
+      tableLock.finishError(null);
       return;
     }
     const headers = ["Member", "Email", "Event", "Start", "Payment Provider", "Currency", "Paid", "Registered At"];
@@ -165,7 +169,8 @@ export const PaymentRevenueListPage: React.FC = () => {
     a.remove();
     URL.revokeObjectURL(url);
     notify?.({ type: "success", message: `Exported ${rows.length} row(s) to CSV.` });
-  }, [rows, showAll, monthFilter, notify]);
+    void tableLock.finishSuccess();
+  }, [rows, showAll, monthFilter, notify, tableLock]);
 
   const columns = useMemo<GridColDef[]>(
     () => [
@@ -372,9 +377,9 @@ export const PaymentRevenueListPage: React.FC = () => {
             size="small"
             startIcon={<DownloadOutlinedIcon />}
             onClick={exportCsv}
-            disabled={loading || rows.length === 0}
+            disabled={loading || tableLock.isLocked || rows.length === 0}
           >
-            Export CSV
+            {tableLock.isActionRunning("payments:export-csv") ? "Exporting…" : "Export CSV"}
           </Button>
         </Stack>
       </Stack>
@@ -395,7 +400,7 @@ export const PaymentRevenueListPage: React.FC = () => {
           onColumnWidthChange={gridPrefs.onColumnWidthChange}
           disableRowSelectionOnClick
           getRowClassName={(params) => getRowAnimationClass(params.row as PaidRow)}
-          sx={{ height: "100%" }}
+          sx={{ height: "100%", ...(loading || tableLock.isLocked ? { pointerEvents: "none" } : {}) }}
         />
       </Box>
     </List>

@@ -115,11 +115,6 @@ export function NavRefreshProvider({ children }: { children: React.ReactNode }) 
 
   const safeReplaceRegistrations = useCallback(
     (memberId: string, list: MemberRegistration[], forceVisibleUpdate: boolean = false) => {
-      const cached = getMemberRegistrationsCache<MemberRegistration[]>(memberId);
-      const existingValue = cached?.value ?? (registrationsMemberId === memberId ? registrationsRef.current : null);
-      // If the response comes back empty but we already have items, keep the old list.
-      if (list.length === 0 && existingValue && existingValue.length > 0) return;
-
       setMemberRegistrationsCache(memberId, list);
       if (!forceVisibleUpdate && registrationsMemberId !== memberId) return;
       const next = getMemberRegistrationsCache<MemberRegistration[]>(memberId)!;
