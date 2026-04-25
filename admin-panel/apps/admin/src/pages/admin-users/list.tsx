@@ -47,6 +47,7 @@ export const AdminUserList: React.FC = () => {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+  const [uiRows, setUiRows] = useState<AdminUserRow[]>([]);
   const tableLock = useTableActionLock();
 
   const invalidate = useInvalidate();
@@ -87,8 +88,10 @@ export const AdminUserList: React.FC = () => {
       notify?.({ type: "error", message: "You cannot delete your own account." });
       return;
     }
+    const previousRows = uiRows;
     setDeleteLoading(true);
     try {
+      setUiRows((prev) => prev.filter((row) => !selectedIds.includes(row.id)));
       await tableLock.runWithLock("admin-users:delete-batch", selectedIds[0] ?? null, async () => {
         const token = getToken();
         const res = await fetch(apiUrl("/admin-users/delete-batch"), {
@@ -107,6 +110,7 @@ export const AdminUserList: React.FC = () => {
         await refetchAdminUsersList?.();
       });
     } catch (error) {
+      setUiRows(previousRows);
       notify?.({ type: "error", message: error instanceof Error ? error.message : "Delete failed" });
     } finally {
       setDeleteLoading(false);
@@ -187,7 +191,11 @@ export const AdminUserList: React.FC = () => {
   );
 
   const selectionIncludesSelf = Boolean(selfId && selectedIds.includes(selfId));
-  const sourceRows = (dataGridProps.rows ?? []) as AdminUserRow[];
+  const sourceRowsFromServer = (dataGridProps.rows ?? []) as AdminUserRow[];
+  React.useEffect(() => {
+    setUiRows(sourceRowsFromServer);
+  }, [sourceRowsFromServer]);
+  const sourceRows = uiRows;
   React.useEffect(() => {
     if (!dataGridProps.loading) setHasLoadedOnce(true);
   }, [dataGridProps.loading]);

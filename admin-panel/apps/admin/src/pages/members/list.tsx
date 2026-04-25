@@ -47,6 +47,7 @@ export const MemberList: React.FC = () => {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+  const [uiRows, setUiRows] = useState<MemberRow[]>([]);
   const [creditDialogOpen, setCreditDialogOpen] = useState(false);
   const [creditTarget, setCreditTarget] = useState<MemberRow | null>(null);
   const [creditDeltaInput, setCreditDeltaInput] = useState("");
@@ -141,8 +142,10 @@ export const MemberList: React.FC = () => {
 
   const handleDeleteMembersConfirm = async () => {
     if (selectedIds.length === 0) return;
+    const previousRows = uiRows;
     setDeleteLoading(true);
     try {
+      setUiRows((prev) => prev.filter((row) => !selectedIds.includes(row.id)));
       await tableLock.runWithLock("members:delete-batch", selectedIds[0] ?? null, async () => {
         const token = getToken();
         const res = await fetch(apiUrl("/members/delete-batch"), {
@@ -161,6 +164,7 @@ export const MemberList: React.FC = () => {
         await refetchMembersList?.();
       });
     } catch (error) {
+      setUiRows(previousRows);
       notify?.({ type: "error", message: error instanceof Error ? error.message : "Delete failed" });
     } finally {
       setDeleteLoading(false);
@@ -234,7 +238,11 @@ export const MemberList: React.FC = () => {
     [canManageCredits]
   );
   const gridPrefs = useGridPreferences("members-list", columns);
-  const sourceRows = (dataGridProps.rows ?? []) as MemberRow[];
+  const sourceRowsFromServer = (dataGridProps.rows ?? []) as MemberRow[];
+  React.useEffect(() => {
+    setUiRows(sourceRowsFromServer);
+  }, [sourceRowsFromServer]);
+  const sourceRows = uiRows;
   React.useEffect(() => {
     if (!dataGridProps.loading) setHasLoadedOnce(true);
   }, [dataGridProps.loading]);
@@ -404,6 +412,12 @@ export const MemberList: React.FC = () => {
               const deltaCents = Math.round(amount * 100);
               if (!Number.isFinite(amount) || deltaCents === 0) return;
               setCreditLoading(true);
+              const previousRows = uiRows;
+              setUiRows((prev) =>
+                prev.map((row) =>
+                  row.id === creditTarget.id ? { ...row, creditCents: (row.creditCents ?? 0) + deltaCents } : row,
+                ),
+              );
               try {
                 await tableLock.runWithLock("members:credit-adjust", creditTarget.id, async () => {
                   const token = getToken();
@@ -420,6 +434,7 @@ export const MemberList: React.FC = () => {
                   await refetchMembersList?.();
                 });
               } catch (error) {
+                setUiRows(previousRows);
                 notify?.({ type: "error", message: error instanceof Error ? error.message : "Credit adjustment failed" });
               } finally {
                 setCreditLoading(false);

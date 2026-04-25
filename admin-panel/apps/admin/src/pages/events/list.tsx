@@ -185,11 +185,16 @@ export const EventList: React.FC = () => {
   const [monthFilter, setMonthFilter] = useState<string>(() => currentSydneyMonthYyyyMm());
   const [showAllEvents, setShowAllEvents] = useState(false);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+  const [uiRows, setUiRows] = useState<CalendarEventRow[]>([]);
   const tableLock = useTableActionLock();
 
   const selectedIds = rowSelectionModel.type === "include" ? Array.from(rowSelectionModel.ids) as string[] : [];
   const selectedCount = rowSelectionModel.type === "include" ? rowSelectionModel.ids.size : 0;
   const [bulkDeleteConfirmPending, setBulkDeleteConfirmPending] = useState(false);
+
+  React.useEffect(() => {
+    setUiRows((dataGridProps.rows ?? []) as CalendarEventRow[]);
+  }, [dataGridProps.rows]);
 
   React.useEffect(() => {
     if (isCoach) setRowSelectionModel({ type: "include", ids: new Set<string>() });
@@ -222,6 +227,10 @@ export const EventList: React.FC = () => {
     logOpTimestamp(op, "t0", { selectedIds });
     setBulkActionLoading(true);
     tableLock.begin("events:bulk-open", selectedIds[0] ?? null);
+    const previousRows = uiRows;
+    setUiRows((prev) =>
+      prev.map((row) => (selectedIds.includes(row.id) ? { ...row, registrationOpen: true } : row)),
+    );
     try {
       logOpTimestamp(op, "t1", { selectedCount: selectedIds.length });
       await Promise.all(
@@ -240,6 +249,7 @@ export const EventList: React.FC = () => {
       await markDomUpdateComplete(op, { selectedCount: selectedIds.length });
       await tableLock.finishSuccess();
     } catch {
+      setUiRows(previousRows);
       tableLock.finishError(selectedIds[0] ?? null);
       openNotification?.({ type: "error", message: "Failed to update some events" });
     } finally {
@@ -253,6 +263,10 @@ export const EventList: React.FC = () => {
     logOpTimestamp(op, "t0", { selectedIds });
     setBulkActionLoading(true);
     tableLock.begin("events:bulk-close", selectedIds[0] ?? null);
+    const previousRows = uiRows;
+    setUiRows((prev) =>
+      prev.map((row) => (selectedIds.includes(row.id) ? { ...row, registrationOpen: false } : row)),
+    );
     try {
       logOpTimestamp(op, "t1", { selectedCount: selectedIds.length });
       await Promise.all(
@@ -271,6 +285,7 @@ export const EventList: React.FC = () => {
       await markDomUpdateComplete(op, { selectedCount: selectedIds.length });
       await tableLock.finishSuccess();
     } catch {
+      setUiRows(previousRows);
       tableLock.finishError(selectedIds[0] ?? null);
       openNotification?.({ type: "error", message: "Failed to update some events" });
     } finally {
@@ -292,6 +307,8 @@ export const EventList: React.FC = () => {
     logOpTimestamp(op, "t0", { selectedIds });
     setBulkActionLoading(true);
     tableLock.begin("events:bulk-delete", selectedIds[0] ?? null);
+    const previousRows = uiRows;
+    setUiRows((prev) => prev.filter((row) => !selectedIds.includes(row.id)));
     try {
       logOpTimestamp(op, "t1", { selectedCount: selectedIds.length });
       await Promise.all(
@@ -305,6 +322,7 @@ export const EventList: React.FC = () => {
       await markDomUpdateComplete(op, { selectedCount: selectedIds.length });
       await tableLock.finishSuccess();
     } catch {
+      setUiRows(previousRows);
       tableLock.finishError(selectedIds[0] ?? null);
       openNotification?.({ type: "error", message: "Failed to delete some events" });
     } finally {
@@ -388,6 +406,19 @@ export const EventList: React.FC = () => {
     logOpTimestamp(op, "t0", { selectedCount: events.length });
     setImporting(true);
     tableLock.begin("events:import", null);
+    const previousRows = uiRows;
+    const optimisticRows: CalendarEventRow[] = events.map((e, index) => ({
+      id: `optimistic-import-${Date.now()}-${index}`,
+      title: e.summary ?? "(Imported event)",
+      startAt: e.start,
+      endAt: e.end,
+      sportType: getSportType(e.summary ?? ""),
+      eventType: getEventType(e.summary ?? ""),
+      registrationOpen: false,
+      capacity: null,
+      approvedCount: 0,
+    }));
+    setUiRows((prev) => [...optimisticRows, ...prev]);
     try {
       logOpTimestamp(op, "t1", { selectedCount: events.length });
       const res = await fetch(apiUrl("/calendar-events/import"), {
@@ -404,6 +435,7 @@ export const EventList: React.FC = () => {
       await markDomUpdateComplete(op, { selectedCount: events.length });
       await tableLock.finishSuccess();
     } catch (e) {
+      setUiRows(previousRows);
       tableLock.finishError(null);
       openNotification?.({ type: "error", message: e instanceof Error ? e.message : "Import failed" });
     } finally {
@@ -421,6 +453,8 @@ export const EventList: React.FC = () => {
     const deletingId = deleteConfirm.id;
     logOpTimestamp(op, "t0", { id: deletingId });
     tableLock.begin("events:delete-single", deleteConfirm.id);
+    const previousRows = uiRows;
+    setUiRows((prev) => prev.filter((row) => row.id !== deletingId));
     logOpTimestamp(op, "t1", { id: deletingId });
     deleteOne(
       { resource: "calendar-events", id: deleteConfirm.id },
@@ -435,6 +469,7 @@ export const EventList: React.FC = () => {
           });
         },
         onError: (e) => {
+          setUiRows(previousRows);
           tableLock.finishError(deleteConfirm.id);
           openNotification?.({ type: "error", message: (e as any)?.message ?? "Delete failed" });
         },
@@ -442,7 +477,7 @@ export const EventList: React.FC = () => {
     );
   };
 
-  const listRows = (dataGridProps.rows ?? []) as CalendarEventRow[];
+  const listRows = uiRows;
   React.useEffect(() => {
     if (!dataGridProps.loading) setHasLoadedOnce(true);
   }, [dataGridProps.loading]);
@@ -609,6 +644,10 @@ export const EventList: React.FC = () => {
               const op = "row-toggle-registration-open";
               logOpTimestamp(op, "t0", { id: row.id, nextRegistrationOpen: !row.registrationOpen });
               logOpTimestamp(op, "t1", { id: row.id, nextRegistrationOpen: !row.registrationOpen });
+              const previousRows = uiRows;
+              setUiRows((prev) =>
+                prev.map((r) => (r.id === row.id ? { ...r, registrationOpen: !row.registrationOpen } : r)),
+              );
               update(
                 { resource: "calendar-events", id: row.id, values: { registrationOpen: !row.registrationOpen } },
                 {
@@ -617,6 +656,9 @@ export const EventList: React.FC = () => {
                     void refetchList?.().finally(() => {
                       void markDomUpdateComplete(op, { id: row.id, nextRegistrationOpen: !row.registrationOpen });
                     });
+                  },
+                  onError: () => {
+                    setUiRows(previousRows);
                   },
                 },
               );

@@ -105,6 +105,7 @@ export const EventRegistrationsPage: React.FC = () => {
   const [bulkAttendanceLoading, setBulkAttendanceLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+  const [uiRows, setUiRows] = useState<EventRegistrationRow[]>([]);
   const tableLock = useTableActionLock();
 
   const selectedIds =
@@ -161,7 +162,9 @@ export const EventRegistrationsPage: React.FC = () => {
       });
       return;
     }
+    const previousRows = rows;
     setBulkDeleteLoading(true);
+    setUiRows((prev) => prev.filter((r) => !selectedIds.includes(r.id)));
     try {
       await tableLock.runWithLock("event-reg:bulk-delete", selectedIds[0] ?? null, async () => {
         const responses = await Promise.all(
@@ -176,6 +179,7 @@ export const EventRegistrationsPage: React.FC = () => {
         await refetchRegistrations?.();
       });
     } catch (err) {
+      setUiRows(previousRows);
       open?.({
         type: "error",
         message: (err as Error)?.message ?? "Failed to remove some participants",
@@ -199,6 +203,8 @@ export const EventRegistrationsPage: React.FC = () => {
         return;
       }
     }
+    const previousRows = rows;
+    setUiRows((prev) => prev.map((r) => (r.id === registrationId ? { ...r, status } : r)));
     void tableLock
       .runWithLock(`event-reg:status:${registrationId}:${status}`, registrationId, async () => {
         await updateRegistrationAsync({
@@ -209,6 +215,7 @@ export const EventRegistrationsPage: React.FC = () => {
         await refetchRegistrations?.();
       })
       .catch((error) => {
+        setUiRows(previousRows);
         open?.({
           type: "error",
           message: (error as Error)?.message ?? "Failed to update registration status",
@@ -216,12 +223,18 @@ export const EventRegistrationsPage: React.FC = () => {
       });
   };
 
-  const rows: EventRegistrationRow[] =
+  const rowsFromServer: EventRegistrationRow[] =
     Array.isArray((registrationsData as any)?.data)
       ? ((registrationsData as any).data as EventRegistrationRow[])
       : Array.isArray(registrationsData)
         ? (registrationsData as EventRegistrationRow[])
         : [];
+
+  useEffect(() => {
+    setUiRows(rowsFromServer);
+  }, [rowsFromServer]);
+
+  const rows: EventRegistrationRow[] = uiRows;
 
   const filteredRows = React.useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -264,7 +277,9 @@ export const EventRegistrationsPage: React.FC = () => {
         return;
       }
     }
+    const previousRows = rows;
     setBulkStatusLoading(true);
+    setUiRows((prev) => prev.map((r) => (selectedIds.includes(r.id) ? { ...r, status } : r)));
     try {
       await tableLock.runWithLock("event-reg:bulk-status", selectedIds[0] ?? null, async () => {
         await Promise.all(
@@ -280,6 +295,7 @@ export const EventRegistrationsPage: React.FC = () => {
         await refetchRegistrations?.();
       });
     } catch (err) {
+      setUiRows(previousRows);
       open?.({
         type: "error",
         message: (err as any)?.message ?? "Failed to update some registrations",
@@ -291,7 +307,9 @@ export const EventRegistrationsPage: React.FC = () => {
 
   const handleBulkAttendanceChange = async (attendance: "DEFAULT" | "PRESENT" | "ABSENT") => {
     if (selectedIds.length === 0) return;
+    const previousRows = rows;
     setBulkAttendanceLoading(true);
+    setUiRows((prev) => prev.map((r) => (selectedIds.includes(r.id) ? { ...r, attendance } : r)));
     try {
       await tableLock.runWithLock("event-reg:bulk-attendance", selectedIds[0] ?? null, async () => {
         await Promise.all(
@@ -307,6 +325,7 @@ export const EventRegistrationsPage: React.FC = () => {
         await refetchRegistrations?.();
       });
     } catch (err) {
+      setUiRows(previousRows);
       open?.({
         type: "error",
         message: (err as any)?.message ?? "Failed to update attendance",
@@ -578,7 +597,22 @@ export const EventRegistrationsPage: React.FC = () => {
       open?.({ type: "error", message: "Name is required" });
       return;
     }
+    const optimisticId = `optimistic-reg-${Date.now()}`;
+    const optimisticRow: EventRegistrationRow = {
+      id: optimisticId,
+      status: "PENDING",
+      createdAt: new Date().toISOString(),
+      attendance: "DEFAULT",
+      teamName: teamName || null,
+      member: { id: optimisticId, preferredName: name, email: email || null },
+      paymentStatus: "NONE",
+      amountPaidCents: 0,
+      paidAt: null,
+      creditRefundedAt: null,
+    };
+    const previousRows = rows;
     setAdding(true);
+    setUiRows((prev) => [optimisticRow, ...prev]);
     try {
       const res = await fetch(apiUrl(`/calendar-events/${id}/registrations`), {
         method: "POST",
@@ -597,8 +631,9 @@ export const EventRegistrationsPage: React.FC = () => {
       setAddEmail("");
       setAddTeamName("");
       setAddOpen(false);
-      refetchRegistrations?.();
+      await refetchRegistrations?.();
     } catch (err) {
+      setUiRows(previousRows);
       open?.({
         type: "error",
         message: (err as any)?.message ?? "Failed to add participant",

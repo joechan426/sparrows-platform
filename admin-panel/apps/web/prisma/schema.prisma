@@ -272,6 +272,7 @@ model CalendarEvent {
   creditLedgerEntries MemberCreditLedger[]
 
   @@unique([sourceEventId, sourceType])
+  @@index([startAt])
   @@index([paymentProfileId])
 }
 
@@ -329,6 +330,8 @@ model EventRegistration {
   creditLedgerEntries MemberCreditLedger[]
 
   @@unique([memberId, calendarEventId])
+  @@index([calendarEventId, createdAt])
+  @@index([paymentStatus, paidAt])
 }
 
 enum MemberCreditReason {
