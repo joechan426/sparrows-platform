@@ -36,39 +36,53 @@ export async function GET(req: NextRequest) {
     const takeRaw = Number.isFinite(end) ? end - skip : 25;
     const take = takeRaw > 0 ? takeRaw : 25;
 
-    const [rawItems, total] = await Promise.all([
+    const [events, total] = await Promise.all([
       prisma.calendarEvent.findMany({
         skip,
         take,
         orderBy: { startAt: "asc" },
-        include: {
-          registrations: {
-            select: { status: true },
-          },
-        },
       }),
       prisma.calendarEvent.count(),
     ]);
 
-    const items = rawItems.map(
-      ({
-        registrations,
-        ...e
-      }: {
-        registrations: { status: string }[];
-        [key: string]: unknown;
-      }) => {
-        const approvedCount = registrations.filter((r) => r.status === "APPROVED").length;
-        const waitlistedCount = registrations.filter((r) => r.status === "WAITING_LIST").length;
-        const pendingCount = registrations.filter((r) => r.status === "PENDING").length;
-        return {
-          ...e,
-          approvedCount,
-          waitlistedCount,
-          pendingCount,
-        };
-      }
-    );
+    const eventIds = events.map((e: (typeof events)[number]) => e.id);
+    const grouped =
+      eventIds.length === 0
+        ? []
+        : await prisma.eventRegistration.groupBy({
+            by: ["calendarEventId", "status"],
+            where: {
+              calendarEventId: { in: eventIds },
+              status: { in: ["APPROVED", "WAITING_LIST", "PENDING"] },
+            },
+            _count: { _all: true },
+          });
+
+    const countsByEvent = new Map<
+      string,
+      { approvedCount: number; waitlistedCount: number; pendingCount: number }
+    >();
+
+    for (const row of grouped) {
+      const current = countsByEvent.get(row.calendarEventId) ?? {
+        approvedCount: 0,
+        waitlistedCount: 0,
+        pendingCount: 0,
+      };
+      if (row.status === "APPROVED") current.approvedCount = row._count._all;
+      if (row.status === "WAITING_LIST") current.waitlistedCount = row._count._all;
+      if (row.status === "PENDING") current.pendingCount = row._count._all;
+      countsByEvent.set(row.calendarEventId, current);
+    }
+
+    const items = events.map((e: (typeof events)[number]) => ({
+      ...e,
+      ...(countsByEvent.get(e.id) ?? {
+        approvedCount: 0,
+        waitlistedCount: 0,
+        pendingCount: 0,
+      }),
+    }));
 
     return withCors(
       req,
