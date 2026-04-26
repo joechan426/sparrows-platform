@@ -146,6 +146,42 @@ function inferEventType(title: string): string {
   return title.toLowerCase().includes("cup") ? "SPECIAL_EVENT" : "NORMAL_EVENT";
 }
 
+function decodeIcsText(value: string): string {
+  return value
+    .replace(/\\N/gi, "\n")
+    .replace(/\\n/g, "\n")
+    .replace(/\\,/g, ",")
+    .replace(/\\;/g, ";")
+    .replace(/\\\\/g, "\\");
+}
+
+function stripHtmlToText(input: string): string {
+  const withBreaks = input
+    .replace(/<\/(p|div|h[1-6]|li)>/gi, "\n")
+    .replace(/<br\s*\/?>/gi, "\n");
+  const noTags = withBreaks.replace(/<[^>]*>/g, "");
+  const decoded = noTags
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, "\"")
+    .replace(/&#39;/gi, "'");
+  return decoded
+    .replace(/\r/g, "")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function normalizeCalendarText(value: string | undefined): string | null {
+  if (!value) return null;
+  const decoded = decodeIcsText(value);
+  const text = /<[^>]+>/.test(decoded) ? stripHtmlToText(decoded) : decoded;
+  const compact = text.trim();
+  return compact.length > 0 ? compact : null;
+}
+
 export async function GET() {
   try {
     const res = await fetch(GOOGLE_CALENDAR_ICS_URL, { next: { revalidate: 60 } });
@@ -176,8 +212,8 @@ export async function GET() {
               title: summary,
               startAt: start.toISOString(),
               endAt: end.toISOString(),
-              location: current["LOCATION"] ?? null,
-              description: current["DESCRIPTION"] ?? null,
+              location: normalizeCalendarText(current["LOCATION"]),
+              description: normalizeCalendarText(current["DESCRIPTION"]),
               sportType: inferSportType(summary),
               eventType: inferEventType(summary),
               registrationOpen: false,

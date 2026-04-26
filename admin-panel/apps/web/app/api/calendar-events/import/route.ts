@@ -19,6 +19,42 @@ function classifyEventType(title: string): "NORMAL" | "SPECIAL" {
   return "NORMAL";
 }
 
+function decodeIcsText(value: string): string {
+  return value
+    .replace(/\\N/gi, "\n")
+    .replace(/\\n/g, "\n")
+    .replace(/\\,/g, ",")
+    .replace(/\\;/g, ";")
+    .replace(/\\\\/g, "\\");
+}
+
+function stripHtmlToText(input: string): string {
+  const withBreaks = input
+    .replace(/<\/(p|div|h[1-6]|li)>/gi, "\n")
+    .replace(/<br\s*\/?>/gi, "\n");
+  const noTags = withBreaks.replace(/<[^>]*>/g, "");
+  const decoded = noTags
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, "\"")
+    .replace(/&#39;/gi, "'");
+  return decoded
+    .replace(/\r/g, "")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function normalizeCalendarText(value: string | null): string | null {
+  if (!value) return null;
+  const decoded = decodeIcsText(value);
+  const text = /<[^>]+>/.test(decoded) ? stripHtmlToText(decoded) : decoded;
+  const compact = text.trim();
+  return compact.length > 0 ? compact : null;
+}
+
 const DEFAULT_ICS_TIME_ZONE = "Australia/Sydney";
 
 function getTZIdFromKey(key: string): string | null {
@@ -137,7 +173,7 @@ function parseIcalToEvents(icsText: string): ParsedIcalEvent[] {
       const lineMatch = block.match(regex);
       const value = lineMatch?.[1];
       if (!value) return null;
-      return value.replace(/\\n/g, "\n").trim() || null;
+      return normalizeCalendarText(value) ?? null;
     };
     const getKeyAndValue = (key: string): { key: string; value: string } | null => {
       const keyUpper = key.toUpperCase();
@@ -273,8 +309,8 @@ export async function POST(req: NextRequest) {
           ? ev.sourceEventId.trim()
           : `${uid}|${startStr}`;
 
-      const description = typeof ev.description === "string" ? ev.description.trim() || null : null;
-      const location = typeof ev.location === "string" ? ev.location.trim() || null : null;
+      const description = typeof ev.description === "string" ? normalizeCalendarText(ev.description) : null;
+      const location = typeof ev.location === "string" ? normalizeCalendarText(ev.location) : null;
       const sportType = classifySportType(summary);
       const eventType = classifyEventType(summary);
 

@@ -2449,6 +2449,8 @@ private struct MyProfileView: View {
     @State private var team2Score = 0
     @State private var team1Sets = 0
     @State private var team2Sets = 0
+    @State private var setNumber = 1
+    @State private var setHistory: [String] = []
     @State private var profileNameInput = ""
     @State private var profileEmailInput = ""
     @State private var authPassword = ""
@@ -2473,6 +2475,7 @@ private struct MyProfileView: View {
                         team2Score: $team2Score,
                         team1Sets: $team1Sets,
                         team2Sets: $team2Sets,
+                        setHistory: $setHistory,
                         onAddPoint: addPoint,
                         onRemovePoint: removePoint,
                         onReset: resetScores,
@@ -3030,16 +3033,20 @@ private struct MyProfileView: View {
         if team == 1 {
             team1Score += 1
             if team1Score >= 25 && (team1Score - team2Score) >= 2 {
+                recordSetWinner(winnerTeam: 1)
                 team1Sets += 1
                 team1Score = 0
                 team2Score = 0
+                setNumber += 1
             }
         } else {
             team2Score += 1
             if team2Score >= 25 && (team2Score - team1Score) >= 2 {
+                recordSetWinner(winnerTeam: 2)
                 team2Sets += 1
                 team1Score = 0
                 team2Score = 0
+                setNumber += 1
             }
         }
     }
@@ -3057,12 +3064,22 @@ private struct MyProfileView: View {
         team2Score = 0
         team1Sets = 0
         team2Sets = 0
+        setNumber = 1
+        setHistory = []
     }
 
     private func switchSides() {
         swap(&team1Name, &team2Name)
         swap(&team1Score, &team2Score)
         swap(&team1Sets, &team2Sets)
+    }
+
+    private func recordSetWinner(winnerTeam: Int) {
+        let t1 = team1Name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Team 1" : team1Name
+        let t2 = team2Name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Team 2" : team2Name
+        let winner = winnerTeam == 1 ? t1 : t2
+        let line = "\(winner) won Set \(setNumber) (\(team1Score)-\(team2Score))"
+        setHistory.append(line)
     }
 }
 
@@ -3122,149 +3139,241 @@ private struct ScoreboardLandscapeView: View {
     @Binding var team2Score: Int
     @Binding var team1Sets: Int
     @Binding var team2Sets: Int
+    @Binding var setHistory: [String]
     let onAddPoint: (Int) -> Void
     let onRemovePoint: (Int) -> Void
     let onReset: () -> Void
     let onSwitchSides: () -> Void
     @State private var showRematchConfirm = false
+    @State private var isEditingTeam1Name = false
+    @State private var isEditingTeam2Name = false
+    @FocusState private var focusedTeamField: Int?
+    private let darkGreen = Color(red: 0.055, green: 0.267, blue: 0.239)
+    private let lightGreen = Color(red: 0.749, green: 0.855, blue: 0.643)
 
     var body: some View {
         ZStack {
-            Color.white.ignoresSafeArea()
-            VStack(spacing: 6) {
-                Text("Sparrows Scoreboard")
-                    .font(.system(size: 22, weight: .bold))
-                    .foregroundStyle(Color(red: 0.055, green: 0.267, blue: 0.239))
-                    .padding(.top, 0)
+            Color(red: 0.96, green: 0.96, blue: 0.96).ignoresSafeArea()
+            ScrollView(.vertical, showsIndicators: true) {
+                VStack(spacing: 10) {
+                    Text("Volleyball Scoreboard")
+                        .font(.system(size: 24, weight: .heavy))
+                        .foregroundStyle(darkGreen)
+                        .padding(.top, 6)
 
-                HStack(spacing: 14) {
-                    teamColumn(
-                        placeholder: "Team 1 Name",
-                        isTeamOne: true
-                    )
-
-                    teamColumn(
-                        placeholder: "Team 2 Name",
-                        isTeamOne: false
-                    )
-                }
-
-                HStack(spacing: 12) {
-                    Text(team1Name.isEmpty ? "Team 1" : team1Name)
-                        .font(.system(size: 32, weight: .bold))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.55)
-                    Text("vs")
-                        .font(.system(size: 24, weight: .bold))
-                    Text(team2Name.isEmpty ? "Team 2" : team2Name)
-                        .font(.system(size: 32, weight: .bold))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.55)
-                }
-                .multilineTextAlignment(.center)
-                .foregroundStyle(Color(red: 0.055, green: 0.267, blue: 0.239))
-
-                Text("\(team1Score) : \(team2Score)")
-                    .font(.system(size: 104, weight: .heavy))
-                    .foregroundStyle(Color(red: 0.055, green: 0.267, blue: 0.239))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.6)
-
-                Text("Sets: \(team1Sets) - \(team2Sets)")
-                    .font(.system(size: 24, weight: .semibold))
-                    .foregroundStyle(Color(red: 0.055, green: 0.267, blue: 0.239))
-
-                HStack(spacing: 14) {
-                    Button {
-                        onSwitchSides()
-                    } label: {
-                        Text("Switch side")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(.black)
-                            .frame(width: 190, height: 38)
-                            .background(
-                                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                    .fill(Color(red: 0.886, green: 0.886, blue: 0.886))
+                    VStack(spacing: 10) {
+                        HStack(spacing: 10) {
+                            teamColumn(
+                                isTeamOne: true
                             )
-                    }
-                    .buttonStyle(.plain)
-
-                    Button {
-                        showRematchConfirm = true
-                    } label: {
-                        Text("Re-match")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(.black)
-                            .frame(width: 190, height: 38)
-                            .background(
-                                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                    .fill(Color(red: 0.886, green: 0.886, blue: 0.886))
+                            teamColumn(
+                                isTeamOne: false
                             )
+                        }
+
+                        Text("Sets: \(team1Sets) - \(team2Sets)")
+                            .font(.system(size: 20, weight: .bold))
+                            .foregroundStyle(.black.opacity(0.85))
+
+                        HStack(spacing: 10) {
+                            Button {
+                                onSwitchSides()
+                                isEditingTeam1Name = false
+                                isEditingTeam2Name = false
+                                focusedTeamField = nil
+                            } label: {
+                                Text("Switch Sides")
+                                    .font(.system(size: 16, weight: .bold))
+                                    .foregroundStyle(.white)
+                                    .frame(maxWidth: .infinity, minHeight: 46)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                            .fill(darkGreen)
+                                    )
+                            }
+                            .buttonStyle(.plain)
+
+                            Button {
+                                showRematchConfirm = true
+                            } label: {
+                                Text("Reset Scores")
+                                    .font(.system(size: 16, weight: .bold))
+                                    .foregroundStyle(.black)
+                                    .frame(maxWidth: .infinity, minHeight: 46)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                            .fill(Color(red: 0.886, green: 0.886, blue: 0.886))
+                                    )
+                            }
+                            .buttonStyle(.plain)
+                        }
+
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Set History")
+                                .font(.system(size: 15, weight: .bold))
+                                .foregroundStyle(.black.opacity(0.9))
+
+                            if setHistory.isEmpty {
+                                Text("No sets completed yet")
+                                    .font(.system(size: 14, weight: .regular))
+                                    .foregroundStyle(.black.opacity(0.65))
+                            } else {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    ForEach(Array(setHistory.enumerated()), id: \.offset) { _, item in
+                                        Text(item)
+                                            .font(.system(size: 14, weight: .semibold))
+                                            .foregroundStyle(.black.opacity(0.82))
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                    }
+                                }
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(10)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(Color(red: 0.98, green: 0.98, blue: 0.98))
+                        )
                     }
-                    .buttonStyle(.plain)
+                    .padding(12)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(Color.white)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(Color.black.opacity(0.06), lineWidth: 1)
+                    )
+                    .shadow(color: Color.black.opacity(0.12), radius: 10, x: 0, y: 4)
                 }
-                .frame(maxWidth: .infinity, alignment: .center)
-                .padding(.top, 2)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 4)
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 2)
+            .onTapGesture {
+                isEditingTeam1Name = false
+                isEditingTeam2Name = false
+                focusedTeamField = nil
+            }
         }
-        .alert("Start Re-match?", isPresented: $showRematchConfirm) {
-            Button("No", role: .cancel) {}
-            Button("Yes", role: .destructive) {
+        .alert("Reset scoreboard?", isPresented: $showRematchConfirm) {
+            Button("Cancel", role: .cancel) {}
+            Button("Reset", role: .destructive) {
+                isEditingTeam1Name = false
+                isEditingTeam2Name = false
+                focusedTeamField = nil
                 onReset()
             }
         } message: {
-            Text("Re-match will reset both score and sets to zero. Do you want to continue?")
+            Text("This will reset score, sets and set history to zero.")
         }
     }
 
     @ViewBuilder
     private func teamColumn(
-        placeholder: String,
         isTeamOne: Bool
     ) -> some View {
-        VStack(spacing: 8) {
-            TextField(placeholder, text: isTeamOne ? $team1Name : $team2Name)
-                .textFieldStyle(.plain)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 7)
-                .background(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .stroke(Color(red: 0.055, green: 0.267, blue: 0.239), lineWidth: 1)
-                )
-
-            HStack(spacing: 8) {
+        let isLeft = isTeamOne
+        let name = isLeft ? team1Name : team2Name
+        let score = isLeft ? team1Score : team2Score
+        let panelForeground: Color = isLeft ? .white : .black
+        let placeholderName = isLeft ? "Team 1 Name" : "Team 2 Name"
+        let displayName = name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? (isLeft ? "Team 1" : "Team 2")
+            : name
+        let isEditing = isLeft ? isEditingTeam1Name : isEditingTeam2Name
+        VStack(spacing: 10) {
+            if isEditing {
+                TextField(placeholderName, text: isTeamOne ? $team1Name : $team2Name)
+                    .textFieldStyle(.plain)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 8)
+                    .frame(maxWidth: .infinity)
+                    .multilineTextAlignment(.center)
+                    .background(Color.white.opacity(isLeft ? 0.95 : 1))
+                    .foregroundStyle(.black)
+                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    .focused($focusedTeamField, equals: isLeft ? 1 : 2)
+                    .onSubmit {
+                        if isLeft {
+                            isEditingTeam1Name = false
+                        } else {
+                            isEditingTeam2Name = false
+                        }
+                        focusedTeamField = nil
+                    }
+            } else {
                 Button {
-                    onAddPoint(isTeamOne ? 1 : 2)
+                    if isLeft {
+                        isEditingTeam1Name = true
+                        focusedTeamField = 1
+                    } else {
+                        isEditingTeam2Name = true
+                        focusedTeamField = 2
+                    }
                 } label: {
-                    Text("+1")
-                        .frame(maxWidth: .infinity, minHeight: 36)
-                        .font(.system(size: 14, weight: .bold))
-                        .background(
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .fill(Color(red: 0.055, green: 0.267, blue: 0.239))
-                        )
-                        .foregroundStyle(.white)
-                }
-                .buttonStyle(.plain)
-
-                Button {
-                    onRemovePoint(isTeamOne ? 1 : 2)
-                } label: {
-                    Text("-1")
-                        .frame(maxWidth: .infinity, minHeight: 36)
-                        .font(.system(size: 14, weight: .bold))
-                        .background(
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .fill(Color(red: 0.749, green: 0.855, blue: 0.643))
-                        )
-                        .foregroundStyle(.white)
+                    Text(displayName)
+                        .font(.system(size: 18, weight: .bold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                        .foregroundStyle(panelForeground)
+                        .frame(maxWidth: .infinity)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 8)
+                        .background(isLeft ? darkGreen : lightGreen)
+                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                 }
                 .buttonStyle(.plain)
             }
+
+            Text("\(score)")
+                .font(.system(size: 120, weight: .black))
+                .lineLimit(1)
+                .minimumScaleFactor(0.35)
+                .foregroundStyle(panelForeground)
+
+            HStack(spacing: 8) {
+                scoreboardActionButton(
+                    title: "+1",
+                    background: darkGreen,
+                    foreground: .white
+                ) {
+                    onAddPoint(isTeamOne ? 1 : 2)
+                }
+
+                scoreboardActionButton(
+                    title: "-1",
+                    background: Color(red: 0.2, green: 0.2, blue: 0.2),
+                    foreground: .white
+                ) {
+                    onRemovePoint(isTeamOne ? 1 : 2)
+                }
+            }
         }
+        .padding(14)
         .frame(maxWidth: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(isLeft ? darkGreen : lightGreen)
+        )
+    }
+
+    private func scoreboardActionButton(
+        title: String,
+        background: Color,
+        foreground: Color,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 17, weight: .bold))
+                .foregroundStyle(foreground)
+                .frame(maxWidth: .infinity, minHeight: 48)
+                .background(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(background)
+                )
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -4670,7 +4779,7 @@ private struct SportsCalendarView: View {
                     event: event,
                     memberStore: memberStore,
                     dateTimeText: viewModel.eventDateTimeDetailText(for: event),
-                    descriptionText: viewModel.firstDescriptionParagraph(for: event),
+                    descriptionText: viewModel.fullDescription(for: event),
                     onOpenCheckout: onOpenCheckout,
                     onRegistered: { eventId in
                         optimisticPendingEventIds.insert(eventId)
@@ -4691,7 +4800,7 @@ private struct SportsCalendarView: View {
                     event: event,
                     memberStore: memberStore,
                     dateTimeText: viewModel.eventDateTimeDetailText(for: event),
-                    descriptionText: viewModel.firstDescriptionParagraph(for: event),
+                    descriptionText: viewModel.fullDescription(for: event),
                     onOpenCheckout: onOpenCheckout,
                     onRegistered: { eventId in
                         optimisticPendingEventIds.insert(eventId)
@@ -5579,17 +5688,38 @@ private struct RegisterEventSheet: View {
                                 Text("Preferred name *")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
-                                TextField("Preferred name", text: $preferredNameInput)
-                                    .textFieldStyle(.roundedBorder)
-                                    .textContentType(.name)
+                                Text(preferredNameInput.isEmpty ? "—" : preferredNameInput)
+                                    .font(.body.weight(.semibold))
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 10)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                            .fill(Color.yellow.opacity(0.28))
+                                    )
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                            .stroke(Color.yellow.opacity(0.65), lineWidth: 1)
+                                    )
                                 Text("Email")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
-                                TextField("Email", text: $emailInput)
-                                    .textFieldStyle(.roundedBorder)
-                                    .textContentType(.emailAddress)
-                                    .keyboardType(.emailAddress)
-                                    .autocapitalization(.none)
+                                Text(emailInput.isEmpty ? "—" : emailInput)
+                                    .font(.body.weight(.semibold))
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 10)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                            .fill(Color.yellow.opacity(0.28))
+                                    )
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                            .stroke(Color.yellow.opacity(0.65), lineWidth: 1)
+                                    )
+                                Text("Using your current account for registration.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
                                 if isSpecial {
                                     Text("Team name *")
                                         .font(.caption)
@@ -6243,15 +6373,19 @@ private final class SportsCalendarViewModel: ObservableObject {
 
     func firstDescriptionParagraph(for event: CalendarEvent) -> String? {
         guard let notes = event.notes, !notes.isEmpty else { return nil }
-        guard let range = notes.range(of: #"<br\s*/?>"#, options: [.regularExpression, .caseInsensitive]) else {
-            return nil
-        }
+        let normalized = normalizeCalendarText(notes)
+        guard !normalized.isEmpty else { return nil }
+        let parts = normalized
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        return parts.first
+    }
 
-        let firstPart = notes[..<range.lowerBound]
-            .replacingOccurrences(of: "\\n", with: " ")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-
-        return firstPart.isEmpty ? nil : firstPart
+    func fullDescription(for event: CalendarEvent) -> String? {
+        guard let notes = event.notes, !notes.isEmpty else { return nil }
+        let normalized = normalizeCalendarText(notes)
+        return normalized.isEmpty ? nil : normalized
     }
 
     private func matchesFilter(_ event: CalendarEvent) -> Bool {
@@ -6329,8 +6463,8 @@ private final class SportsCalendarViewModel: ObservableObject {
                     title: g.title,
                     startDate: start,
                     endDate: end,
-                    location: g.location,
-                    notes: g.description,
+                    location: g.location.map(normalizeCalendarText(_:)),
+                    notes: g.description.map(normalizeCalendarText(_:)),
                     sportType: g.sportType,
                     eventType: g.eventType,
                     registrationOpen: false,
@@ -6370,8 +6504,8 @@ private final class SportsCalendarViewModel: ObservableObject {
                     title: ics.title,
                     startDate: start,
                     endDate: end,
-                    location: ics.location ?? api.location,
-                    notes: ics.notes ?? api.description,
+                    location: normalizeCalendarText(ics.location ?? api.location ?? ""),
+                    notes: normalizeCalendarText(ics.notes ?? api.description ?? ""),
                     sportType: api.sportType,
                     eventType: api.eventType,
                     registrationOpen: api.registrationOpen,
@@ -6409,8 +6543,8 @@ private final class SportsCalendarViewModel: ObservableObject {
                 title: api.title,
                 startDate: start,
                 endDate: end,
-                location: api.location,
-                notes: api.description,
+                location: api.location.map(normalizeCalendarText(_:)),
+                notes: api.description.map(normalizeCalendarText(_:)),
                 sportType: api.sportType,
                 eventType: api.eventType,
                 registrationOpen: api.registrationOpen,
@@ -6450,11 +6584,11 @@ private final class SportsCalendarViewModel: ObservableObject {
                     parsedEvents.append(
                         CalendarEvent(
                             id: "ics-\(summary)-\(icsIdMs)",
-                            title: summary,
+                            title: normalizeCalendarText(summary),
                             startDate: start,
                             endDate: end,
-                            location: current["LOCATION"],
-                            notes: current["DESCRIPTION"],
+                            location: current["LOCATION"].map(normalizeCalendarText(_:)),
+                            notes: current["DESCRIPTION"].map(normalizeCalendarText(_:)),
                             sportType: inferSportType(from: summary),
                             eventType: inferEventType(from: summary),
                             registrationOpen: false,
@@ -6524,6 +6658,30 @@ private final class SportsCalendarViewModel: ObservableObject {
             formatter.timeZone = TimeZone.current
         }
         return formatter.date(from: value)
+    }
+
+    private func normalizeCalendarText(_ raw: String) -> String {
+        let decoded = raw
+            .replacingOccurrences(of: "\\N", with: "\n")
+            .replacingOccurrences(of: "\\n", with: "\n")
+            .replacingOccurrences(of: "\\,", with: ",")
+            .replacingOccurrences(of: "\\;", with: ";")
+            .replacingOccurrences(of: "\\\\", with: "\\")
+        let withBreaks = decoded
+            .replacingOccurrences(of: "(?i)</(p|div|h[1-6]|li)>", with: "\n", options: .regularExpression)
+            .replacingOccurrences(of: "(?i)<br\\s*/?>", with: "\n", options: .regularExpression)
+        let stripped = withBreaks.replacingOccurrences(of: "<[^>]+>", with: " ", options: .regularExpression)
+        let collapsed = stripped
+            .replacingOccurrences(of: "&nbsp;", with: " ")
+            .replacingOccurrences(of: "&amp;", with: "&")
+            .replacingOccurrences(of: "&lt;", with: "<")
+            .replacingOccurrences(of: "&gt;", with: ">")
+            .replacingOccurrences(of: "&quot;", with: "\"")
+            .replacingOccurrences(of: "&#39;", with: "'")
+            .replacingOccurrences(of: "[ \t]+\n", with: "\n", options: .regularExpression)
+            .replacingOccurrences(of: "\n{3,}", with: "\n\n", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return collapsed
     }
 }
 

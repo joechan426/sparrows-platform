@@ -24,6 +24,37 @@ function formatTime(d: string): string {
   }).format(new Date(d));
 }
 
+function decodeIcsText(value: string): string {
+  return value
+    .replace(/\\N/gi, "\n")
+    .replace(/\\n/g, "\n")
+    .replace(/\\,/g, ",")
+    .replace(/\\;/g, ";")
+    .replace(/\\\\/g, "\\");
+}
+
+function stripHtmlToText(input: string): string {
+  if (typeof window === "undefined") return input;
+  const withBreaks = input
+    .replace(/<\/(p|div|h[1-6]|li)>/gi, "\n")
+    .replace(/<br\s*\/?>/gi, "\n");
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(withBreaks, "text/html");
+  return (doc.body.textContent ?? "")
+    .replace(/\r/g, "")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function normalizeCalendarText(value: string | null | undefined): string {
+  if (!value) return "—";
+  const decoded = decodeIcsText(value);
+  const text = /<[^>]+>/.test(decoded) ? stripHtmlToText(decoded) : decoded;
+  const out = text.trim();
+  return out.length > 0 ? out : "—";
+}
+
 function isSpecial(event: CalendarEvent): boolean {
   const t = (event.eventType ?? "").toUpperCase();
   const title = (event.title ?? "").toLowerCase();
@@ -186,9 +217,9 @@ export function EventDetail({ event, member, onClose, onRegistered, infoOnly = f
           <dt>Date & time</dt>
           <dd>{formatDate(eventData.startAt)} · {formatTime(eventData.startAt)}</dd>
           <dt>Location</dt>
-          <dd>{eventData.location || "—"}</dd>
+          <dd>{normalizeCalendarText(eventData.location)}</dd>
           <dt>Description</dt>
-          <dd>{eventData.description || "—"}</dd>
+          <dd style={{ whiteSpace: "pre-wrap" }}>{normalizeCalendarText(eventData.description)}</dd>
           <dt>Sport</dt>
           <dd>{eventData.sportType || "—"}</dd>
           <dt>Registration</dt>
