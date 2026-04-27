@@ -354,6 +354,21 @@ enum CalendarEventsAPI {
         let directRegistered: Bool?
     }
 
+    struct MobileStripePaymentIntentResponse: Decodable {
+        let ok: Bool?
+        let directRegistered: Bool?
+        let registrationId: String?
+        let publishableKey: String?
+        let connectedAccountId: String?
+        let paymentIntentId: String?
+        let paymentIntentClientSecret: String?
+        let customerId: String?
+        let ephemeralKeySecret: String?
+        let merchantDisplayName: String?
+        let amountCents: Int?
+        let currency: String?
+    }
+
     /// Same events + ids as sparrowsweb `fetch("/api/google-calendar-ics")`.
     static func listGoogleCalendarICS() async throws -> [GoogleICSEvent] {
         let url = URL(string: "\(SparrowsAPI.apiBase)/google-calendar-ics")!
@@ -438,6 +453,55 @@ enum CalendarEventsAPI {
         }
 
         return try JSONDecoder().decode(CheckoutResponse.self, from: data)
+    }
+
+    static func createMobileStripePaymentIntent(
+        eventId: String,
+        preferredName: String,
+        email: String,
+        teamName: String?,
+        useCredit: Bool = false
+    ) async throws -> MobileStripePaymentIntentResponse {
+        let url = URL(string: "\(SparrowsAPI.apiBase)/calendar-events/\(eventId)/mobile-stripe-payment-intent")!
+        var body: [String: Any] = [
+            "preferredName": preferredName,
+            "email": email,
+        ]
+        if let t = teamName, !t.isEmpty { body["teamName"] = t }
+        if useCredit { body["useCredit"] = true }
+
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, res) = try await SparrowsAPI.data(for: req)
+        let code = res.statusCode
+        if code != 200 {
+            let message = (try? JSONSerialization.jsonObject(with: data) as? [String: String])?["message"]
+            throw SparrowsAPIError.httpStatus(code, message ?? "Failed to initialize Stripe payment")
+        }
+        return try JSONDecoder().decode(MobileStripePaymentIntentResponse.self, from: data)
+    }
+
+    static func confirmMobileStripePayment(eventId: String, paymentIntentId: String) async throws -> String {
+        let url = URL(string: "\(SparrowsAPI.apiBase)/calendar-events/\(eventId)/mobile-stripe-confirm")!
+        let body: [String: Any] = ["paymentIntentId": paymentIntentId]
+
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, res) = try await SparrowsAPI.data(for: req)
+        let code = res.statusCode
+        if code != 200 {
+            let message = (try? JSONSerialization.jsonObject(with: data) as? [String: String])?["message"]
+            throw SparrowsAPIError.httpStatus(code, message ?? "Failed to confirm Stripe payment")
+        }
+        let payload = (try? JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:]
+        let registrationId = payload["registrationId"] as? String
+        return registrationId ?? ""
     }
 }
 

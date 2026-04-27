@@ -11,6 +11,9 @@ import Combine
 import UIKit
 import SafariServices
 import UserNotifications
+#if canImport(StripePaymentSheet)
+import StripePaymentSheet
+#endif
 
 @MainActor
 private final class SparrowsNewsPreloader: ObservableObject {
@@ -371,6 +374,7 @@ struct ContentView: View {
     @State private var announcementsUnreadCount = 0
     @State private var browserPopupURL: URL?
     @State private var checkoutSafariURL: URL?
+    @Environment(\.openURL) private var openURL
     @State private var inAppBrowserCache = InAppBrowserCache()
     @StateObject private var newsPreloader = SparrowsNewsPreloader()
     @StateObject private var shopPreloader = SparrowsShopPreloader()
@@ -693,7 +697,7 @@ struct ContentView: View {
                     memberStore: memberStore,
                     scrollToTopToken: calendarScrollToTopToken,
                     onOpenCheckout: { url in
-                        checkoutSafariURL = url
+                        openCheckout(url)
                     },
                     onScrollStateChange: { isAtTop, userActivity in
                         handleTopStateChange(for: .calendar, isAtTop: isAtTop, userActivity: userActivity)
@@ -757,6 +761,21 @@ struct ContentView: View {
                 onDismiss: { checkoutSafariURL = nil }
             )
         }
+    }
+
+    /// PayPal checkout can complete in-app via SFSafariViewController.
+    /// Stripe checkout should open in Safari app for reliable Apple Pay.
+    private func openCheckout(_ url: URL) {
+        if isPayPalCheckoutURL(url) {
+            checkoutSafariURL = url
+            return
+        }
+        openURL(url)
+    }
+
+    private func isPayPalCheckoutURL(_ url: URL) -> Bool {
+        let host = (url.host ?? "").lowercased()
+        return host.contains("paypal.com") || host.contains("sandbox.paypal.com")
     }
 
     private func webPageWithBackButton(tab: AppTab, urlString: String, onPullToRefresh: (() -> Void)? = nil) -> some View {
@@ -4301,14 +4320,14 @@ private struct WebBrowserContainer: UIViewRepresentable {
 }
 
 private struct BrowserSheetItem: Identifiable {
-    let id = UUID()
+    let id: String
     let url: URL
 }
 
 private extension Binding where Value == URL? {
     func asBrowserSheetItem() -> Binding<BrowserSheetItem?> {
         Binding<BrowserSheetItem?>(
-            get: { wrappedValue.map { BrowserSheetItem(url: $0) } },
+            get: { wrappedValue.map { BrowserSheetItem(id: $0.absoluteString, url: $0) } },
             set: { newValue in
                 wrappedValue = newValue?.url
             }
@@ -4317,14 +4336,14 @@ private extension Binding where Value == URL? {
 }
 
 private struct CheckoutSafariSheetItem: Identifiable {
-    let id = UUID()
+    let id: String
     let url: URL
 }
 
 private extension Binding where Value == URL? {
     func asCheckoutSafariSheetItem() -> Binding<CheckoutSafariSheetItem?> {
         Binding<CheckoutSafariSheetItem?>(
-            get: { wrappedValue.map { CheckoutSafariSheetItem(url: $0) } },
+            get: { wrappedValue.map { CheckoutSafariSheetItem(id: $0.absoluteString, url: $0) } },
             set: { newValue in
                 wrappedValue = newValue?.url
             }
@@ -5623,6 +5642,11 @@ private struct RegisterEventSheet: View {
     @State private var isLoadingEventDetail = false
     /// True after `.task` finishes (or skips) so we do not show "no checkout" before the first fetch.
     @State private var didFinishEventDetailFetch = false
+    @State private var pendingStripePaymentIntentId: String?
+#if canImport(StripePaymentSheet)
+    @State private var stripePaymentSheet: PaymentSheet?
+    @State private var isShowingStripePaymentSheet = false
+#endif
 
     private var isPaidEvent: Bool {
         eventDetail?.isPaid == true && (eventDetail?.priceCents ?? 0) > 0
@@ -5763,7 +5787,7 @@ private struct RegisterEventSheet: View {
                                     VStack(spacing: 10) {
                                         if canPayStripe {
                                             Button {
-                                                Task { await openCheckout(provider: "stripe") }
+                                                Task { await startStripeNativePayment() }
                                             } label: {
                                                 Text("Pay with Stripe")
                                                     .font(.headline)
@@ -5860,6 +5884,13 @@ private struct RegisterEventSheet: View {
                     eventDetail = d
                 }
             }
+#if canImport(StripePaymentSheet)
+            .paymentSheet(
+                isPresented: $isShowingStripePaymentSheet,
+                paymentSheet: stripePaymentSheet,
+                onCompletion: handleStripePaymentSheetCompletion
+            )
+#endif
         }
     }
 
@@ -5912,6 +5943,183 @@ private struct RegisterEventSheet: View {
         } catch {
             registerError = "Unable to start checkout."
         }
+    }
+
+    private func startStripeNativePayment() async {
+        guard registrationOpen, memberStore.hasProfile else { return }
+        let name = preferredNameInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        let em = emailInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        if name.isEmpty {
+            registerError = "Preferred name is required."
+            return
+        }
+        if isSpecial, teamName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            registerError = "Team name is required for this event."
+            return
+        }
+
+        isRegistering = true
+        registerError = nil
+        defer { isRegistering = false }
+
+        let trimmedTeam = teamName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let checkoutTeamName = isSpecial ? (trimmedTeam.isEmpty ? nil : trimmedTeam) : nil
+        do {
+            let response = try await CalendarEventsAPI.createMobileStripePaymentIntent(
+                eventId: event.id,
+                preferredName: name,
+                email: em,
+                teamName: checkoutTeamName,
+                useCredit: useCredit
+            )
+
+            if response.directRegistered == true {
+                registerSuccess = true
+                onRegistered?(event.id)
+                onDismiss?()
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+                dismiss()
+                return
+            }
+
+            guard
+                let publishableKey = response.publishableKey,
+                let paymentIntentId = response.paymentIntentId,
+                let paymentIntentClientSecret = response.paymentIntentClientSecret,
+                let customerId = response.customerId,
+                let ephemeralKeySecret = response.ephemeralKeySecret
+            else {
+                let missing = [
+                    response.publishableKey == nil ? "publishableKey" : nil,
+                    response.paymentIntentId == nil ? "paymentIntentId" : nil,
+                    response.paymentIntentClientSecret == nil ? "paymentIntentClientSecret" : nil,
+                    response.customerId == nil ? "customerId" : nil,
+                    response.ephemeralKeySecret == nil ? "ephemeralKeySecret" : nil,
+                ]
+                    .compactMap { $0 }
+                    .joined(separator: ", ")
+
+                // Graceful fallback: if native initialization payload is incomplete, continue with existing web Stripe checkout.
+                let checkout = try await CalendarEventsAPI.checkout(
+                    eventId: event.id,
+                    provider: "stripe",
+                    preferredName: name,
+                    email: em,
+                    teamName: checkoutTeamName,
+                    appReturn: true,
+                    useCredit: useCredit
+                )
+                guard let raw = checkout.url, let url = URL(string: raw) else {
+                    registerError = missing.isEmpty
+                        ? "Failed to initialize Stripe payment."
+                        : "Failed to initialize Stripe payment. Missing: \(missing)"
+                    return
+                }
+                dismiss()
+                onOpenCheckout(url)
+                return
+            }
+
+            pendingStripePaymentIntentId = paymentIntentId
+
+#if canImport(StripePaymentSheet)
+            STPAPIClient.shared.publishableKey = publishableKey
+            if let connectedAccount = response.connectedAccountId, !connectedAccount.isEmpty {
+                STPAPIClient.shared.stripeAccount = connectedAccount
+            } else {
+                STPAPIClient.shared.stripeAccount = nil
+            }
+
+            var configuration = PaymentSheet.Configuration()
+            configuration.merchantDisplayName = response.merchantDisplayName ?? "Sparrows Volleyball"
+            configuration.customer = .init(id: customerId, ephemeralKeySecret: ephemeralKeySecret)
+            configuration.applePay = .init(
+                merchantId: stripeApplePayMerchantId,
+                merchantCountryCode: "AU"
+            )
+            configuration.returnURL = "sparrows-app://profile"
+            configuration.allowsDelayedPaymentMethods = false
+
+            stripePaymentSheet = PaymentSheet(
+                paymentIntentClientSecret: paymentIntentClientSecret,
+                configuration: configuration
+            )
+            isShowingStripePaymentSheet = true
+#else
+            // Fallback: if StripePaymentSheet SDK is not linked in this build, keep existing web checkout.
+            let checkout = try await CalendarEventsAPI.checkout(
+                eventId: event.id,
+                provider: "stripe",
+                preferredName: name,
+                email: em,
+                teamName: checkoutTeamName,
+                appReturn: true,
+                useCredit: useCredit
+            )
+            guard let raw = checkout.url, let url = URL(string: raw) else {
+                registerError = "Unable to open Stripe checkout."
+                return
+            }
+            dismiss()
+            onOpenCheckout(url)
+#endif
+        } catch let err as SparrowsAPIError {
+            if case .httpStatus(_, let msg) = err {
+                registerError = msg ?? "Unable to start Stripe payment."
+            } else {
+                registerError = err.localizedDescription
+            }
+        } catch {
+            registerError = "Unable to start Stripe payment."
+        }
+    }
+
+#if canImport(StripePaymentSheet)
+    private func handleStripePaymentSheetCompletion(result: PaymentSheetResult) {
+        switch result {
+        case .completed:
+            Task { await finalizeStripePayment() }
+        case .canceled:
+            registerError = nil
+        case .failed(let error):
+            registerError = error.localizedDescription
+        }
+    }
+#endif
+
+    private func finalizeStripePayment() async {
+        guard let paymentIntentId = pendingStripePaymentIntentId else {
+            registerError = "Missing payment confirmation context."
+            return
+        }
+        isRegistering = true
+        defer { isRegistering = false }
+        do {
+            _ = try await CalendarEventsAPI.confirmMobileStripePayment(
+                eventId: event.id,
+                paymentIntentId: paymentIntentId
+            )
+            registerSuccess = true
+            onRegistered?(event.id)
+            onDismiss?()
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
+            dismiss()
+        } catch let err as SparrowsAPIError {
+            if case .httpStatus(_, let msg) = err {
+                registerError = msg ?? "Payment succeeded, but registration update failed."
+            } else {
+                registerError = err.localizedDescription
+            }
+        } catch {
+            registerError = "Payment succeeded, but registration update failed."
+        }
+    }
+
+    private var stripeApplePayMerchantId: String {
+        let raw = (Bundle.main.object(forInfoDictionaryKey: "StripeApplePayMerchantId") as? String)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !raw.isEmpty { return raw }
+        return "merchant.com.sparrowsvolleyball"
     }
 
     @ViewBuilder
