@@ -47,6 +47,7 @@ export const CreditLogsPage: React.FC = () => {
   const [initialLoading, setInitialLoading] = React.useState(true);
   const [loadingMore, setLoadingMore] = React.useState(false);
   const [hasMore, setHasMore] = React.useState(true);
+  const [didAutoScrollToBottom, setDidAutoScrollToBottom] = React.useState(false);
   const scrollRef = React.useRef<HTMLDivElement | null>(null);
 
   const fetchPage = React.useCallback(
@@ -82,6 +83,7 @@ export const CreditLogsPage: React.FC = () => {
     setInitialLoading(true);
     setHasMore(true);
     setLogsDesc([]);
+    setDidAutoScrollToBottom(false);
 
     const timer = window.setTimeout(async () => {
       try {
@@ -100,6 +102,16 @@ export const CreditLogsPage: React.FC = () => {
       window.clearTimeout(timer);
     };
   }, [fetchPage, open]);
+
+  React.useEffect(() => {
+    if (initialLoading || didAutoScrollToBottom) return;
+    const scroller = scrollRef.current;
+    if (!scroller) return;
+    requestAnimationFrame(() => {
+      scroller.scrollTop = scroller.scrollHeight;
+      setDidAutoScrollToBottom(true);
+    });
+  }, [initialLoading, logsDesc.length, didAutoScrollToBottom]);
 
   const loadOlder = React.useCallback(async () => {
     if (loadingMore || !hasMore) return;
