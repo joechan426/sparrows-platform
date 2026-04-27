@@ -60,11 +60,11 @@ export async function GET(req: NextRequest) {
     const whereSql = q
       ? Prisma.sql`
         WHERE
-          m.preferred_name ILIKE ${`%${q}%`}
-          OR COALESCE(m.email, '') ILIKE ${`%${q}%`}
+          m."preferredName" ILIKE ${`%${q}%`}
+          OR COALESCE(m."email", '') ILIKE ${`%${q}%`}
           OR COALESCE(l.note, '') ILIKE ${`%${q}%`}
-          OR COALESCE(e.title, '') ILIKE ${`%${q}%`}
-          OR COALESCE(a.user_name, '') ILIKE ${`%${q}%`}
+          OR COALESCE(e."title", '') ILIKE ${`%${q}%`}
+          OR COALESCE(a."user_name", '') ILIKE ${`%${q}%`}
           OR CAST(l.reason AS TEXT) ILIKE ${`%${q}%`}
       `
       : Prisma.sql``;
@@ -73,23 +73,23 @@ export async function GET(req: NextRequest) {
       WITH base AS (
         SELECT
           l.id,
-          l.created_at AS "createdAt",
-          l.member_id AS "memberId",
-          m.preferred_name AS "preferredName",
-          m.email AS "email",
+          l."createdAt" AS "createdAt",
+          l."memberId" AS "memberId",
+          m."preferredName" AS "preferredName",
+          m."email" AS "email",
           l.reason AS "reason",
-          l.delta_cents AS "deltaCents",
+          l."deltaCents" AS "deltaCents",
           l.note,
-          e.title AS "eventTitle",
-          e.start_at AS "eventStartAt",
-          a.user_name AS "adminUserName",
-          a.role AS "adminRole",
+          e."title" AS "eventTitle",
+          e."startAt" AS "eventStartAt",
+          a."user_name" AS "adminUserName",
+          a."role" AS "adminRole",
           (
-            m.credit_cents
+            m."creditCents"
             - COALESCE(
-                SUM(l.delta_cents) OVER (
-                  PARTITION BY l.member_id
-                  ORDER BY l.created_at DESC, l.id DESC
+                SUM(l."deltaCents") OVER (
+                  PARTITION BY l."memberId"
+                  ORDER BY l."createdAt" DESC, l.id DESC
                   ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
                 ),
                 0
@@ -97,21 +97,21 @@ export async function GET(req: NextRequest) {
           )::INT AS "afterCreditCents",
           (
             (
-              m.credit_cents
+              m."creditCents"
               - COALESCE(
-                  SUM(l.delta_cents) OVER (
-                    PARTITION BY l.member_id
-                    ORDER BY l.created_at DESC, l.id DESC
+                  SUM(l."deltaCents") OVER (
+                    PARTITION BY l."memberId"
+                    ORDER BY l."createdAt" DESC, l.id DESC
                     ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
                   ),
                   0
                 )
-            ) - l.delta_cents
+            ) - l."deltaCents"
           )::INT AS "beforeCreditCents"
-        FROM member_credit_ledger l
-        INNER JOIN members m ON m.id = l.member_id
-        LEFT JOIN calendar_events e ON e.id = l.calendar_event_id
-        LEFT JOIN admin_users a ON a.id = l.created_by_admin_id
+        FROM "member_credit_ledger" l
+        INNER JOIN "Member" m ON m.id = l."memberId"
+        LEFT JOIN "CalendarEvent" e ON e.id = l."calendarEventId"
+        LEFT JOIN "admin_users" a ON a.id = l."created_by_admin_id"
         ${whereSql}
       )
       SELECT *
@@ -123,10 +123,10 @@ export async function GET(req: NextRequest) {
 
     const totalRows = await prisma.$queryRaw<Array<{ count: bigint }>>`
       SELECT COUNT(*)::bigint AS count
-      FROM member_credit_ledger l
-      INNER JOIN members m ON m.id = l.member_id
-      LEFT JOIN calendar_events e ON e.id = l.calendar_event_id
-      LEFT JOIN admin_users a ON a.id = l.created_by_admin_id
+      FROM "member_credit_ledger" l
+      INNER JOIN "Member" m ON m.id = l."memberId"
+      LEFT JOIN "CalendarEvent" e ON e.id = l."calendarEventId"
+      LEFT JOIN "admin_users" a ON a.id = l."created_by_admin_id"
       ${whereSql}
     `;
     const total = Number(totalRows[0]?.count ?? 0);
