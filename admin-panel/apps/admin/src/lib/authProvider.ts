@@ -141,6 +141,7 @@ export const adminAuthProvider: AuthProvider = {
         "ADMIN_USERS",
         "PAYMENTS",
         "CREDITS",
+        "CREDIT_LOGS",
       ];
     }
     return admin.permissions;
@@ -161,6 +162,7 @@ const DEFAULT_RESOURCE_PATHS: { resource: string; path: string }[] = [
   { resource: "announcements", path: "/announcements" },
   { resource: "payment-profiles", path: "/payment-profiles" },
   { resource: "payments", path: "/payments" },
+  { resource: "credit-logs", path: "/credit-logs" },
   { resource: "admin-users", path: "/admin-users" },
 ];
 

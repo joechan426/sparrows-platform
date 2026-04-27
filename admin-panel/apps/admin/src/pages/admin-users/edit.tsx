@@ -31,6 +31,7 @@ const MODULES = [
   { value: "PAYMENT_PROFILES", label: "Payment profiles" },
   { value: "PAYMENTS", label: "Payments" },
   { value: "CREDITS", label: "Credits" },
+  { value: "CREDIT_LOGS", label: "Credit log" },
 ] as const;
 
 type AdminUserRecord = {

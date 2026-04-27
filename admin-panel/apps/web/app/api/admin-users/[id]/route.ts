@@ -22,6 +22,7 @@ const PERMISSION_MODULE_VALUES = [
   "ADMIN_USERS",
   "PAYMENTS",
   "CREDITS",
+  "CREDIT_LOGS",
 ] as const;
 
 /** Modules a Super Manager may assign to Managers (Admin Users is Admin-only). */
@@ -34,6 +35,7 @@ const PERMISSION_MODULES_SUPER_MANAGER_PATCH = [
   "PAYMENT_PROFILES",
   "PAYMENTS",
   "CREDITS",
+  "CREDIT_LOGS",
 ] as const;
 
 // GET /api/admin-users/:id

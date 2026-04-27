@@ -12,6 +12,7 @@ export const NAV_ROOT_BY_RESOURCE: Record<string, string> = {
   members: "members",
   "payment-profiles": "payment-profiles",
   payments: "payments",
+  "credit-logs": "credit-logs",
   "admin-users": "admin-users",
 };
 

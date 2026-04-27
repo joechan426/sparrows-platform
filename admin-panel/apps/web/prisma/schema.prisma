@@ -415,6 +415,7 @@ enum AdminModule {
   ADMIN_USERS
   PAYMENTS
   CREDITS
+  CREDIT_LOGS
 }
 
 model AdminUser {

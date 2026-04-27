@@ -57,6 +57,7 @@ import { NoAccessPage } from "./pages/no-access";
 import { ProfilePage } from "./pages/profile";
 import { PaymentProfilesPage } from "./pages/payment-profiles";
 import { PaymentRevenueListPage } from "./pages/payments/list";
+import { CreditLogsPage } from "./pages/credits/logs";
 import { CleanupAwaitingPaymentsPage } from "./pages/maintenance/cleanup-awaiting-payments";
 
 import { HeaderWithProfileLink } from "./components/HeaderWithProfileLink";
@@ -217,6 +218,11 @@ const App: React.FC = () => {
                 meta: { label: "Payments" },
               },
               {
+                name: "credit-logs",
+                list: "/credit-logs",
+                meta: { label: "Credit log" },
+              },
+              {
                 name: "admin-users",
                 list: "/admin-users",
                 create: "/admin-users/create",
@@ -308,6 +314,7 @@ const App: React.FC = () => {
                 <Route path="/announcements" element={<AnnouncementListPage />} />
                 <Route path="/payment-profiles" element={<PaymentProfilesPage />} />
                 <Route path="/payments" element={<PaymentRevenueListPage />} />
+                <Route path="/credit-logs" element={<CreditLogsPage />} />
                 <Route path="/admin-users" element={<AdminUserList />} />
                 <Route path="/admin-users/create" element={<AdminUserCreate />} />
                 <Route path="/admin-users/:id/edit" element={<AdminUserEdit />} />

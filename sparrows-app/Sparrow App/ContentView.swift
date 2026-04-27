@@ -374,7 +374,6 @@ struct ContentView: View {
     @State private var announcementsUnreadCount = 0
     @State private var browserPopupURL: URL?
     @State private var checkoutSafariURL: URL?
-    @Environment(\.openURL) private var openURL
     @State private var inAppBrowserCache = InAppBrowserCache()
     @StateObject private var newsPreloader = SparrowsNewsPreloader()
     @StateObject private var shopPreloader = SparrowsShopPreloader()
@@ -763,19 +762,9 @@ struct ContentView: View {
         }
     }
 
-    /// PayPal checkout can complete in-app via SFSafariViewController.
-    /// Stripe checkout should open in Safari app for reliable Apple Pay.
+    /// Keep checkout fully in-app (SFSafariViewController).
     private func openCheckout(_ url: URL) {
-        if isPayPalCheckoutURL(url) {
-            checkoutSafariURL = url
-            return
-        }
-        openURL(url)
-    }
-
-    private func isPayPalCheckoutURL(_ url: URL) -> Bool {
-        let host = (url.host ?? "").lowercased()
-        return host.contains("paypal.com") || host.contains("sandbox.paypal.com")
+        checkoutSafariURL = url
     }
 
     private func webPageWithBackButton(tab: AppTab, urlString: String, onPullToRefresh: (() -> Void)? = nil) -> some View {
@@ -4785,12 +4774,16 @@ private struct SportsCalendarView: View {
             .task(id: memberStore.memberId) {
                 guard let id = memberStore.memberId else {
                     calendarRegistrations = []
+                    viewModel.setRegistrationStatusSnapshot(from: [], markLoaded: true)
                     return
                 }
                 do {
-                    calendarRegistrations = try await MemberAPI.registrations(memberId: id)
+                    let fresh = try await MemberAPI.registrations(memberId: id)
+                    calendarRegistrations = fresh
+                    viewModel.setRegistrationStatusSnapshot(from: fresh, markLoaded: true)
                 } catch {
                     calendarRegistrations = []
+                    viewModel.setRegistrationStatusSnapshot(from: [], markLoaded: true)
                 }
             }
             .sheet(item: $registerEvent) { event in
@@ -4802,13 +4795,17 @@ private struct SportsCalendarView: View {
                     onOpenCheckout: onOpenCheckout,
                     onRegistered: { eventId in
                         optimisticPendingEventIds.insert(eventId)
+                        viewModel.setOptimisticPending(eventId: eventId)
                     },
                     registrationActionsAllowed: true,
                     onDismiss: {
                         Task {
                             await viewModel.refresh()
                             if let id = memberStore.memberId {
-                                calendarRegistrations = (try? await MemberAPI.registrations(memberId: id)) ?? calendarRegistrations
+                                if let fresh = try? await MemberAPI.registrations(memberId: id) {
+                                    calendarRegistrations = fresh
+                                    viewModel.setRegistrationStatusSnapshot(from: fresh, markLoaded: true)
+                                }
                             }
                         }
                     }
@@ -4823,13 +4820,17 @@ private struct SportsCalendarView: View {
                     onOpenCheckout: onOpenCheckout,
                     onRegistered: { eventId in
                         optimisticPendingEventIds.insert(eventId)
+                        viewModel.setOptimisticPending(eventId: eventId)
                     },
                     registrationActionsAllowed: (event.registrationOpen == true) && isRegisterableDatabaseCalendarEvent(event),
                     onDismiss: {
                         Task {
                             await viewModel.refresh()
                             if let id = memberStore.memberId {
-                                calendarRegistrations = (try? await MemberAPI.registrations(memberId: id)) ?? calendarRegistrations
+                                if let fresh = try? await MemberAPI.registrations(memberId: id) {
+                                    calendarRegistrations = fresh
+                                    viewModel.setRegistrationStatusSnapshot(from: fresh, markLoaded: true)
+                                }
                             }
                         }
                     }
@@ -4842,6 +4843,7 @@ private struct SportsCalendarView: View {
                         if let fresh = try? await MemberAPI.registrations(memberId: id) {
                             await MainActor.run {
                                 calendarRegistrations = fresh
+                                viewModel.setRegistrationStatusSnapshot(from: fresh, markLoaded: true)
                                 let idsWithRegistration = Set(fresh.compactMap { $0.event?.id })
                                 optimisticPendingEventIds.subtract(idsWithRegistration)
                             }
@@ -5259,7 +5261,9 @@ private struct SportsCalendarView: View {
                             ForEach(viewModel.filteredEventsForSelectedDate) { event in
                                 let myRegistration = calendarRegistrations.first(where: { $0.event?.id == event.id })
                                 let optimisticPending = optimisticPendingEventIds.contains(event.id)
-                                let effectiveStatus: String? = myRegistration?.status ?? (optimisticPending ? "PENDING" : nil)
+                                let cachedStatus = viewModel.registrationStatusByEventId[event.id]
+                                let effectiveStatus: String? = myRegistration?.status ?? (optimisticPending ? "PENDING" : cachedStatus)
+                                let shouldHoldStatusUI = memberStore.hasProfile && !viewModel.registrationStatusLoaded
                                 Grid(horizontalSpacing: 8, verticalSpacing: 6) {
                                     GridRow(alignment: .center) {
                                         Button {
@@ -5309,7 +5313,10 @@ private struct SportsCalendarView: View {
                                         .gridCellColumns(8)
 
                                         Group {
-                                            if let status = effectiveStatus {
+                                            if shouldHoldStatusUI {
+                                                ProgressView()
+                                                    .frame(minWidth: 88, minHeight: 36)
+                                            } else if let status = effectiveStatus {
                                                 VStack(spacing: 6) {
                                                     Text(RegistrationStatusStyle.displayText(status))
                                                         .font(.caption)
@@ -5357,7 +5364,10 @@ private struct SportsCalendarView: View {
                 .refreshable {
                     await viewModel.refresh()
                     if let id = memberStore.memberId {
-                        calendarRegistrations = (try? await MemberAPI.registrations(memberId: id)) ?? calendarRegistrations
+                        if let fresh = try? await MemberAPI.registrations(memberId: id) {
+                            calendarRegistrations = fresh
+                            viewModel.setRegistrationStatusSnapshot(from: fresh, markLoaded: true)
+                        }
                     }
                 }
                 .onChange(of: scrollToTopToken) { _ in
@@ -5411,7 +5421,9 @@ private struct SportsCalendarView: View {
                         ForEach(viewModel.upcomingCupEvents) { event in
                             let myRegistration = calendarRegistrations.first(where: { $0.event?.id == event.id })
                             let optimisticPending = optimisticPendingEventIds.contains(event.id)
-                            let effectiveStatus: String? = myRegistration?.status ?? (optimisticPending ? "PENDING" : nil)
+                            let cachedStatus = viewModel.registrationStatusByEventId[event.id]
+                            let effectiveStatus: String? = myRegistration?.status ?? (optimisticPending ? "PENDING" : cachedStatus)
+                            let shouldHoldStatusUI = memberStore.hasProfile && !viewModel.registrationStatusLoaded
 
                             Grid(horizontalSpacing: 8, verticalSpacing: 6) {
                             GridRow(alignment: .center) {
@@ -5493,7 +5505,10 @@ private struct SportsCalendarView: View {
                                 .gridCellColumns(6)
 
                                 Group {
-                                    if let status = effectiveStatus {
+                                    if shouldHoldStatusUI {
+                                        ProgressView()
+                                            .frame(minWidth: 88, minHeight: 36)
+                                    } else if let status = effectiveStatus {
                                         VStack(spacing: 6) {
                                             Text(RegistrationStatusStyle.displayText(status))
                                                 .font(.caption)
@@ -5540,7 +5555,10 @@ private struct SportsCalendarView: View {
             .refreshable {
                 await viewModel.refresh()
                 if let id = memberStore.memberId {
-                    calendarRegistrations = (try? await MemberAPI.registrations(memberId: id)) ?? calendarRegistrations
+                        if let fresh = try? await MemberAPI.registrations(memberId: id) {
+                            calendarRegistrations = fresh
+                            viewModel.setRegistrationStatusSnapshot(from: fresh, markLoaded: true)
+                        }
                 }
             }
         }
@@ -6346,6 +6364,8 @@ private final class SportsCalendarViewModel: ObservableObject {
     @Published private(set) var currentMonth: Date = Date()
     @Published private(set) var events: [CalendarEvent] = []
     @Published private(set) var selectedDate: Date = Date()
+    @Published private(set) var registrationStatusByEventId: [String: String] = [:]
+    @Published private(set) var registrationStatusLoaded = false
 
     private var hasInitializedSelection = false
     private var lastLoadedAt: Date?
@@ -6627,6 +6647,26 @@ private final class SportsCalendarViewModel: ObservableObject {
 
     private func inferEventType(from title: String) -> String {
         title.lowercased().contains("cup") ? "SPECIAL_EVENT" : "NORMAL_EVENT"
+    }
+
+    func setRegistrationStatusSnapshot(from registrations: [APIMemberRegistration], markLoaded: Bool = true) {
+        var merged: [String: String] = [:]
+        for reg in registrations {
+            guard let eventId = reg.event?.id, !eventId.isEmpty else { continue }
+            merged[eventId] = reg.status.uppercased()
+        }
+        registrationStatusByEventId = merged
+        if markLoaded {
+            registrationStatusLoaded = true
+        }
+    }
+
+    func setOptimisticPending(eventId: String) {
+        guard !eventId.isEmpty else { return }
+        var merged = registrationStatusByEventId
+        merged[eventId] = "PENDING"
+        registrationStatusByEventId = merged
+        registrationStatusLoaded = true
     }
 
     private func loadEvents(force: Bool = false) async {

@@ -59,6 +59,7 @@ export const RESOURCE_TO_MODULE: Record<string, string> = {
   announcements: "ANNOUNCEMENTS",
   "payment-profiles": "PAYMENT_PROFILES",
   payments: "PAYMENTS",
+  "credit-logs": "CREDIT_LOGS",
   "admin-users": "ADMIN_USERS",
 };
 

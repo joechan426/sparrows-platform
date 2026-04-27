@@ -10,6 +10,7 @@ export const ADMIN_SELECTABLE_NAV_RESOURCES = [
   { resource: "announcements", label: "Announcements" },
   { resource: "payment-profiles", label: "Payment profiles" },
   { resource: "payments", label: "Payments" },
+  { resource: "credit-logs", label: "Credit logs" },
   { resource: "admin-users", label: "Admin users" },
 ] as const;
 
