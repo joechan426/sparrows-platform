@@ -131,7 +131,6 @@ export async function POST(req: NextRequest, context: { params?: Promise<{ id: s
       },
       {
         apiVersion: "2024-06-20",
-        stripeAccount,
       },
     );
 
@@ -141,6 +140,7 @@ export async function POST(req: NextRequest, context: { params?: Promise<{ id: s
         currency: event.currency.toLowerCase(),
         customer: customer.id,
         automatic_payment_methods: { enabled: true },
+        transfer_data: { destination: stripeAccount },
         metadata: {
           calendarEventId: event.id,
           email,
@@ -149,7 +149,6 @@ export async function POST(req: NextRequest, context: { params?: Promise<{ id: s
           useCredit: useCredit ? "1" : "0",
         },
       },
-      { stripeAccount },
     );
 
     if (!ephemeralKey.secret) {
